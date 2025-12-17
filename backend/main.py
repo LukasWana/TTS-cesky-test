@@ -4,6 +4,7 @@ FastAPI aplikace pro XTTS-v2 Demo
 import os
 import base64
 import uuid
+import time
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -13,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import uvicorn
 import aiofiles
+from functools import lru_cache
+from typing import Optional
 try:
     from backend.tts_engine import XTTSEngine
     from backend.audio_processor import AudioProcessor

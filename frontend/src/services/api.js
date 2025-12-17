@@ -3,6 +3,7 @@
  */
 const API_BASE_URL = 'http://localhost:8000'
 
+
 /**
  * Generuje řeč z textu
  * @param {string} text - Text k syntéze
@@ -171,6 +172,7 @@ export async function downloadYouTubeVoice(url, startTime = null, duration = nul
   }
 
   return await response.json()
+  return data
 }
 
 /**
@@ -230,6 +232,8 @@ export async function clearHistory() {
     throw new Error(error.detail || 'Chyba při mazání historie')
   }
 
+
   return await response.json()
 }
+
 
