@@ -169,8 +169,8 @@ class AudioEnhancer:
             sos = signal.butter(4, [1000, 4000], btype='band', fs=sr, output='sos')
             boosted = signal.sosfiltfilt(sos, audio)
 
-            # Jemné zvýraznění (15% boost)
-            audio = audio + 0.15 * boosted
+            # Jemné zvýraznění (3% boost - sníženo pro jemnější zvuk)
+            audio = audio + 0.03 * boosted
 
             # Normalizace po EQ
             audio = librosa.util.normalize(audio)
