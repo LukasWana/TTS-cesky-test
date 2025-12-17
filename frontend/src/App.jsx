@@ -135,7 +135,13 @@ function App() {
             <span className={`status-indicator ${modelStatus.loaded ? 'loaded' : 'loading'}`}>
               {modelStatus.loaded ? '✓ Model načten' : '⏳ Načítání modelu...'}
             </span>
-            <span className="device-info">Device: {modelStatus.device}</span>
+            <span className="device-info">
+              Device: <strong>{modelStatus.device.toUpperCase()}</strong>
+              {modelStatus.gpu_name && ` (${modelStatus.gpu_name})`}
+              {modelStatus.device_forced && (
+                <span className="device-forced"> [vynuceno: {modelStatus.force_device}]</span>
+              )}
+            </span>
           </div>
         )}
       </header>

@@ -156,7 +156,14 @@ REM 6) Spust backend v novem okne
 echo [6/9] Starting backend...
 set "BACKEND_DIR=%ROOT%backend"
 set "VENV_ACTIVATE=%ROOT%venv\Scripts\activate.bat"
-start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && python main.py"
+
+REM Předání FORCE_DEVICE do backend procesu (pokud je nastaveno)
+if defined FORCE_DEVICE (
+  echo Device mode: %FORCE_DEVICE%
+  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set FORCE_DEVICE=%FORCE_DEVICE% && python main.py"
+) else (
+  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && python main.py"
+)
 
 REM 7) Pockej az backend nabehne (max 60s)
 echo [7/9] Waiting for backend on http://localhost:8000 ...

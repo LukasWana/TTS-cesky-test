@@ -13,7 +13,9 @@ from backend.config import (
     MODEL_CACHE_DIR,
     OUTPUTS_DIR,
     USE_SMALL_MODELS,
-    ENABLE_CPU_OFFLOAD
+    ENABLE_CPU_OFFLOAD,
+    FORCE_DEVICE,
+    DEVICE_FORCED
 )
 
 
@@ -73,15 +75,16 @@ class XTTSEngine:
                 model_name = XTTS_MODEL_NAME
 
             # Načtení modelu s explicitním nastavením
-            # Pro GPU s 6GB VRAM použijeme optimalizace
+            # Použijeme GPU pouze pokud je device nastaven na "cuda"
+            use_gpu = (self.device == "cuda" and torch.cuda.is_available())
             model = TTS(
                 model_name=model_name,
                 progress_bar=True,
-                gpu=torch.cuda.is_available()
+                gpu=use_gpu
             )
 
             # Optimalizace pro GPU s omezenou VRAM (6GB)
-            if torch.cuda.is_available() and (USE_SMALL_MODELS or ENABLE_CPU_OFFLOAD):
+            if use_gpu and (USE_SMALL_MODELS or ENABLE_CPU_OFFLOAD):
                 print("Applying GPU memory optimizations for 6GB VRAM...")
                 if hasattr(model, 'synthesizer') and hasattr(model.synthesizer, 'tts_model'):
                     # Offload části modelu na CPU pokud je potřeba
@@ -101,10 +104,12 @@ class XTTSEngine:
             # Fallback: zkus přímo Hugging Face model
             try:
                 print(f"Trying direct Hugging Face model: {XTTS_MODEL_NAME}")
+                # Použijeme GPU pouze pokud je device nastaven na "cuda"
+                use_gpu = (self.device == "cuda" and torch.cuda.is_available())
                 model = TTS(
                     model_name=XTTS_MODEL_NAME,
                     progress_bar=True,
-                    gpu=torch.cuda.is_available()
+                    gpu=use_gpu
                 )
                 if hasattr(model, 'to'):
                     model.to(self.device)
@@ -270,6 +275,9 @@ class XTTSEngine:
             "loaded": self.is_loaded,
             "loading": self.is_loading,
             "device": self.device,
-            "cuda_available": torch.cuda.is_available()
+            "cuda_available": torch.cuda.is_available(),
+            "device_forced": DEVICE_FORCED,
+            "force_device": FORCE_DEVICE,
+            "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
         }
 

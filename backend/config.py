@@ -18,8 +18,30 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 OUTPUTS_DIR.mkdir(exist_ok=True)
 DEMO_VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
-# Device detection
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# Device detection with manual override
+# Můžete vynutit device přes environment variable:
+# FORCE_DEVICE=cpu  -> vynutí CPU (i když je GPU dostupné)
+# FORCE_DEVICE=cuda -> vynutí GPU (pokud je dostupné, jinak fallback na CPU)
+# FORCE_DEVICE=auto -> automatická detekce (výchozí)
+FORCE_DEVICE = os.getenv("FORCE_DEVICE", "auto").lower()
+
+if FORCE_DEVICE == "cpu":
+    DEVICE = "cpu"
+    print("⚠️  Device vynucen na CPU (FORCE_DEVICE=cpu)")
+elif FORCE_DEVICE == "cuda":
+    if torch.cuda.is_available():
+        DEVICE = "cuda"
+        print("✅ Device vynucen na GPU (FORCE_DEVICE=cuda)")
+    else:
+        DEVICE = "cpu"
+        print("⚠️  GPU není dostupné, používá se CPU (FORCE_DEVICE=cuda byl ignorován)")
+else:
+    # Automatická detekce (výchozí)
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+    if DEVICE == "cuda":
+        print("✅ Automatická detekce: GPU dostupné, používá se CUDA")
+    else:
+        print("ℹ️  Automatická detekce: GPU nedostupné, používá se CPU")
 
 # GPU memory optimization for 6GB VRAM cards (RTX 3060, etc.)
 # Pokud máte GPU s 6GB VRAM, můžete použít tyto optimalizace:
@@ -59,4 +81,7 @@ API_PORT = int(os.getenv("API_PORT", "8000"))
 
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+# Export device info for status endpoint
+DEVICE_FORCED = FORCE_DEVICE != "auto"
 

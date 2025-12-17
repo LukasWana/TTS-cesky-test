@@ -315,7 +315,7 @@ Otestuje kvalitu voice vzorku:
 - **GPU (6GB, RTX 3060)**: 1-2 sekundy na generování (s optimalizacemi)
 - **GPU (8GB+)**: < 1 sekunda
 
-### GPU akcelerace
+### GPU akcelerace a přepínání Device
 
 Pro použití GPU (NVIDIA) místo CPU:
 
@@ -349,6 +349,36 @@ Pro použití GPU (NVIDIA) místo CPU:
 - 5-10x rychlejší generování než CPU
 - Reálný čas pro krátké texty
 - Lepší uživatelský zážitek
+
+#### Přepínání mezi CPU a GPU
+
+Můžete vynutit použití CPU nebo GPU přes environment variable `FORCE_DEVICE`:
+
+**Vynutit CPU:**
+```bash
+set FORCE_DEVICE=cpu
+start_all.bat
+```
+
+**Vynutit GPU:**
+```bash
+set FORCE_DEVICE=cuda
+start_all.bat
+```
+
+**Automatická detekce (výchozí):**
+```bash
+set FORCE_DEVICE=auto
+start_all.bat
+# nebo jednoduše bez nastavení proměnné
+start_all.bat
+```
+
+**Poznámky:**
+- Pokud vynutíte GPU (`FORCE_DEVICE=cuda`) ale GPU není dostupné, automaticky se použije CPU
+- Pokud vynutíte CPU (`FORCE_DEVICE=cpu`), GPU se nepoužije ani když je dostupné
+- Aktuální device je zobrazen v UI (v hlavičce aplikace)
+- Pro změnu device je potřeba restartovat backend server
 
 ## 🐛 Řešení problémů
 

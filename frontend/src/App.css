@@ -42,6 +42,17 @@
   font-size: 0.85rem;
 }
 
+.device-info strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.device-forced {
+  color: rgba(255, 193, 7, 0.9);
+  font-size: 0.75rem;
+  margin-left: 5px;
+}
+
 .app-main {
   background: white;
   border-radius: 20px;
