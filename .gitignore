@@ -34,6 +34,11 @@ uploads/*
 outputs/*
 !outputs/.gitkeep
 
+# Temporary files
+frontend/assets/demo-voices/temp/
+**/temp/
+*.tmp
+
 # Node
 frontend/node_modules/
 frontend/dist/
