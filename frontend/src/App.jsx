@@ -4,10 +4,24 @@ import TextInput from './components/TextInput'
 import AudioRecorder from './components/AudioRecorder'
 import AudioPlayer from './components/AudioPlayer'
 import LoadingSpinner from './components/LoadingSpinner'
+import TTSSettings from './components/TTSSettings'
+import History from './components/History'
+import Tabs from './components/Tabs'
 import { generateSpeech, getDemoVoices, getModelStatus } from './services/api'
 import './App.css'
 
+// Výchozí hodnoty TTS parametrů
+const DEFAULT_TTS_SETTINGS = {
+  speed: 1.0,
+  temperature: 0.7,
+  lengthPenalty: 1.0,
+  repetitionPenalty: 2.0,
+  topK: 50,
+  topP: 0.85
+}
+
 function App() {
+  const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'history'
   const [selectedVoice, setSelectedVoice] = useState('demo1')
   const [voiceType, setVoiceType] = useState('demo') // 'demo' | 'upload' | 'record' | 'youtube'
   const [uploadedVoice, setUploadedVoice] = useState(null)
@@ -17,6 +31,12 @@ function App() {
   const [error, setError] = useState(null)
   const [demoVoices, setDemoVoices] = useState([])
   const [modelStatus, setModelStatus] = useState(null)
+  const [ttsSettings, setTtsSettings] = useState(DEFAULT_TTS_SETTINGS)
+
+  const tabs = [
+    { id: 'generate', label: 'Generovat', icon: '🎤' },
+    { id: 'history', label: 'Historie', icon: '📜' }
+  ]
 
   useEffect(() => {
     // Načtení demo hlasů
@@ -70,8 +90,23 @@ function App() {
         return
       }
 
-      const result = await generateSpeech(text, voiceFile, demoVoice)
+      // Převod nastavení na formát pro API
+      const ttsParams = {
+        speed: ttsSettings.speed,
+        temperature: ttsSettings.temperature,
+        lengthPenalty: ttsSettings.lengthPenalty,
+        repetitionPenalty: ttsSettings.repetitionPenalty,
+        topK: ttsSettings.topK,
+        topP: ttsSettings.topP
+      }
+
+      const result = await generateSpeech(text, voiceFile, demoVoice, ttsParams)
       setGeneratedAudio(result.audio_url)
+
+      // Po úspěšném generování přepnout na záložku historie
+      setTimeout(() => {
+        setActiveTab('history')
+      }, 500)
     } catch (err) {
       setError(err.message || 'Chyba při generování řeči')
       console.error('Generate error:', err)
@@ -148,43 +183,59 @@ function App() {
 
       <main className="app-main">
         <div className="container">
-          <VoiceSelector
-            demoVoices={demoVoices}
-            selectedVoice={selectedVoice}
-            voiceType={voiceType}
-            onVoiceSelect={setSelectedVoice}
-            onVoiceTypeChange={setVoiceType}
-            onVoiceUpload={handleVoiceUpload}
-            onVoiceRecord={handleVoiceRecord}
-            onYouTubeImport={handleYouTubeImport}
-          />
+          <Tabs activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} />
 
-          <TextInput
-            value={text}
-            onChange={setText}
-            maxLength={500}
-          />
+          {activeTab === 'generate' && (
+            <>
+              <VoiceSelector
+                demoVoices={demoVoices}
+                selectedVoice={selectedVoice}
+                voiceType={voiceType}
+                onVoiceSelect={setSelectedVoice}
+                onVoiceTypeChange={setVoiceType}
+                onVoiceUpload={handleVoiceUpload}
+                onVoiceRecord={handleVoiceRecord}
+                onYouTubeImport={handleYouTubeImport}
+              />
 
-          <div className="generate-section">
-            <button
-              className="btn-primary"
-              onClick={handleGenerate}
-              disabled={loading || !text.trim()}
-            >
-              {loading ? '⏳ Generuji...' : '🔊 Generovat řeč'}
-            </button>
-          </div>
+              <TextInput
+                value={text}
+                onChange={setText}
+                maxLength={500}
+              />
 
-          {loading && <LoadingSpinner />}
+              <TTSSettings
+                settings={ttsSettings}
+                onChange={setTtsSettings}
+                onReset={() => setTtsSettings(DEFAULT_TTS_SETTINGS)}
+              />
 
-          {error && (
-            <div className="error-message">
-              ⚠️ {error}
-            </div>
+              <div className="generate-section">
+                <button
+                  className="btn-primary"
+                  onClick={handleGenerate}
+                  disabled={loading || !text.trim()}
+                >
+                  {loading ? '⏳ Generuji...' : '🔊 Generovat řeč'}
+                </button>
+              </div>
+
+              {loading && <LoadingSpinner />}
+
+              {error && (
+                <div className="error-message">
+                  ⚠️ {error}
+                </div>
+              )}
+
+              {generatedAudio && !loading && (
+                <AudioPlayer audioUrl={generatedAudio} />
+              )}
+            </>
           )}
 
-          {generatedAudio && !loading && (
-            <AudioPlayer audioUrl={generatedAudio} />
+          {activeTab === 'history' && (
+            <History />
           )}
         </div>
       </main>
