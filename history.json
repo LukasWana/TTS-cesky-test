@@ -1,5 +1,515 @@
 [
   {
+    "id": "10cd9b5a-423a-4931-8eb5-614e6d8c111a",
+    "audio_url": "/api/audio/10cd9b5a-423a-4931-8eb5-614e6d8c111a.wav",
+    "filename": "10cd9b5a-423a-4931-8eb5-614e6d8c111a.wav",
+    "text": "V září jsme měli poslední, veřejný, trénink, Strategického obrázkového otročení,   -- == ++ ččč ddd ttt sss",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 2.0,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 1.3,
+      "top_k": 20,
+      "top_p": 0.6
+    },
+    "created_at": "2025-12-17T20:45:07.964514"
+  },
+  {
+    "id": "220a705a-d42e-45ae-b036-1839d4ce5dae",
+    "audio_url": "/api/audio/220a705a-d42e-45ae-b036-1839d4ce5dae.wav",
+    "filename": "220a705a-d42e-45ae-b036-1839d4ce5dae.wav",
+    "text": "V září jsme měli poslední, veřejný, trénink, Strategického obrázkového otročení,   -- == ++ ččč ddd ttt sss",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 2.0,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 1.0,
+      "top_k": 20,
+      "top_p": 0.3
+    },
+    "created_at": "2025-12-17T20:44:28.827018"
+  },
+  {
+    "id": "99cabf3f-28ec-42d4-9515-bf30c4c4cd3e",
+    "audio_url": "/api/audio/99cabf3f-28ec-42d4-9515-bf30c4c4cd3e.wav",
+    "filename": "99cabf3f-28ec-42d4-9515-bf30c4c4cd3e.wav",
+    "text": "V září jsme měli poslední, veřejný, trénink, Strategického obrázkového otročení,   -- == ++ ččč ddd ttt sss",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 2.0,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 2.0,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T20:43:38.664479"
+  },
+  {
+    "id": "f8d6a8a1-12f8-4ec1-8f02-e056bfacd30d",
+    "audio_url": "/api/audio/f8d6a8a1-12f8-4ec1-8f02-e056bfacd30d.wav",
+    "filename": "f8d6a8a1-12f8-4ec1-8f02-e056bfacd30d.wav",
+    "text": "V září jsme měli poslední, veřejný, trénink, Strategického obrázkového otročení,   -- == ++ ččč ddd ttt sss",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 2.0,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 5.0,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T20:43:13.650417"
+  },
+  {
+    "id": "2c112bb0-2f15-4697-84c9-0c9a36c19ba8",
+    "audio_url": "/api/audio/2c112bb0-2f15-4697-84c9-0c9a36c19ba8.wav",
+    "filename": "2c112bb0-2f15-4697-84c9-0c9a36c19ba8.wav",
+    "text": "V září jsme měli poslední, veřejný, trénink, Strategického obrázkového otročení,   -- == ++ ččč ddd ttt sss",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 2.0,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 5.0,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T20:42:55.261359"
+  },
+  {
+    "id": "edf308ef-7988-4f5f-94b4-271b6c8e6206",
+    "audio_url": "/api/audio/edf308ef-7988-4f5f-94b4-271b6c8e6206.wav",
+    "filename": "edf308ef-7988-4f5f-94b4-271b6c8e6206.wav",
+    "text": "V září jsme měli poslední, veřejný, trénink, Strategického obrázkového otročení ččč ddd ttt sss",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 2.0,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 5.0,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T20:42:25.694474"
+  },
+  {
+    "id": "8085b362-1c16-4a6b-b78c-a27a12a4c3d2",
+    "audio_url": "/api/audio/8085b362-1c16-4a6b-b78c-a27a12a4c3d2.wav",
+    "filename": "8085b362-1c16-4a6b-b78c-a27a12a4c3d2.wav",
+    "text": "V září jsme měli poslední, veřejný, trénink, Strategického designu ččč ddd ttt sss",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 2.0,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 5.0,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T20:41:41.779631"
+  },
+  {
+    "id": "d8f79c20-5edb-42f8-ae0e-5dc99fcfd733",
+    "audio_url": "/api/audio/d8f79c20-5edb-42f8-ae0e-5dc99fcfd733.wav",
+    "filename": "d8f79c20-5edb-42f8-ae0e-5dc99fcfd733.wav",
+    "text": "V září jsme měli poslední, veřejný, trénink, Strategického designu ččč ddd ttt sss",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.8,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 5.0,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T20:41:19.201165"
+  },
+  {
+    "id": "7430d154-95e2-4417-a1d9-4439f630d920",
+    "audio_url": "/api/audio/7430d154-95e2-4417-a1d9-4439f630d920.wav",
+    "filename": "7430d154-95e2-4417-a1d9-4439f630d920.wav",
+    "text": "V září jsme měli poslední, veřejný, trénink, Strategického designu. ",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.8,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 5.0,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T20:40:48.860412"
+  },
+  {
+    "id": "2a5d2233-7d0b-4a89-a979-a9ed56d24030",
+    "audio_url": "/api/audio/2a5d2233-7d0b-4a89-a979-a9ed56d24030.wav",
+    "filename": "2a5d2233-7d0b-4a89-a979-a9ed56d24030.wav",
+    "text": "V září jsme měli poslední veřejný trénink Strategického designu. Můžete si ho pořídit jako samostudium, nebo dorazit na některý ze specializovaných tréninků pro designery.",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.8,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 5.0,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T20:40:11.807332"
+  },
+  {
+    "id": "ce73c7ff-d061-481c-abec-daca74cf75ee",
+    "audio_url": "/api/audio/ce73c7ff-d061-481c-abec-daca74cf75ee.wav",
+    "filename": "ce73c7ff-d061-481c-abec-daca74cf75ee.wav",
+    "text": "V září jsme měli poslední veřejný trénink Strategického designu. Můžete si ho pořídit jako samostudium, nebo dorazit na některý ze specializovaných tréninků pro designery.",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.8,
+      "temperature": 0.2,
+      "length_penalty": 0.6,
+      "repetition_penalty": 1.2,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T20:39:44.029193"
+  },
+  {
+    "id": "f141a4b1-f0db-440e-bb61-228f97056c8a",
+    "audio_url": "/api/audio/f141a4b1-f0db-440e-bb61-228f97056c8a.wav",
+    "filename": "f141a4b1-f0db-440e-bb61-228f97056c8a.wav",
+    "text": "V září jsme měli poslední veřejný trénink Strategického designu. Můžete si ho pořídit jako samostudium, nebo dorazit na některý ze specializovaných tréninků pro designery.",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.6,
+      "temperature": 0.2,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:38:56.959655"
+  },
+  {
+    "id": "abbebf80-fbd2-4414-8df5-c293e665a318",
+    "audio_url": "/api/audio/abbebf80-fbd2-4414-8df5-c293e665a318.wav",
+    "filename": "abbebf80-fbd2-4414-8df5-c293e665a318.wav",
+    "text": "V září jsme měli poslední veřejný trénink Strategického designu. Můžete si ho pořídit jako samostudium, nebo dorazit na některý ze specializovaných tréninků pro designery.",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.6,
+      "temperature": 0.2,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:37:54.777827"
+  },
+  {
+    "id": "58d5e254-4cbb-4f75-aa02-faa4ab7f8a4c",
+    "audio_url": "/api/audio/58d5e254-4cbb-4f75-aa02-faa4ab7f8a4c.wav",
+    "filename": "58d5e254-4cbb-4f75-aa02-faa4ab7f8a4c.wav",
+    "text": "V září jsme měli poslední veřejný trénink Strategického designu. Můžete si ho pořídit jako samostudium, nebo dorazit na některý ze specializovaných tréninků pro designery.",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.2,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:37:35.310896"
+  },
+  {
+    "id": "0796f85e-0ef1-4fc0-9b13-ff6b75ae25df",
+    "audio_url": "/api/audio/0796f85e-0ef1-4fc0-9b13-ff6b75ae25df.wav",
+    "filename": "0796f85e-0ef1-4fc0-9b13-ff6b75ae25df.wav",
+    "text": "V září jsme měli poslední veřejný trénink Strategického designu. Můžete si ho pořídit jako samostudium, nebo dorazit na některý ze specializovaných tréninků pro designery.",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.2,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:37:10.524477"
+  },
+  {
+    "id": "04163d9c-5d16-46d3-87b9-d2692e2fe149",
+    "audio_url": "/api/audio/04163d9c-5d16-46d3-87b9-d2692e2fe149.wav",
+    "filename": "04163d9c-5d16-46d3-87b9-d2692e2fe149.wav",
+    "text": "V září jsme měli poslední veřejný trénink Strategického designu. Můžete si ho pořídit jako samostudium, nebo dorazit na některý ze specializovaných tréninků pro designery.",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.2,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:36:48.548896"
+  },
+  {
+    "id": "008279da-4595-4893-a679-23bde287d67f",
+    "audio_url": "/api/audio/008279da-4595-4893-a679-23bde287d67f.wav",
+    "filename": "008279da-4595-4893-a679-23bde287d67f.wav",
+    "text": "V září jsme měli poslední veřejný trénink Strategického designu. Můžete si ho pořídit jako samostudium, nebo dorazit na některý ze specializovaných tréninků pro designery.",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:35:59.220810"
+  },
+  {
+    "id": "8d21453c-4006-41f9-9211-bc11d1d97460",
+    "audio_url": "/api/audio/8d21453c-4006-41f9-9211-bc11d1d97460.wav",
+    "filename": "8d21453c-4006-41f9-9211-bc11d1d97460.wav",
+    "text": "Spustí aplikaci s vynuceným GPU device",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:34:41.544415"
+  },
+  {
+    "id": "fcd07439-b136-4eda-81aa-1d7ff4888ae6",
+    "audio_url": "/api/audio/fcd07439-b136-4eda-81aa-1d7ff4888ae6.wav",
+    "filename": "fcd07439-b136-4eda-81aa-1d7ff4888ae6.wav",
+    "text": "brm brm ahoj jsem koloděj",
+    "voice_type": "demo",
+    "voice_name": "Josef_Prusa",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:10:23.765893"
+  },
+  {
+    "id": "26c9fff2-f0a7-4a0b-9b26-1488da711ffa",
+    "audio_url": "/api/audio/26c9fff2-f0a7-4a0b-9b26-1488da711ffa.wav",
+    "filename": "26c9fff2-f0a7-4a0b-9b26-1488da711ffa.wav",
+    "text": "brm brm ahoj jsem koloděj",
+    "voice_type": "demo",
+    "voice_name": "Jidrich_Sidlo",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:10:09.835038"
+  },
+  {
+    "id": "df4ea3cf-eabb-4fdf-bc35-decd7ee6550b",
+    "audio_url": "/api/audio/df4ea3cf-eabb-4fdf-bc35-decd7ee6550b.wav",
+    "filename": "df4ea3cf-eabb-4fdf-bc35-decd7ee6550b.wav",
+    "text": "brm brm ahoj jsem koloděj",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T20:10:01.759124"
+  },
+  {
+    "id": "af8fbf2c-62ff-434b-86b9-5735f62bb57e",
+    "audio_url": "/api/audio/af8fbf2c-62ff-434b-86b9-5735f62bb57e.wav",
+    "filename": "af8fbf2c-62ff-434b-86b9-5735f62bb57e.wav",
+    "text": "Nejlepším českým cukrovím je linecké. Nebo tak to alespoň každoročně vychází z anket popularity a odpovídají tomu i čísla nejvyhledávanějších receptů na internetu. ",
+    "voice_type": "upload",
+    "voice_name": "15.wav",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.1,
+      "length_penalty": 0.6,
+      "repetition_penalty": 1.3,
+      "top_k": 12,
+      "top_p": 0.35
+    },
+    "created_at": "2025-12-17T19:19:52.568089"
+  },
+  {
+    "id": "f581ede0-cdca-464a-9681-000a1295fd58",
+    "audio_url": "/api/audio/f581ede0-cdca-464a-9681-000a1295fd58.wav",
+    "filename": "f581ede0-cdca-464a-9681-000a1295fd58.wav",
+    "text": "Nejlepším českým cukrovím je linecké. Nebo tak to alespoň každoročně vychází z anket popularity a odpovídají tomu i čísla nejvyhledávanějších receptů na internetu. ",
+    "voice_type": "upload",
+    "voice_name": "07.wav",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.1,
+      "length_penalty": 0.6,
+      "repetition_penalty": 1.3,
+      "top_k": 12,
+      "top_p": 0.35
+    },
+    "created_at": "2025-12-17T19:19:27.039814"
+  },
+  {
+    "id": "742a5013-5445-48b6-b13c-269bde4e107e",
+    "audio_url": "/api/audio/742a5013-5445-48b6-b13c-269bde4e107e.wav",
+    "filename": "742a5013-5445-48b6-b13c-269bde4e107e.wav",
+    "text": "Nejlepším českým cukrovím je linecké. Nebo tak to alespoň každoročně vychází z anket popularity a odpovídají tomu i čísla nejvyhledávanějších receptů na internetu. ",
+    "voice_type": "upload",
+    "voice_name": "07.wav",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.1,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T19:19:02.764194"
+  },
+  {
+    "id": "749a930e-9ea4-4b73-a6c7-f260e55ee160",
+    "audio_url": "/api/audio/749a930e-9ea4-4b73-a6c7-f260e55ee160.wav",
+    "filename": "749a930e-9ea4-4b73-a6c7-f260e55ee160.wav",
+    "text": "Nejlepším českým cukrovím je linecké. Nebo tak to alespoň každoročně vychází z anket popularity a odpovídají tomu i čísla nejvyhledávanějších receptů na internetu. ",
+    "voice_type": "upload",
+    "voice_name": "07.wav",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T19:18:33.402100"
+  },
+  {
+    "id": "6d5874a7-18e3-4b3d-8440-955b64c034e2",
+    "audio_url": "/api/audio/6d5874a7-18e3-4b3d-8440-955b64c034e2.wav",
+    "filename": "6d5874a7-18e3-4b3d-8440-955b64c034e2.wav",
+    "text": "Pro detekci a správnou výslovnost anglických slov v českém textu",
+    "voice_type": "demo",
+    "voice_name": "record_0d46de9c",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T18:33:51.937859"
+  },
+  {
+    "id": "0574a229-000c-40a0-a937-b9eb20a77b2f",
+    "audio_url": "/api/audio/0574a229-000c-40a0-a937-b9eb20a77b2f.wav",
+    "filename": "0574a229-000c-40a0-a937-b9eb20a77b2f.wav",
+    "text": "Pro detekci a správnou výslovnost anglických slov v českém textu",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T18:33:31.235299"
+  },
+  {
+    "id": "0e7ec4b3-9892-41ad-bef5-c7c22fa3bb13",
+    "audio_url": "/api/audio/0e7ec4b3-9892-41ad-bef5-c7c22fa3bb13.wav",
+    "filename": "0e7ec4b3-9892-41ad-bef5-c7c22fa3bb13.wav",
+    "text": "Pro vylepšení českého hlasu v X T T S",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.5,
+      "temperature": 0.05,
+      "length_penalty": 0.6,
+      "repetition_penalty": 1.4,
+      "top_k": 13,
+      "top_p": 0.1
+    },
+    "created_at": "2025-12-17T18:25:08.627877"
+  },
+  {
+    "id": "ba052d07-0f7a-46c5-9cb2-9150963f8d3b",
+    "audio_url": "/api/audio/ba052d07-0f7a-46c5-9cb2-9150963f8d3b.wav",
+    "filename": "ba052d07-0f7a-46c5-9cb2-9150963f8d3b.wav",
+    "text": "Pro vylepšení českého hlasu v X T T S",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.5,
+      "temperature": 0.1,
+      "length_penalty": 1.2,
+      "repetition_penalty": 3.0,
+      "top_k": 47,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-17T18:24:43.541877"
+  },
+  {
+    "id": "4012a61f-a502-454f-bb51-8cb86964569b",
+    "audio_url": "/api/audio/4012a61f-a502-454f-bb51-8cb86964569b.wav",
+    "filename": "4012a61f-a502-454f-bb51-8cb86964569b.wav",
+    "text": "Pro vylepšení českého hlasu v X T T S",
+    "voice_type": "demo",
+    "voice_name": "Janek_Rubes",
+    "tts_params": {
+      "speed": 1.3,
+      "temperature": 0.3,
+      "length_penalty": 0.8,
+      "repetition_penalty": 2.0,
+      "top_k": 21,
+      "top_p": 0.3
+    },
+    "created_at": "2025-12-17T18:24:18.002661"
+  },
+  {
     "id": "a50ea0ff-d4ec-45c2-b5ef-5eeb9a4c619f",
     "audio_url": "/api/audio/a50ea0ff-d4ec-45c2-b5ef-5eeb9a4c619f.wav",
     "filename": "a50ea0ff-d4ec-45c2-b5ef-5eeb9a4c619f.wav",
