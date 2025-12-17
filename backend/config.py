@@ -72,6 +72,14 @@ TARGET_CHANNELS = 1  # mono
 MIN_VOICE_DURATION = 6.0  # sekundy
 MAX_TEXT_LENGTH = 500  # znaků
 
+# TTS generation parameters (výchozí hodnoty)
+TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))  # Rychlost řeči (0.5-2.0)
+TTS_TEMPERATURE = float(os.getenv("TTS_TEMPERATURE", "0.7"))  # Teplota (0.0-1.0)
+TTS_LENGTH_PENALTY = float(os.getenv("TTS_LENGTH_PENALTY", "1.0"))  # Length penalty
+TTS_REPETITION_PENALTY = float(os.getenv("TTS_REPETITION_PENALTY", "2.0"))  # Repetition penalty
+TTS_TOP_K = int(os.getenv("TTS_TOP_K", "50"))  # Top-k sampling
+TTS_TOP_P = float(os.getenv("TTS_TOP_P", "0.85"))  # Top-p sampling
+
 # Supported audio formats
 SUPPORTED_AUDIO_FORMATS = [".wav", ".mp3", ".m4a", ".ogg", ".flac"]
 

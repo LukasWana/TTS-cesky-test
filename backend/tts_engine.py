@@ -79,8 +79,7 @@ class XTTSEngine:
             use_gpu = (self.device == "cuda" and torch.cuda.is_available())
             model = TTS(
                 model_name=model_name,
-                progress_bar=True,
-                gpu=use_gpu
+                progress_bar=True
             )
 
             # Optimalizace pro GPU s omezenou VRAM (6GB)
@@ -108,8 +107,7 @@ class XTTSEngine:
                 use_gpu = (self.device == "cuda" and torch.cuda.is_available())
                 model = TTS(
                     model_name=XTTS_MODEL_NAME,
-                    progress_bar=True,
-                    gpu=use_gpu
+                    progress_bar=True
                 )
                 if hasattr(model, 'to'):
                     model.to(self.device)
@@ -124,7 +122,13 @@ class XTTSEngine:
         self,
         text: str,
         speaker_wav: str,
-        language: str = "cs"
+        language: str = "cs",
+        speed: float = 1.0,
+        temperature: float = 0.7,
+        length_penalty: float = 1.0,
+        repetition_penalty: float = 2.0,
+        top_k: int = 50,
+        top_p: float = 0.85
     ) -> str:
         """
         Generuje řeč z textu
@@ -133,6 +137,12 @@ class XTTSEngine:
             text: Text k syntéze
             speaker_wav: Cesta k audio souboru s hlasem
             language: Jazyk (cs pro češtinu)
+            speed: Rychlost řeči (0.5-2.0, výchozí: 1.0)
+            temperature: Teplota pro sampling (0.0-1.0, výchozí: 0.7)
+            length_penalty: Length penalty (výchozí: 1.0)
+            repetition_penalty: Repetition penalty (výchozí: 2.0)
+            top_k: Top-k sampling (výchozí: 50)
+            top_p: Top-p sampling (výchozí: 0.85)
 
         Returns:
             Cesta k vygenerovanému audio souboru
@@ -155,7 +165,13 @@ class XTTSEngine:
             text,
             speaker_wav,
             language,
-            str(output_path)
+            str(output_path),
+            speed,
+            temperature,
+            length_penalty,
+            repetition_penalty,
+            top_k,
+            top_p
         )
 
         return str(output_path)
@@ -165,7 +181,13 @@ class XTTSEngine:
         text: str,
         speaker_wav: str,
         language: str,
-        output_path: str
+        output_path: str,
+        speed: float = 1.0,
+        temperature: float = 0.7,
+        length_penalty: float = 1.0,
+        repetition_penalty: float = 2.0,
+        top_k: int = 50,
+        top_p: float = 0.85
     ):
         """Synchronní generování řeči"""
         try:
@@ -177,14 +199,32 @@ class XTTSEngine:
             # TTS knihovna má problém s num2words pro češtinu, takže převedeme čísla ručně
             processed_text = self._preprocess_text_for_czech(text, language)
 
+            # Příprava parametrů pro tts_to_file
+            tts_params = {
+                "text": processed_text,
+                "speaker_wav": speaker_wav,
+                "language": language,
+                "file_path": output_path
+            }
+
+            # Přidání volitelných parametrů (pokud jsou podporovány)
+            # XTTS-v2 může podporovat různé parametry v závislosti na verzi
+            if speed != 1.0:
+                tts_params["speed"] = speed
+            if temperature != 0.7:
+                tts_params["temperature"] = temperature
+            if length_penalty != 1.0:
+                tts_params["length_penalty"] = length_penalty
+            if repetition_penalty != 2.0:
+                tts_params["repetition_penalty"] = repetition_penalty
+            if top_k != 50:
+                tts_params["top_k"] = top_k
+            if top_p != 0.85:
+                tts_params["top_p"] = top_p
+
             # Generování řeči
             # TTS API může vracet různé hodnoty v závislosti na verzi
-            result = self.model.tts_to_file(
-                text=processed_text,
-                speaker_wav=speaker_wav,
-                language=language,
-                file_path=output_path
-            )
+            result = self.model.tts_to_file(**tts_params)
 
             # Zkontroluj, jestli soubor byl vytvořen
             if not Path(output_path).exists():
@@ -260,10 +300,25 @@ class XTTSEngine:
 
         if demo_voice_path and Path(demo_voice_path).exists():
             try:
+                # Použij výchozí parametry pro warmup
+                from backend.config import (
+                    TTS_SPEED,
+                    TTS_TEMPERATURE,
+                    TTS_LENGTH_PENALTY,
+                    TTS_REPETITION_PENALTY,
+                    TTS_TOP_K,
+                    TTS_TOP_P
+                )
                 await self.generate(
                     text="Zahřívací text pro optimalizaci modelu.",
                     speaker_wav=demo_voice_path,
-                    language="cs"
+                    language="cs",
+                    speed=TTS_SPEED,
+                    temperature=TTS_TEMPERATURE,
+                    length_penalty=TTS_LENGTH_PENALTY,
+                    repetition_penalty=TTS_REPETITION_PENALTY,
+                    top_k=TTS_TOP_K,
+                    top_p=TTS_TOP_P
                 )
                 print("Model warmup dokončen")
             except Exception as e:

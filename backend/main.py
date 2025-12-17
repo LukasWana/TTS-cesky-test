@@ -5,6 +5,7 @@ import os
 import base64
 import uuid
 from pathlib import Path
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,6 +16,7 @@ import aiofiles
 try:
     from backend.tts_engine import XTTSEngine
     from backend.audio_processor import AudioProcessor
+    from backend.history_manager import HistoryManager
     from backend.youtube_downloader import (
         download_youtube_audio,
         validate_youtube_url,
@@ -29,12 +31,19 @@ try:
         UPLOADS_DIR,
         DEMO_VOICES_DIR,
         MAX_TEXT_LENGTH,
-        MIN_VOICE_DURATION
+        MIN_VOICE_DURATION,
+        TTS_SPEED,
+        TTS_TEMPERATURE,
+        TTS_LENGTH_PENALTY,
+        TTS_REPETITION_PENALTY,
+        TTS_TOP_K,
+        TTS_TOP_P
     )
 except ImportError:
     # Fallback pro spuštění z backend/ adresáře
     from tts_engine import XTTSEngine
     from audio_processor import AudioProcessor
+    from history_manager import HistoryManager
     from youtube_downloader import (
         download_youtube_audio,
         validate_youtube_url,
@@ -49,11 +58,40 @@ except ImportError:
         UPLOADS_DIR,
         DEMO_VOICES_DIR,
         MAX_TEXT_LENGTH,
-        MIN_VOICE_DURATION
+        MIN_VOICE_DURATION,
+        TTS_SPEED,
+        TTS_TEMPERATURE,
+        TTS_LENGTH_PENALTY,
+        TTS_REPETITION_PENALTY,
+        TTS_TOP_K,
+        TTS_TOP_P
     )
 
-# Inicializace FastAPI
-app = FastAPI(title="XTTS-v2 Demo", version="1.0.0")
+# Inicializace engine
+tts_engine = XTTSEngine()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler pro startup a shutdown"""
+    # Startup
+    try:
+        await tts_engine.load_model()
+        # Warmup s demo hlasem pokud existuje
+        demo_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+        if demo_voices:
+            await tts_engine.warmup(str(demo_voices[0]))
+    except Exception as e:
+        print(f"Startup error: {str(e)}")
+
+    yield  # Aplikace běží zde
+
+    # Shutdown (volitelné, pokud potřebujete cleanup)
+    # await tts_engine.cleanup()  # pokud máte cleanup metodu
+
+
+# Inicializace FastAPI s lifespan
+app = FastAPI(title="XTTS-v2 Demo", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -64,26 +102,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Inicializace engine
-tts_engine = XTTSEngine()
-
 # Serve static files (frontend)
 frontend_path = Path(__file__).parent.parent / "frontend" / "dist"
 if frontend_path.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Načte model při startu aplikace"""
-    try:
-        await tts_engine.load_model()
-        # Warmup s demo hlasem pokud existuje
-        demo_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
-        if demo_voices:
-            await tts_engine.warmup(str(demo_voices[0]))
-    except Exception as e:
-        print(f"Startup error: {str(e)}")
 
 
 @app.get("/")
@@ -96,7 +118,13 @@ async def root():
 async def generate_speech(
     text: str = Form(...),
     voice_file: UploadFile = File(None),
-    demo_voice: str = Form(None)
+    demo_voice: str = Form(None),
+    speed: float = Form(None),
+    temperature: float = Form(None),
+    length_penalty: float = Form(None),
+    repetition_penalty: float = Form(None),
+    top_k: int = Form(None),
+    top_p: float = Form(None)
 ):
     """
     Generuje řeč z textu
@@ -105,6 +133,12 @@ async def generate_speech(
         text: Text k syntéze (max 500 znaků)
         voice_file: Nahraný audio soubor (volitelné)
         demo_voice: Název demo hlasu (volitelné)
+        speed: Rychlost řeči (0.5-2.0, výchozí: 1.0)
+        temperature: Teplota pro sampling (0.0-1.0, výchozí: 0.7)
+        length_penalty: Length penalty (výchozí: 1.0)
+        repetition_penalty: Repetition penalty (výchozí: 2.0)
+        top_k: Top-k sampling (výchozí: 50)
+        top_p: Top-p sampling (výchozí: 0.85)
     """
     try:
         # Validace textu
@@ -163,21 +197,73 @@ async def generate_speech(
                 detail="Musí být zadán buď voice_file nebo demo_voice"
             )
 
+        # Nastavení TTS parametrů (použij výchozí hodnoty pokud nejsou zadány)
+        tts_speed = speed if speed is not None else TTS_SPEED
+        tts_temperature = temperature if temperature is not None else TTS_TEMPERATURE
+        tts_length_penalty = length_penalty if length_penalty is not None else TTS_LENGTH_PENALTY
+        tts_repetition_penalty = repetition_penalty if repetition_penalty is not None else TTS_REPETITION_PENALTY
+        tts_top_k = top_k if top_k is not None else TTS_TOP_K
+        tts_top_p = top_p if top_p is not None else TTS_TOP_P
+
+        # Validace parametrů
+        if not (0.5 <= tts_speed <= 2.0):
+            raise HTTPException(status_code=400, detail="Speed musí být mezi 0.5 a 2.0")
+        if not (0.0 <= tts_temperature <= 1.0):
+            raise HTTPException(status_code=400, detail="Temperature musí být mezi 0.0 a 1.0")
+        if tts_top_k < 1:
+            raise HTTPException(status_code=400, detail="top_k musí být >= 1")
+        if not (0.0 <= tts_top_p <= 1.0):
+            raise HTTPException(status_code=400, detail="top_p musí být mezi 0.0 a 1.0")
+
         # Generování řeči
         output_path = await tts_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
-            language="cs"
+            language="cs",
+            speed=tts_speed,
+            temperature=tts_temperature,
+            length_penalty=tts_length_penalty,
+            repetition_penalty=tts_repetition_penalty,
+            top_k=tts_top_k,
+            top_p=tts_top_p
         )
 
         # Vytvoření URL
         filename = Path(output_path).name
         audio_url = f"/api/audio/{filename}"
 
+        # Určení typu hlasu a názvu
+        voice_type = "upload" if voice_file else "demo"
+        voice_name = None
+        if demo_voice:
+            voice_name = demo_voice
+        elif voice_file:
+            voice_name = voice_file.filename
+
+        # Uložení do historie
+        tts_params_dict = {
+            "speed": tts_speed,
+            "temperature": tts_temperature,
+            "length_penalty": tts_length_penalty,
+            "repetition_penalty": tts_repetition_penalty,
+            "top_k": tts_top_k,
+            "top_p": tts_top_p
+        }
+
+        history_entry = HistoryManager.add_entry(
+            audio_url=audio_url,
+            filename=filename,
+            text=text,
+            voice_type=voice_type,
+            voice_name=voice_name,
+            tts_params=tts_params_dict
+        )
+
         return {
             "audio_url": audio_url,
             "filename": filename,
-            "success": True
+            "success": True,
+            "history_id": history_entry["id"]
         }
 
     except HTTPException:
@@ -472,6 +558,67 @@ async def download_youtube_voice(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chyba při stahování z YouTube: {str(e)}")
+
+
+@app.get("/api/history")
+async def get_history(limit: int = 50, offset: int = 0):
+    """
+    Získá historii generovaných audio souborů
+
+    Query params:
+        limit: Maximální počet záznamů (výchozí: 50)
+        offset: Offset pro stránkování (výchozí: 0)
+    """
+    try:
+        history = HistoryManager.get_history(limit=limit, offset=offset)
+        stats = HistoryManager.get_stats()
+
+        return {
+            "history": history,
+            "stats": stats,
+            "limit": limit,
+            "offset": offset
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při načítání historie: {str(e)}")
+
+
+@app.get("/api/history/{entry_id}")
+async def get_history_entry(entry_id: str):
+    """Získá konkrétní záznam z historie"""
+    try:
+        entry = HistoryManager.get_entry_by_id(entry_id)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Záznam nenalezen")
+        return entry
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při načítání záznamu: {str(e)}")
+
+
+@app.delete("/api/history/{entry_id}")
+async def delete_history_entry(entry_id: str):
+    """Smaže záznam z historie"""
+    try:
+        success = HistoryManager.delete_entry(entry_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Záznam nenalezen")
+        return {"success": True, "message": "Záznam smazán"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při mazání záznamu: {str(e)}")
+
+
+@app.delete("/api/history")
+async def clear_history():
+    """Vymaže celou historii"""
+    try:
+        count = HistoryManager.clear_history()
+        return {"success": True, "message": f"Historie vymazána ({count} záznamů)"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při mazání historie: {str(e)}")
 
 
 if __name__ == "__main__":
