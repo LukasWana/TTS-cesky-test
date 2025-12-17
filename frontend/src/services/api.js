@@ -15,6 +15,9 @@ const API_BASE_URL = 'http://localhost:8000'
  * @param {number} ttsParams.repetitionPenalty - Repetition penalty
  * @param {number} ttsParams.topK - Top-k sampling
  * @param {number} ttsParams.topP - Top-p sampling
+ * @param {string} ttsParams.qualityMode - Režim kvality (high_quality, natural, fast)
+ * @param {string} ttsParams.enhancementPreset - Preset pro audio enhancement
+ * @param {boolean} ttsParams.enableEnhancement - Zapnout/vypnout audio enhancement
  */
 export async function generateSpeech(text, voiceFile = null, demoVoice = null, ttsParams = {}) {
   const formData = new FormData()
@@ -44,6 +47,15 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
   }
   if (ttsParams.topP !== undefined && ttsParams.topP !== null) {
     formData.append('top_p', ttsParams.topP.toString())
+  }
+  if (ttsParams.qualityMode !== undefined && ttsParams.qualityMode !== null) {
+    formData.append('quality_mode', ttsParams.qualityMode)
+  }
+  if (ttsParams.enhancementPreset !== undefined && ttsParams.enhancementPreset !== null) {
+    formData.append('enhancement_preset', ttsParams.enhancementPreset)
+  }
+  if (ttsParams.enableEnhancement !== undefined && ttsParams.enableEnhancement !== null) {
+    formData.append('enable_enhancement', ttsParams.enableEnhancement.toString())
   }
 
   const response = await fetch(`${API_BASE_URL}/api/tts/generate`, {

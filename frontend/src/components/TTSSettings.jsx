@@ -1,8 +1,17 @@
 import React, { useState } from 'react'
 import './TTSSettings.css'
 
-function TTSSettings({ settings, onChange, onReset }) {
+function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityChange }) {
   const [isExpanded, setIsExpanded] = useState(false)
+
+  // Výchozí quality settings pokud nejsou zadány
+  const defaultQualitySettings = {
+    qualityMode: null,
+    enhancementPreset: 'natural',
+    enableEnhancement: true
+  }
+
+  const quality = qualitySettings || defaultQualitySettings
 
   const handleChange = (key, value) => {
     const numValue = parseFloat(value)
@@ -147,6 +156,73 @@ function TTSSettings({ settings, onChange, onReset }) {
                 <span>0.0</span>
                 <span>0.85</span>
                 <span>1.0</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sekce kvality výstupu */}
+          <div className="quality-section">
+            <h4>Kvalita výstupu</h4>
+
+            <div className="setting-item">
+              <label htmlFor="qualityMode">
+                Režim kvality
+              </label>
+              <select
+                id="qualityMode"
+                value={quality.qualityMode || ''}
+                onChange={(e) => onQualityChange && onQualityChange({
+                  ...quality,
+                  qualityMode: e.target.value || null
+                })}
+              >
+                <option value="">Vlastní (použít parametry výše)</option>
+                <option value="high_quality">Vysoká kvalita</option>
+                <option value="natural">Přirozený</option>
+                <option value="fast">Rychlý</option>
+              </select>
+              <div className="setting-description">
+                {quality.qualityMode === 'high_quality' && 'Nejlepší kvalita, pomalejší generování'}
+                {quality.qualityMode === 'natural' && 'Vyvážená kvalita a rychlost'}
+                {quality.qualityMode === 'fast' && 'Rychlé generování, základní kvalita'}
+                {!quality.qualityMode && 'Použijte vlastní parametry výše'}
+              </div>
+            </div>
+
+            <div className="setting-item">
+              <label htmlFor="enhancementPreset">
+                Audio enhancement preset
+              </label>
+              <select
+                id="enhancementPreset"
+                value={quality.enhancementPreset || 'natural'}
+                onChange={(e) => onQualityChange && onQualityChange({
+                  ...quality,
+                  enhancementPreset: e.target.value
+                })}
+                disabled={!quality.enableEnhancement}
+              >
+                <option value="high_quality">Vysoká kvalita</option>
+                <option value="natural">Přirozený</option>
+                <option value="fast">Rychlý</option>
+              </select>
+            </div>
+
+            <div className="setting-item">
+              <label htmlFor="enableEnhancement">
+                <input
+                  type="checkbox"
+                  id="enableEnhancement"
+                  checked={quality.enableEnhancement !== false}
+                  onChange={(e) => onQualityChange && onQualityChange({
+                    ...quality,
+                    enableEnhancement: e.target.checked
+                  })}
+                />
+                Zapnout audio enhancement
+              </label>
+              <div className="setting-description">
+                Post-processing pro vylepšení kvality zvuku (EQ, noise reduction, komprese)
               </div>
             </div>
           </div>

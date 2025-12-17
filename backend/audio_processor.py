@@ -259,3 +259,62 @@ class AudioProcessor:
         except Exception as e:
             return None, f"Chyba při ukládání nahraného audio: {str(e)}"
 
+    @staticmethod
+    def enhance_voice_sample(
+        input_path: str,
+        output_path: str
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Vylepší kvalitu vstupního vzorku pro voice cloning
+
+        Args:
+            input_path: Cesta k vstupnímu audio souboru
+            output_path: Cesta k výstupnímu audio souboru
+
+        Returns:
+            (success, error_message)
+        """
+        try:
+            from backend.audio_enhancer import AudioEnhancer
+            import librosa
+            import soundfile as sf
+
+            # Načtení audio
+            audio, sr = librosa.load(input_path, sr=TARGET_SAMPLE_RATE, mono=True)
+
+            # 1. Ořez ticha s jemnějším threshold
+            audio, _ = librosa.effects.trim(audio, top_db=30)
+
+            # 2. De-essing (redukce sykavek) - high-frequency de-emphasis
+            try:
+                from scipy import signal
+                # Band-stop filter pro 4-8 kHz (sykavky)
+                sos = signal.butter(4, [4000, 8000], btype='bandstop', fs=sr, output='sos')
+                audio = signal.sosfiltfilt(sos, audio)
+            except ImportError:
+                print("Warning: scipy není dostupný, de-essing přeskočen")
+            except Exception as e:
+                print(f"Warning: De-essing failed: {e}")
+
+            # 3. Pokročilá redukce šumu
+            audio = AudioEnhancer.reduce_noise_advanced(audio, sr)
+
+            # 4. EQ korekce pro vyrovnání frekvenčního spektra
+            audio = AudioEnhancer.apply_eq(audio, sr)
+
+            # 5. Vylepšená normalizace s kompresí
+            audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
+            audio = AudioEnhancer.normalize_audio(audio)
+
+            # 6. Fade in/out
+            audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=30)
+
+            # Uložení
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            sf.write(output_path, audio, sr)
+
+            return True, None
+
+        except Exception as e:
+            return False, f"Chyba při vylepšování vzorku: {str(e)}"
+

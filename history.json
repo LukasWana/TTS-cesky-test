@@ -1,0 +1,87 @@
+[
+  {
+    "id": "a50ea0ff-d4ec-45c2-b5ef-5eeb9a4c619f",
+    "audio_url": "/api/audio/a50ea0ff-d4ec-45c2-b5ef-5eeb9a4c619f.wav",
+    "filename": "a50ea0ff-d4ec-45c2-b5ef-5eeb9a4c619f.wav",
+    "text": "Pro vylepšení českého hlasu v X T T S",
+    "voice_type": "demo",
+    "voice_name": "Jidrich_Sidlo",
+    "tts_params": {
+      "speed": 1.3,
+      "temperature": 0.3,
+      "length_penalty": 0.8,
+      "repetition_penalty": 2.0,
+      "top_k": 21,
+      "top_p": 0.3
+    },
+    "created_at": "2025-12-17T18:22:04.615003"
+  },
+  {
+    "id": "bddf01de-05eb-4ea0-9bff-467a8ff97fe2",
+    "audio_url": "/api/audio/bddf01de-05eb-4ea0-9bff-467a8ff97fe2.wav",
+    "filename": "bddf01de-05eb-4ea0-9bff-467a8ff97fe2.wav",
+    "text": "Pro vylepšení českého hlasu v XTTS-v2",
+    "voice_type": "demo",
+    "voice_name": "Marek_Barto__ColdBrain",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T18:20:39.102218"
+  },
+  {
+    "id": "a5d27dd3-708f-4413-95a6-ed79d07eb5f2",
+    "audio_url": "/api/audio/a5d27dd3-708f-4413-95a6-ed79d07eb5f2.wav",
+    "filename": "a5d27dd3-708f-4413-95a6-ed79d07eb5f2.wav",
+    "text": "Pro vylepšení českého hlasu v XTTS-v2",
+    "voice_type": "demo",
+    "voice_name": "Josef_Prusa",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T18:20:24.939061"
+  },
+  {
+    "id": "5ec3fd86-c66d-4e3e-9607-4711ffdbd6eb",
+    "audio_url": "/api/audio/5ec3fd86-c66d-4e3e-9607-4711ffdbd6eb.wav",
+    "filename": "5ec3fd86-c66d-4e3e-9607-4711ffdbd6eb.wav",
+    "text": "Pro vylepšení českého hlasu v XTTS-v2",
+    "voice_type": "demo",
+    "voice_name": "Jidrich_Sidlo",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T18:18:54.668793"
+  },
+  {
+    "id": "d648144d-948a-4d1d-becd-6993d500e223",
+    "audio_url": "/api/audio/d648144d-948a-4d1d-becd-6993d500e223.wav",
+    "filename": "d648144d-948a-4d1d-becd-6993d500e223.wav",
+    "text": "Pro vylepšení českého hlasu v XTTS-v2",
+    "voice_type": "demo",
+    "voice_name": "Jidrich_Sidlo",
+    "tts_params": {
+      "speed": 1.0,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-17T18:18:25.740794"
+  }
+]

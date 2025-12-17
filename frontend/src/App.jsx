@@ -32,6 +32,11 @@ function App() {
   const [demoVoices, setDemoVoices] = useState([])
   const [modelStatus, setModelStatus] = useState(null)
   const [ttsSettings, setTtsSettings] = useState(DEFAULT_TTS_SETTINGS)
+  const [qualitySettings, setQualitySettings] = useState({
+    qualityMode: null,
+    enhancementPreset: 'natural',
+    enableEnhancement: true
+  })
 
   const tabs = [
     { id: 'generate', label: 'Generovat', icon: '🎤' },
@@ -97,16 +102,14 @@ function App() {
         lengthPenalty: ttsSettings.lengthPenalty,
         repetitionPenalty: ttsSettings.repetitionPenalty,
         topK: ttsSettings.topK,
-        topP: ttsSettings.topP
+        topP: ttsSettings.topP,
+        qualityMode: qualitySettings.qualityMode,
+        enhancementPreset: qualitySettings.enhancementPreset,
+        enableEnhancement: qualitySettings.enableEnhancement
       }
 
       const result = await generateSpeech(text, voiceFile, demoVoice, ttsParams)
       setGeneratedAudio(result.audio_url)
-
-      // Po úspěšném generování přepnout na záložku historie
-      setTimeout(() => {
-        setActiveTab('history')
-      }, 500)
     } catch (err) {
       setError(err.message || 'Chyba při generování řeči')
       console.error('Generate error:', err)
@@ -204,11 +207,13 @@ function App() {
                 maxLength={500}
               />
 
-              <TTSSettings
-                settings={ttsSettings}
-                onChange={setTtsSettings}
-                onReset={() => setTtsSettings(DEFAULT_TTS_SETTINGS)}
-              />
+          <TTSSettings
+            settings={ttsSettings}
+            onChange={setTtsSettings}
+            onReset={() => setTtsSettings(DEFAULT_TTS_SETTINGS)}
+            qualitySettings={qualitySettings}
+            onQualityChange={setQualitySettings}
+          />
 
               <div className="generate-section">
                 <button

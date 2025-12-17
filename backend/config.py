@@ -93,3 +93,53 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # Export device info for status endpoint
 DEVICE_FORCED = FORCE_DEVICE != "auto"
 
+# Audio enhancement settings
+ENABLE_AUDIO_ENHANCEMENT = os.getenv("ENABLE_AUDIO_ENHANCEMENT", "True").lower() == "true"
+AUDIO_ENHANCEMENT_PRESET = os.getenv("AUDIO_ENHANCEMENT_PRESET", "natural")  # high_quality, natural, fast
+OUTPUT_SAMPLE_RATE = int(os.getenv("OUTPUT_SAMPLE_RATE", "22050"))  # 22050, 24000, 44100
+ENABLE_EQ_CORRECTION = os.getenv("ENABLE_EQ_CORRECTION", "True").lower() == "true"
+ENABLE_ADVANCED_NOISE_REDUCTION = os.getenv("ENABLE_ADVANCED_NOISE_REDUCTION", "False").lower() == "true"
+
+# Quality presets pro TTS generování
+QUALITY_PRESETS = {
+    "high_quality": {
+        "speed": 1.0,
+        "temperature": 0.5,
+        "length_penalty": 1.2,
+        "repetition_penalty": 2.5,
+        "top_k": 30,
+        "top_p": 0.8,
+        "enhancement": {
+            "enable_eq": True,
+            "enable_noise_reduction": True,
+            "enable_compression": True
+        }
+    },
+    "natural": {
+        "speed": 1.0,
+        "temperature": 0.7,
+        "length_penalty": 1.0,
+        "repetition_penalty": 2.0,
+        "top_k": 50,
+        "top_p": 0.85,
+        "enhancement": {
+            "enable_eq": True,
+            "enable_noise_reduction": False,
+            "enable_compression": True
+        }
+    },
+    "fast": {
+        "speed": 1.0,
+        "temperature": 0.8,
+        "length_penalty": 1.0,
+        "repetition_penalty": 2.0,
+        "top_k": 60,
+        "top_p": 0.9,
+        "enhancement": {
+            "enable_eq": False,
+            "enable_noise_reduction": False,
+            "enable_compression": True
+        }
+    }
+}
+

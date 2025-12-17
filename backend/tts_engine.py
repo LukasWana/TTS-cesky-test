@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Optional
 from TTS.api import TTS
 import torch
+from num2words import num2words
+from TTS.tts.layers.xtts import tokenizer as xtts_tokenizer
 from backend.config import (
     DEVICE,
     XTTS_MODEL_NAME,
@@ -15,8 +17,28 @@ from backend.config import (
     USE_SMALL_MODELS,
     ENABLE_CPU_OFFLOAD,
     FORCE_DEVICE,
-    DEVICE_FORCED
+    DEVICE_FORCED,
+    ENABLE_AUDIO_ENHANCEMENT,
+    AUDIO_ENHANCEMENT_PRESET,
+    QUALITY_PRESETS
 )
+from backend.audio_enhancer import AudioEnhancer
+
+# Monkey patch pro správnou podporu češtiny v num2words (TTS upstream používá kód "cz")
+try:
+    def _expand_number_cs(m, lang="en"):
+        lang_code = "cs" if lang.split("-")[0] == "cs" else lang
+        return num2words(int(m.group(0)), lang=lang_code)
+
+    def _expand_ordinal_cs(m, lang="en"):
+        lang_code = "cs" if lang.split("-")[0] == "cs" else lang
+        return num2words(int(m.group(1)), ordinal=True, lang=lang_code)
+
+    xtts_tokenizer._expand_number = _expand_number_cs
+    xtts_tokenizer._expand_ordinal = _expand_ordinal_cs
+except Exception as patch_err:
+    # Nechceme spadnout při importu – jen zalogujeme
+    print(f"Warning: Czech number expansion patch not applied: {patch_err}")
 
 
 class XTTSEngine:
@@ -118,6 +140,30 @@ class XTTSEngine:
                 print(f"Both attempts failed. Error 1: {str(e1)}, Error 2: {str(e2)}")
                 raise Exception(f"Failed to load model: {str(e2)}")
 
+    def _apply_quality_preset(self, preset: str) -> dict:
+        """
+        Aplikuje quality preset na TTS parametry
+
+        Args:
+            preset: Název presetu (high_quality, natural, fast)
+
+        Returns:
+            Slovník s TTS parametry
+        """
+        preset_config = QUALITY_PRESETS.get(preset, QUALITY_PRESETS["natural"])
+
+        # Vrátit pouze TTS parametry (bez enhancement)
+        tts_params = {
+            "speed": preset_config.get("speed", 1.0),
+            "temperature": preset_config.get("temperature", 0.7),
+            "length_penalty": preset_config.get("length_penalty", 1.0),
+            "repetition_penalty": preset_config.get("repetition_penalty", 2.0),
+            "top_k": preset_config.get("top_k", 50),
+            "top_p": preset_config.get("top_p", 0.85)
+        }
+
+        return tts_params
+
     async def generate(
         self,
         text: str,
@@ -128,7 +174,8 @@ class XTTSEngine:
         length_penalty: float = 1.0,
         repetition_penalty: float = 2.0,
         top_k: int = 50,
-        top_p: float = 0.85
+        top_p: float = 0.85,
+        quality_mode: Optional[str] = None
     ) -> str:
         """
         Generuje řeč z textu
@@ -143,6 +190,7 @@ class XTTSEngine:
             repetition_penalty: Repetition penalty (výchozí: 2.0)
             top_k: Top-k sampling (výchozí: 50)
             top_p: Top-p sampling (výchozí: 0.85)
+            quality_mode: Quality preset (high_quality, natural, fast) - přepíše jednotlivé parametry
 
         Returns:
             Cesta k vygenerovanému audio souboru
@@ -152,6 +200,16 @@ class XTTSEngine:
 
         if not self.model:
             raise Exception("Model není načten")
+
+        # Aplikace quality preset pokud je zadán
+        if quality_mode:
+            preset_params = self._apply_quality_preset(quality_mode)
+            speed = preset_params["speed"]
+            temperature = preset_params["temperature"]
+            length_penalty = preset_params["length_penalty"]
+            repetition_penalty = preset_params["repetition_penalty"]
+            top_k = preset_params["top_k"]
+            top_p = preset_params["top_p"]
 
         # Vytvoření výstupní cesty
         output_filename = f"{uuid.uuid4()}.wav"
@@ -171,7 +229,8 @@ class XTTSEngine:
             length_penalty,
             repetition_penalty,
             top_k,
-            top_p
+            top_p,
+            quality_mode
         )
 
         return str(output_path)
@@ -187,7 +246,8 @@ class XTTSEngine:
         length_penalty: float = 1.0,
         repetition_penalty: float = 2.0,
         top_k: int = 50,
-        top_p: float = 0.85
+        top_p: float = 0.85,
+        quality_mode: Optional[str] = None
     ):
         """Synchronní generování řeči"""
         try:
@@ -230,6 +290,15 @@ class XTTSEngine:
             if not Path(output_path).exists():
                 raise Exception(f"Output file was not created: {output_path}")
 
+            # Post-processing audio enhancement (pokud je zapnuto)
+            if ENABLE_AUDIO_ENHANCEMENT:
+                try:
+                    # Použít preset z quality_mode nebo výchozí
+                    enhancement_preset = quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET
+                    AudioEnhancer.enhance_output(output_path, preset=enhancement_preset)
+                except Exception as e:
+                    print(f"Warning: Audio enhancement failed: {e}, continuing with original audio")
+
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
@@ -238,14 +307,49 @@ class XTTSEngine:
 
     def _preprocess_text_for_czech(self, text: str, language: str) -> str:
         """
-        Předzpracuje text pro češtinu - převede čísla na slova
-        aby se předešlo chybě s num2words
+        Předzpracuje text pro češtinu - převede čísla na slova, normalizuje interpunkci,
+        převede zkratky a opraví formátování
         """
         if language != "cs":
             return text
 
         import re
 
+        # 1. Normalizace interpunkce
+        text = text.replace("...", "…")
+        text = text.replace("--", "—")
+        text = text.replace("''", '"')
+        text = text.replace("``", '"')
+
+        # 2. Převod zkratek na plné formy
+        abbreviations = {
+            "např.": "například",
+            "atd.": "a tak dále",
+            "tj.": "to jest",
+            "tzn.": "to znamená",
+            "apod.": "a podobně",
+            "př.": "příklad",
+            "č.": "číslo",
+            "str.": "strana",
+            "s.": "strana",
+            "r.": "rok",
+            "m.": "měsíc",
+            "min.": "minuta",
+            "sek.": "sekunda",
+            "km/h": "kilometrů za hodinu",
+            "m/s": "metrů za sekundu"
+        }
+        for abbr, full in abbreviations.items():
+            # Nahradit pouze celá slova (s mezerami nebo interpunkcí)
+            pattern = r'\b' + re.escape(abbr) + r'\b'
+            text = re.sub(pattern, full, text, flags=re.IGNORECASE)
+
+        # 3. Normalizace mezer
+        text = re.sub(r'\s+', ' ', text)  # Více mezer na jednu
+        text = re.sub(r'\s+([.,!?;:])', r'\1', text)  # Mezera před interpunkcí
+        text = text.strip()
+
+        # 4. Rozšířený převod čísel na slova
         # Slovník pro základní čísla (0-100)
         number_words = {
             0: "nula", 1: "jedna", 2: "dva", 3: "tři", 4: "čtyři", 5: "pět",

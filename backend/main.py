@@ -37,7 +37,9 @@ try:
         TTS_LENGTH_PENALTY,
         TTS_REPETITION_PENALTY,
         TTS_TOP_K,
-        TTS_TOP_P
+        TTS_TOP_P,
+        ENABLE_AUDIO_ENHANCEMENT,
+        AUDIO_ENHANCEMENT_PRESET
     )
 except ImportError:
     # Fallback pro spuštění z backend/ adresáře
@@ -64,7 +66,9 @@ except ImportError:
         TTS_LENGTH_PENALTY,
         TTS_REPETITION_PENALTY,
         TTS_TOP_K,
-        TTS_TOP_P
+        TTS_TOP_P,
+        ENABLE_AUDIO_ENHANCEMENT,
+        AUDIO_ENHANCEMENT_PRESET
     )
 
 # Inicializace engine
@@ -124,7 +128,10 @@ async def generate_speech(
     length_penalty: float = Form(None),
     repetition_penalty: float = Form(None),
     top_k: int = Form(None),
-    top_p: float = Form(None)
+    top_p: float = Form(None),
+    quality_mode: str = Form(None),
+    enhancement_preset: str = Form(None),
+    enable_enhancement: str = Form(None)
 ):
     """
     Generuje řeč z textu
@@ -139,6 +146,9 @@ async def generate_speech(
         repetition_penalty: Repetition penalty (výchozí: 2.0)
         top_k: Top-k sampling (výchozí: 50)
         top_p: Top-p sampling (výchozí: 0.85)
+        quality_mode: Režim kvality (high_quality, natural, fast) - přepíše jednotlivé parametry
+        enhancement_preset: Preset pro audio enhancement (high_quality, natural, fast)
+        enable_enhancement: Zapnout/vypnout audio enhancement (true/false, výchozí: true)
     """
     try:
         # Validace textu
@@ -215,18 +225,48 @@ async def generate_speech(
         if not (0.0 <= tts_top_p <= 1.0):
             raise HTTPException(status_code=400, detail="top_p musí být mezi 0.0 a 1.0")
 
-        # Generování řeči
-        output_path = await tts_engine.generate(
-            text=text,
-            speaker_wav=speaker_wav,
-            language="cs",
-            speed=tts_speed,
-            temperature=tts_temperature,
-            length_penalty=tts_length_penalty,
-            repetition_penalty=tts_repetition_penalty,
-            top_k=tts_top_k,
-            top_p=tts_top_p
-        )
+        # Určení quality_mode a enhancement nastavení
+        tts_quality_mode = quality_mode if quality_mode else None
+
+        # Pokud je zadán quality_mode, použij ho místo jednotlivých parametrů
+        if tts_quality_mode:
+            # Quality mode přepíše jednotlivé parametry
+            pass  # Parametry budou aplikovány v tts_engine pomocí presetu
+        else:
+            # Použij jednotlivé parametry nebo výchozí hodnoty
+            pass
+
+        # Určení enhancement nastavení
+        use_enhancement = enable_enhancement.lower() == "true" if enable_enhancement else ENABLE_AUDIO_ENHANCEMENT
+        enhancement_preset_value = enhancement_preset if enhancement_preset else (quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET)
+
+        # Dočasně změnit ENABLE_AUDIO_ENHANCEMENT pokud je zadáno v requestu
+        original_enhancement = ENABLE_AUDIO_ENHANCEMENT
+        original_preset = AUDIO_ENHANCEMENT_PRESET
+
+        try:
+            # Dočasně změnit globální nastavení
+            import backend.config as config_module
+            config_module.ENABLE_AUDIO_ENHANCEMENT = use_enhancement
+            config_module.AUDIO_ENHANCEMENT_PRESET = enhancement_preset_value
+
+            # Generování řeči
+            output_path = await tts_engine.generate(
+                text=text,
+                speaker_wav=speaker_wav,
+                language="cs",
+                speed=tts_speed,
+                temperature=tts_temperature,
+                length_penalty=tts_length_penalty,
+                repetition_penalty=tts_repetition_penalty,
+                top_k=tts_top_k,
+                top_p=tts_top_p,
+                quality_mode=tts_quality_mode
+            )
+        finally:
+            # Obnovit původní nastavení
+            config_module.ENABLE_AUDIO_ENHANCEMENT = original_enhancement
+            config_module.AUDIO_ENHANCEMENT_PRESET = original_preset
 
         # Vytvoření URL
         filename = Path(output_path).name
