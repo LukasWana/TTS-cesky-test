@@ -116,6 +116,9 @@ VAD_AGGRESSIVENESS = int(os.getenv("VAD_AGGRESSIVENESS", "2"))  # 0-3
 # Prosody Control
 ENABLE_PROSODY_CONTROL = os.getenv("ENABLE_PROSODY_CONTROL", "True").lower() == "true"
 
+# Phonetic Translation (fonetický přepis cizích slov)
+ENABLE_PHONETIC_TRANSLATION = os.getenv("ENABLE_PHONETIC_TRANSLATION", "True").lower() == "true"
+
 # Speaker Adaptation
 ENABLE_SPEAKER_CACHE = os.getenv("ENABLE_SPEAKER_CACHE", "True").lower() == "true"
 SPEAKER_CACHE_DIR = BASE_DIR / "speaker_cache"

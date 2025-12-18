@@ -37,10 +37,12 @@ from backend.config import (
     MULTI_PASS_COUNT,
     ENABLE_BATCH_PROCESSING,
     MAX_CHUNK_LENGTH,
-    ENABLE_PROSODY_CONTROL
+    ENABLE_PROSODY_CONTROL,
+    ENABLE_PHONETIC_TRANSLATION
 )
 from backend.audio_enhancer import AudioEnhancer
 from backend.vocoder_hifigan import get_hifigan_vocoder
+from backend.phonetic_translator import get_phonetic_translator
 
 # Monkey patch pro správnou podporu češtiny v num2words (TTS upstream používá kód "cz")
 try:
@@ -1171,6 +1173,11 @@ class XTTSEngine:
             return text
 
         import re
+
+        # 0. Fonetický přepis cizích slov (před ostatním předzpracováním)
+        if ENABLE_PHONETIC_TRANSLATION:
+            translator = get_phonetic_translator()
+            text = translator.translate_foreign_words(text, target_language="cs")
 
         # 1. Normalizace interpunkce
         text = text.replace("...", "…")
