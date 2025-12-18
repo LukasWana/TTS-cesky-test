@@ -16,6 +16,12 @@ import uvicorn
 import aiofiles
 from functools import lru_cache
 from typing import Optional
+
+# Potlačení deprecation warning z librosa (pkg_resources je zastaralé, ale knihovna ho ještě používá)
+import warnings
+warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*", category=UserWarning)
+
+from backend.progress_manager import ProgressManager
 try:
     from backend.tts_engine import XTTSEngine
     from backend.audio_processor import AudioProcessor
