@@ -135,7 +135,12 @@ async def generate_speech(
     quality_mode: str = Form(None),
     enhancement_preset: str = Form(None),
     enable_enhancement: str = Form(None),
-    seed: int = Form(None)
+    seed: int = Form(None),
+    multi_pass: str = Form(None),
+    multi_pass_count: int = Form(None),
+    enable_vad: str = Form(None),
+    enable_batch: str = Form(None),
+    use_hifigan: str = Form(None)
 ):
     """
     Generuje řeč z textu
@@ -245,6 +250,13 @@ async def generate_speech(
         use_enhancement = enable_enhancement.lower() == "true" if enable_enhancement else ENABLE_AUDIO_ENHANCEMENT
         enhancement_preset_value = enhancement_preset if enhancement_preset else (quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET)
 
+        # Nové parametry
+        use_multi_pass = multi_pass.lower() == "true" if multi_pass else False
+        multi_pass_count_value = multi_pass_count if multi_pass_count is not None else 3
+        use_vad = enable_vad.lower() == "true" if enable_vad else None
+        use_batch = enable_batch.lower() == "true" if enable_batch else None
+        use_hifigan_value = use_hifigan.lower() == "true" if use_hifigan else False
+
         # Dočasně změnit ENABLE_AUDIO_ENHANCEMENT pokud je zadáno v requestu
         original_enhancement = ENABLE_AUDIO_ENHANCEMENT
         original_preset = AUDIO_ENHANCEMENT_PRESET
@@ -256,7 +268,7 @@ async def generate_speech(
             config_module.AUDIO_ENHANCEMENT_PRESET = enhancement_preset_value
 
             # Generování řeči
-            output_path = await tts_engine.generate(
+            result = await tts_engine.generate(
                 text=text,
                 speaker_wav=speaker_wav,
                 language="cs",
@@ -268,50 +280,65 @@ async def generate_speech(
                 top_p=tts_top_p,
                 quality_mode=tts_quality_mode,
                 seed=seed,
-                enhancement_preset=enhancement_preset_value
+                enhancement_preset=enhancement_preset_value,
+                multi_pass=use_multi_pass,
+                multi_pass_count=multi_pass_count_value,
+                enable_batch=use_batch,
+                enable_vad=use_vad,
+                use_hifigan=use_hifigan_value
             )
         finally:
             # Obnovit původní nastavení
             config_module.ENABLE_AUDIO_ENHANCEMENT = original_enhancement
             config_module.AUDIO_ENHANCEMENT_PRESET = original_preset
 
-        # Vytvoření URL
-        filename = Path(output_path).name
-        audio_url = f"/api/audio/{filename}"
+        # Zpracování výsledku (může být string nebo list pro multi-pass)
+        if isinstance(result, list):
+            # Multi-pass: vrátit všechny varianty
+            return {
+                "variants": result,
+                "success": True,
+                "multi_pass": True
+            }
+        else:
+            # Standardní: jeden výstup
+            output_path = result
+            filename = Path(output_path).name
+            audio_url = f"/api/audio/{filename}"
 
-        # Určení typu hlasu a názvu
-        voice_type = "upload" if voice_file else "demo"
-        voice_name = None
-        if demo_voice:
-            voice_name = demo_voice
-        elif voice_file:
-            voice_name = voice_file.filename
+            # Určení typu hlasu a názvu
+            voice_type = "upload" if voice_file else "demo"
+            voice_name = None
+            if demo_voice:
+                voice_name = demo_voice
+            elif voice_file:
+                voice_name = voice_file.filename
 
-        # Uložení do historie
-        tts_params_dict = {
-            "speed": tts_speed,
-            "temperature": tts_temperature,
-            "length_penalty": tts_length_penalty,
-            "repetition_penalty": tts_repetition_penalty,
-            "top_k": tts_top_k,
-            "top_p": tts_top_p
-        }
+            # Uložení do historie
+            tts_params_dict = {
+                "speed": tts_speed,
+                "temperature": tts_temperature,
+                "length_penalty": tts_length_penalty,
+                "repetition_penalty": tts_repetition_penalty,
+                "top_k": tts_top_k,
+                "top_p": tts_top_p
+            }
 
-        history_entry = HistoryManager.add_entry(
-            audio_url=audio_url,
-            filename=filename,
-            text=text,
-            voice_type=voice_type,
-            voice_name=voice_name,
-            tts_params=tts_params_dict
-        )
+            history_entry = HistoryManager.add_entry(
+                audio_url=audio_url,
+                filename=filename,
+                text=text,
+                voice_type=voice_type,
+                voice_name=voice_name,
+                tts_params=tts_params_dict
+            )
 
-        return {
-            "audio_url": audio_url,
-            "filename": filename,
-            "success": True,
-            "history_id": history_entry["id"]
-        }
+            return {
+                "audio_url": audio_url,
+                "filename": filename,
+                "success": True,
+                "history_id": history_entry["id"]
+            }
 
     except HTTPException:
         raise

@@ -20,6 +20,11 @@ const API_BASE_URL = 'http://localhost:8000'
  * @param {string} ttsParams.qualityMode - Režim kvality (high_quality, natural, fast)
  * @param {string} ttsParams.enhancementPreset - Preset pro audio enhancement
  * @param {boolean} ttsParams.enableEnhancement - Zapnout/vypnout audio enhancement
+ * @param {boolean} ttsParams.multiPass - Zapnout multi-pass generování
+ * @param {number} ttsParams.multiPassCount - Počet variant při multi-pass
+ * @param {boolean} ttsParams.enableVad - Zapnout Voice Activity Detection
+ * @param {boolean} ttsParams.enableBatch - Zapnout batch processing
+ * @param {boolean} ttsParams.useHifigan - Použít HiFi-GAN vocoder
  */
 export async function generateSpeech(text, voiceFile = null, demoVoice = null, ttsParams = {}) {
   const formData = new FormData()
@@ -61,6 +66,21 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
   }
   if (ttsParams.enableEnhancement !== undefined && ttsParams.enableEnhancement !== null) {
     formData.append('enable_enhancement', ttsParams.enableEnhancement.toString())
+  }
+  if (ttsParams.multiPass !== undefined) {
+    formData.append('multi_pass', ttsParams.multiPass.toString())
+  }
+  if (ttsParams.multiPassCount !== undefined) {
+    formData.append('multi_pass_count', ttsParams.multiPassCount.toString())
+  }
+  if (ttsParams.enableVad !== undefined) {
+    formData.append('enable_vad', ttsParams.enableVad.toString())
+  }
+  if (ttsParams.enableBatch !== undefined) {
+    formData.append('enable_batch', ttsParams.enableBatch.toString())
+  }
+  if (ttsParams.useHifigan !== undefined) {
+    formData.append('use_hifigan', ttsParams.useHifigan.toString())
   }
 
   const response = await fetch(`${API_BASE_URL}/api/tts/generate`, {
