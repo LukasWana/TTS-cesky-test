@@ -192,7 +192,13 @@ class XTTSEngine:
         multi_pass_count: int = 3,
         enable_batch: Optional[bool] = None,
         enable_vad: Optional[bool] = None,
-        use_hifigan: bool = False
+        use_hifigan: bool = False,
+        enable_normalization: bool = True,
+        enable_denoiser: bool = True,
+        enable_compressor: bool = True,
+        enable_deesser: bool = True,
+        enable_eq: bool = True,
+        enable_trim: bool = True
     ):
         """
         Generuje řeč z textu
@@ -215,6 +221,12 @@ class XTTSEngine:
             enable_batch: Zapnout batch processing pro dlouhé texty (None = auto)
             enable_vad: Zapnout VAD pro lepší trim (None = použít config)
             use_hifigan: Použít HiFi-GAN vocoder (výchozí: False)
+            enable_normalization: Zapnout normalizaci (výchozí: True)
+            enable_denoiser: Zapnout redukci šumu (výchozí: True)
+            enable_compressor: Zapnout kompresi (výchozí: True)
+            enable_deesser: Zapnout de-esser (výchozí: True)
+            enable_eq: Zapnout EQ (výchozí: True)
+            enable_trim: Zapnout ořez ticha (výchozí: True)
 
         Returns:
             Cesta k vygenerovanému audio souboru nebo seznam variant při multi-pass
@@ -242,7 +254,13 @@ class XTTSEngine:
                 variant_count=multi_pass_count if multi_pass else MULTI_PASS_COUNT,
                 enable_batch=enable_batch,
                 enable_vad=enable_vad,
-                use_hifigan=use_hifigan
+                use_hifigan=use_hifigan,
+                enable_normalization=enable_normalization,
+                enable_denoiser=enable_denoiser,
+                enable_compressor=enable_compressor,
+                enable_deesser=enable_deesser,
+                enable_eq=enable_eq,
+                enable_trim=enable_trim
             )
 
         # Batch processing pro dlouhé texty
@@ -262,7 +280,13 @@ class XTTSEngine:
                 seed=seed,
                 enhancement_preset=enhancement_preset,
                 enable_vad=enable_vad,
-                use_hifigan=use_hifigan
+                use_hifigan=use_hifigan,
+                enable_normalization=enable_normalization,
+                enable_denoiser=enable_denoiser,
+                enable_compressor=enable_compressor,
+                enable_deesser=enable_deesser,
+                enable_eq=enable_eq,
+                enable_trim=enable_trim
             )
 
         # Aplikace quality preset pokud je zadán
@@ -306,7 +330,13 @@ class XTTSEngine:
             seed,
             enhancement_preset,
             enable_vad,
-            use_hifigan
+            use_hifigan,
+            enable_normalization,
+            enable_denoiser,
+            enable_compressor,
+            enable_deesser,
+            enable_eq,
+            enable_trim
         )
 
         return str(output_path)
@@ -327,7 +357,13 @@ class XTTSEngine:
         seed: Optional[int] = None,
         enhancement_preset: Optional[str] = None,
         enable_vad: Optional[bool] = None,
-        use_hifigan: bool = False
+        use_hifigan: bool = False,
+        enable_normalization: bool = True,
+        enable_denoiser: bool = True,
+        enable_compressor: bool = True,
+        enable_deesser: bool = True,
+        enable_eq: bool = True,
+        enable_trim: bool = True
     ):
         """Synchronní generování řeči"""
         try:
@@ -444,7 +480,16 @@ class XTTSEngine:
                     # Použít předaný enhancement_preset, nebo výchozí z configu
                     preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
                     # Předat enable_vad do enhancement
-                    AudioEnhancer.enhance_output(output_path, preset=preset_to_use)
+                    AudioEnhancer.enhance_output(
+                        output_path,
+                        preset=preset_to_use,
+                        enable_normalization=enable_normalization,
+                        enable_noise_reduction=enable_denoiser,
+                        enable_compression=enable_compressor,
+                        enable_deesser=enable_deesser,
+                        enable_eq=enable_eq,
+                        enable_trim=enable_trim
+                    )
                 except Exception as e:
                     print(f"Warning: Audio enhancement failed: {e}, continuing with original audio")
 
@@ -683,7 +728,13 @@ class XTTSEngine:
         variant_count: int = 3,
         enable_batch: Optional[bool] = None,
         enable_vad: Optional[bool] = None,
-        use_hifigan: bool = False
+        use_hifigan: bool = False,
+        enable_normalization: bool = True,
+        enable_denoiser: bool = True,
+        enable_compressor: bool = True,
+        enable_deesser: bool = True,
+        enable_eq: bool = True,
+        enable_trim: bool = True
     ) -> List[dict]:
         """
         Generuje více variant řeči s různými parametry
@@ -739,7 +790,13 @@ class XTTSEngine:
                 multi_pass=False,  # Zabrání rekurzi
                 enable_batch=enable_batch,
                 enable_vad=enable_vad,
-                use_hifigan=use_hifigan
+                use_hifigan=use_hifigan,
+                enable_normalization=enable_normalization,
+                enable_denoiser=enable_denoiser,
+                enable_compressor=enable_compressor,
+                enable_deesser=enable_deesser,
+                enable_eq=enable_eq,
+                enable_trim=enable_trim
             )
 
             filename = Path(output_path).name
@@ -770,7 +827,13 @@ class XTTSEngine:
         seed: Optional[int] = None,
         enhancement_preset: Optional[str] = None,
         enable_vad: Optional[bool] = None,
-        use_hifigan: bool = False
+        use_hifigan: bool = False,
+        enable_normalization: bool = True,
+        enable_denoiser: bool = True,
+        enable_compressor: bool = True,
+        enable_deesser: bool = True,
+        enable_eq: bool = True,
+        enable_trim: bool = True
     ) -> str:
         """
         Generuje řeč pro dlouhý text pomocí batch processing
@@ -818,7 +881,13 @@ class XTTSEngine:
                 multi_pass=False,
                 enable_batch=False,
                 enable_vad=enable_vad,
-                use_hifigan=use_hifigan
+                use_hifigan=use_hifigan,
+                enable_normalization=enable_normalization,
+                enable_denoiser=enable_denoiser,
+                enable_compressor=enable_compressor,
+                enable_deesser=enable_deesser,
+                enable_eq=enable_eq,
+                enable_trim=enable_trim
             )
 
         print(f"📦 Batch processing: rozděleno na {len(chunks)} částí")
@@ -843,7 +912,13 @@ class XTTSEngine:
                 multi_pass=False,
                 enable_batch=False,
                 enable_vad=enable_vad,
-                use_hifigan=use_hifigan
+                use_hifigan=use_hifigan,
+                enable_normalization=enable_normalization,
+                enable_denoiser=enable_denoiser,
+                enable_compressor=enable_compressor,
+                enable_deesser=enable_deesser,
+                enable_eq=enable_eq,
+                enable_trim=enable_trim
             )
             audio_files.append(chunk_output)
 
@@ -877,6 +952,7 @@ class XTTSEngine:
             "cuda_available": torch.cuda.is_available(),
             "device_forced": DEVICE_FORCED,
             "force_device": FORCE_DEVICE,
-            "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
+            "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+            "hifigan_available": self.vocoder.available if hasattr(self, 'vocoder') else False
         }
 

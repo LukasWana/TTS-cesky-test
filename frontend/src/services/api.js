@@ -25,6 +25,12 @@ const API_BASE_URL = 'http://localhost:8000'
  * @param {boolean} ttsParams.enableVad - Zapnout Voice Activity Detection
  * @param {boolean} ttsParams.enableBatch - Zapnout batch processing
  * @param {boolean} ttsParams.useHifigan - Použít HiFi-GAN vocoder
+ * @param {boolean} ttsParams.enableNormalization - Zapnout normalizaci
+ * @param {boolean} ttsParams.enableDenoiser - Zapnout redukci šumu
+ * @param {boolean} ttsParams.enableCompressor - Zapnout kompresi
+ * @param {boolean} ttsParams.enableDeesser - Zapnout de-esser
+ * @param {boolean} ttsParams.enableEq - Zapnout EQ
+ * @param {boolean} ttsParams.enableTrim - Zapnout ořez ticha
  */
 export async function generateSpeech(text, voiceFile = null, demoVoice = null, ttsParams = {}) {
   const formData = new FormData()
@@ -81,6 +87,24 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
   }
   if (ttsParams.useHifigan !== undefined) {
     formData.append('use_hifigan', ttsParams.useHifigan.toString())
+  }
+  if (ttsParams.enableNormalization !== undefined) {
+    formData.append('enable_normalization', ttsParams.enableNormalization.toString())
+  }
+  if (ttsParams.enableDenoiser !== undefined) {
+    formData.append('enable_denoiser', ttsParams.enableDenoiser.toString())
+  }
+  if (ttsParams.enableCompressor !== undefined) {
+    formData.append('enable_compressor', ttsParams.enableCompressor.toString())
+  }
+  if (ttsParams.enableDeesser !== undefined) {
+    formData.append('enable_deesser', ttsParams.enableDeesser.toString())
+  }
+  if (ttsParams.enableEq !== undefined) {
+    formData.append('enable_eq', ttsParams.enableEq.toString())
+  }
+  if (ttsParams.enableTrim !== undefined) {
+    formData.append('enable_trim', ttsParams.enableTrim.toString())
   }
 
   const response = await fetch(`${API_BASE_URL}/api/tts/generate`, {

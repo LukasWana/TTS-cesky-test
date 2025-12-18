@@ -140,7 +140,13 @@ async def generate_speech(
     multi_pass_count: int = Form(None),
     enable_vad: str = Form(None),
     enable_batch: str = Form(None),
-    use_hifigan: str = Form(None)
+    use_hifigan: str = Form(None),
+    enable_normalization: str = Form(None),
+    enable_denoiser: str = Form(None),
+    enable_compressor: str = Form(None),
+    enable_deesser: str = Form(None),
+    enable_eq: str = Form(None),
+    enable_trim: str = Form(None)
 ):
     """
     Generuje řeč z textu
@@ -256,6 +262,12 @@ async def generate_speech(
         use_vad = enable_vad.lower() == "true" if enable_vad else None
         use_batch = enable_batch.lower() == "true" if enable_batch else None
         use_hifigan_value = use_hifigan.lower() == "true" if use_hifigan else False
+        use_normalization = enable_normalization.lower() == "true" if enable_normalization else True
+        use_denoiser = enable_denoiser.lower() == "true" if enable_denoiser else True
+        use_compressor = enable_compressor.lower() == "true" if enable_compressor else True
+        use_deesser = enable_deesser.lower() == "true" if enable_deesser else True
+        use_eq = enable_eq.lower() == "true" if enable_eq else True
+        use_trim = enable_trim.lower() == "true" if enable_trim else True
 
         # Dočasně změnit ENABLE_AUDIO_ENHANCEMENT pokud je zadáno v requestu
         original_enhancement = ENABLE_AUDIO_ENHANCEMENT
@@ -285,7 +297,13 @@ async def generate_speech(
                 multi_pass_count=multi_pass_count_value,
                 enable_batch=use_batch,
                 enable_vad=use_vad,
-                use_hifigan=use_hifigan_value
+                use_hifigan=use_hifigan_value,
+                enable_normalization=use_normalization,
+                enable_denoiser=use_denoiser,
+                enable_compressor=use_compressor,
+                enable_deesser=use_deesser,
+                enable_eq=use_eq,
+                enable_trim=use_trim
             )
         finally:
             # Obnovit původní nastavení

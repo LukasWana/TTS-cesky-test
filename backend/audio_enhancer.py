@@ -26,7 +26,9 @@ class AudioEnhancer:
         enable_eq: Optional[bool] = None,
         enable_noise_reduction: Optional[bool] = None,
         enable_compression: Optional[bool] = None,
-        enable_deesser: Optional[bool] = None
+        enable_deesser: Optional[bool] = None,
+        enable_normalization: bool = True,
+        enable_trim: bool = True
     ) -> str:
         """
         Hlavní metoda pro post-processing audio
@@ -37,6 +39,9 @@ class AudioEnhancer:
             enable_eq: Zapnout EQ korekci (None = použít preset)
             enable_noise_reduction: Zapnout noise reduction (None = použít preset)
             enable_compression: Zapnout kompresi (None = použít preset)
+            enable_deesser: Zapnout de-esser (None = použít preset)
+            enable_normalization: Zapnout finální normalizaci (výchozí: True)
+            enable_trim: Zapnout ořez ticha (výchozí: True)
 
         Returns:
             Cesta k vylepšenému audio souboru
@@ -62,17 +67,18 @@ class AudioEnhancer:
         use_deesser = enable_deesser if enable_deesser is not None else enhancement_config.get("enable_deesser", True)
 
         # 1. Ořez ticha (s VAD pokud je dostupné)
-        try:
-            from backend.vad_processor import get_vad_processor
-            from backend.config import ENABLE_VAD
-            if ENABLE_VAD:
-                vad_processor = get_vad_processor()
-                audio = vad_processor.trim_silence_vad(audio, sr)
-            else:
+        if enable_trim:
+            try:
+                from backend.vad_processor import get_vad_processor
+                from backend.config import ENABLE_VAD
+                if ENABLE_VAD:
+                    vad_processor = get_vad_processor()
+                    audio = vad_processor.trim_silence_vad(audio, sr)
+                else:
+                    audio = AudioEnhancer.trim_silence(audio, sr, top_db=25)
+            except Exception as e:
+                print(f"Warning: VAD trim failed, using standard trim: {e}")
                 audio = AudioEnhancer.trim_silence(audio, sr, top_db=25)
-        except Exception as e:
-            print(f"Warning: VAD trim failed, using standard trim: {e}")
-            audio = AudioEnhancer.trim_silence(audio, sr, top_db=25)
 
         # 2. Pokročilá redukce šumu (pokud zapnuto)
         if use_noise_reduction:
@@ -97,8 +103,9 @@ class AudioEnhancer:
         audio = AudioEnhancer.remove_dc_offset(audio)
 
         # 8. Finální normalizace podle best practices pro hlas
-        # Peak: -3 dB, RMS: -18 dB
-        audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
+        if enable_normalization:
+            # Peak: -3 dB, RMS: -18 dB
+            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
 
         # Uložení zpět do souboru
         sf.write(audio_path, audio, sr)

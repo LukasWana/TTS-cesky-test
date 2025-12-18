@@ -30,7 +30,13 @@ const DEFAULT_QUALITY_SETTINGS = {
   multiPassCount: 3,
   enableVad: true,
   enableBatch: true,
-  useHifigan: false
+  useHifigan: false,
+  enableNormalization: true,
+  enableDenoiser: true,
+  enableCompressor: true,
+  enableDeesser: true,
+  enableEq: true,
+  enableTrim: true
 }
 
 // Klíče pro localStorage - varianty jsou vázané na konkrétní hlas (id)
@@ -271,7 +277,40 @@ function App() {
           : DEFAULT_QUALITY_SETTINGS.enhancementPreset,
         enableEnhancement: typeof saved.qualitySettings.enableEnhancement === 'boolean'
           ? saved.qualitySettings.enableEnhancement
-          : DEFAULT_QUALITY_SETTINGS.enableEnhancement
+          : DEFAULT_QUALITY_SETTINGS.enableEnhancement,
+        enableNormalization: typeof saved.qualitySettings.enableNormalization === 'boolean'
+          ? saved.qualitySettings.enableNormalization
+          : DEFAULT_QUALITY_SETTINGS.enableNormalization,
+        enableDenoiser: typeof saved.qualitySettings.enableDenoiser === 'boolean'
+          ? saved.qualitySettings.enableDenoiser
+          : DEFAULT_QUALITY_SETTINGS.enableDenoiser,
+        enableCompressor: typeof saved.qualitySettings.enableCompressor === 'boolean'
+          ? saved.qualitySettings.enableCompressor
+          : DEFAULT_QUALITY_SETTINGS.enableCompressor,
+        enableDeesser: typeof saved.qualitySettings.enableDeesser === 'boolean'
+          ? saved.qualitySettings.enableDeesser
+          : DEFAULT_QUALITY_SETTINGS.enableDeesser,
+        enableEq: typeof saved.qualitySettings.enableEq === 'boolean'
+          ? saved.qualitySettings.enableEq
+          : DEFAULT_QUALITY_SETTINGS.enableEq,
+        enableTrim: typeof saved.qualitySettings.enableTrim === 'boolean'
+          ? saved.qualitySettings.enableTrim
+          : DEFAULT_QUALITY_SETTINGS.enableTrim,
+        multiPass: typeof saved.qualitySettings.multiPass === 'boolean'
+          ? saved.qualitySettings.multiPass
+          : DEFAULT_QUALITY_SETTINGS.multiPass,
+        multiPassCount: typeof saved.qualitySettings.multiPassCount === 'number'
+          ? saved.qualitySettings.multiPassCount
+          : DEFAULT_QUALITY_SETTINGS.multiPassCount,
+        enableVad: typeof saved.qualitySettings.enableVad === 'boolean'
+          ? saved.qualitySettings.enableVad
+          : DEFAULT_QUALITY_SETTINGS.enableVad,
+        enableBatch: typeof saved.qualitySettings.enableBatch === 'boolean'
+          ? saved.qualitySettings.enableBatch
+          : DEFAULT_QUALITY_SETTINGS.enableBatch,
+        useHifigan: typeof saved.qualitySettings.useHifigan === 'boolean'
+          ? saved.qualitySettings.useHifigan
+          : DEFAULT_QUALITY_SETTINGS.useHifigan
       }
     } else {
       // Výchozí nastavení pro novou variantu
@@ -373,7 +412,13 @@ function App() {
         multiPassCount: qualitySettings.multiPassCount,
         enableVad: qualitySettings.enableVad,
         enableBatch: qualitySettings.enableBatch,
-        useHifigan: qualitySettings.useHifigan
+        useHifigan: qualitySettings.useHifigan,
+        enableNormalization: qualitySettings.enableNormalization,
+        enableDenoiser: qualitySettings.enableDenoiser,
+        enableCompressor: qualitySettings.enableCompressor,
+        enableDeesser: qualitySettings.enableDeesser,
+        enableEq: qualitySettings.enableEq,
+        enableTrim: qualitySettings.enableTrim
       }
 
       const result = await generateSpeech(text, voiceFile, demoVoice, ttsParams)

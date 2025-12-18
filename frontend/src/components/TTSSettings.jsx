@@ -33,7 +33,13 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
   const defaultQualitySettings = {
     qualityMode: null,
     enhancementPreset: 'natural',
-    enableEnhancement: true
+    enableEnhancement: true,
+    enableNormalization: true,
+    enableDenoiser: true,
+    enableCompressor: true,
+    enableDeesser: true,
+    enableEq: true,
+    enableTrim: true
   }
 
   const quality = qualitySettings || defaultQualitySettings
@@ -294,9 +300,86 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 Zapnout audio enhancement
               </label>
               <div className="setting-description">
-                Post-processing pro vylepšení kvality zvuku (EQ, noise reduction, komprese)
+                Post-processing pro vylepšení kvality zvuku
               </div>
             </div>
+
+            {quality.enableEnhancement && (
+              <div className="enhancement-features" style={{ marginTop: '15px', paddingLeft: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div className="feature-checkbox-item small">
+                  <input
+                    type="checkbox"
+                    id="enableNormalization"
+                    checked={quality.enableNormalization !== false}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      enableNormalization: e.target.checked
+                    })}
+                  />
+                  <label htmlFor="enableNormalization">Normalizace</label>
+                </div>
+                <div className="feature-checkbox-item small">
+                  <input
+                    type="checkbox"
+                    id="enableDenoiser"
+                    checked={quality.enableDenoiser !== false}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      enableDenoiser: e.target.checked
+                    })}
+                  />
+                  <label htmlFor="enableDenoiser">Denoiser</label>
+                </div>
+                <div className="feature-checkbox-item small">
+                  <input
+                    type="checkbox"
+                    id="enableCompressor"
+                    checked={quality.enableCompressor !== false}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      enableCompressor: e.target.checked
+                    })}
+                  />
+                  <label htmlFor="enableCompressor">Compressor</label>
+                </div>
+                <div className="feature-checkbox-item small">
+                  <input
+                    type="checkbox"
+                    id="enableDeesser"
+                    checked={quality.enableDeesser !== false}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      enableDeesser: e.target.checked
+                    })}
+                  />
+                  <label htmlFor="enableDeesser">De-esser</label>
+                </div>
+                <div className="feature-checkbox-item small">
+                  <input
+                    type="checkbox"
+                    id="enableEq"
+                    checked={quality.enableEq !== false}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      enableEq: e.target.checked
+                    })}
+                  />
+                  <label htmlFor="enableEq">Equalizer</label>
+                </div>
+                <div className="feature-checkbox-item small">
+                  <input
+                    type="checkbox"
+                    id="enableTrim"
+                    checked={quality.enableTrim !== false}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      enableTrim: e.target.checked
+                    })}
+                  />
+                  <label htmlFor="enableTrim">Ořez ticha</label>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Pokročilé funkce */}
