@@ -154,3 +154,4 @@ class HistoryManager:
             "newest_entry": history[0]["created_at"] if history else None
         }
 
+

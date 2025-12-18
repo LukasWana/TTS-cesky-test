@@ -118,7 +118,7 @@ SPEAKER_CACHE_DIR = BASE_DIR / "speaker_cache"
 SPEAKER_CACHE_DIR.mkdir(exist_ok=True)
 
 # Vocoder Upgrade
-ENABLE_HIFIGAN = os.getenv("ENABLE_HIFIGAN", "False").lower() == "true"
+ENABLE_HIFIGAN = os.getenv("ENABLE_HIFIGAN", "True").lower() == "true"
 HIFIGAN_MODEL_PATH = os.getenv("HIFIGAN_MODEL_PATH", None)
 
 # Batch Processing
