@@ -28,11 +28,19 @@ try:
     except ImportError:
         HIFIGAN_DIRECT_AVAILABLE = False
 
-    HIFIGAN_AVAILABLE = PARALLEL_WAVEGAN_AVAILABLE or HIFIGAN_DIRECT_AVAILABLE
+    # Additional support for vtuber-plan HiFi-GAN via torch.hub
+    try:
+        import torch
+        VTUBER_PLAN_AVAILABLE = True
+    except ImportError:
+        VTUBER_PLAN_AVAILABLE = False
+
+    HIFIGAN_AVAILABLE = PARALLEL_WAVEGAN_AVAILABLE or HIFIGAN_DIRECT_AVAILABLE or VTUBER_PLAN_AVAILABLE
 except:
     HIFIGAN_AVAILABLE = False
     PARALLEL_WAVEGAN_AVAILABLE = False
     HIFIGAN_DIRECT_AVAILABLE = False
+    VTUBER_PLAN_AVAILABLE = False
 
 if not HIFIGAN_AVAILABLE:
     print("Warning: HiFi-GAN není dostupný. Pro použití nainstalujte parallel-wavegan nebo hifigan.")
@@ -70,6 +78,8 @@ class HiFiGANVocoder:
                 success = self._load_parallel_wavegan(model_path)
             elif HIFIGAN_DIRECT_AVAILABLE:
                 success = self._load_hifigan_direct(model_path)
+            elif VTUBER_PLAN_AVAILABLE:
+                success = self._load_vtuber_plan()
             else:
                 print("Warning: Žádná HiFi-GAN implementace není dostupná")
                 return False
@@ -254,7 +264,20 @@ class HiFiGANVocoder:
         except Exception as e:
             print(f"Error loading hifigan model: {e}")
             return False
-
+    def _load_vtuber_plan(self) -> bool:
+        """Load HiFi-GAN model from vtuber-plan repository via torch.hub.
+        Returns True on success, False otherwise.
+        """
+        try:
+            # vtuber-plan provides a torch.hub entry point
+            model = torch.hub.load('vtuber-plan/hifi-gan', 'hifigan_48k', force_reload=True)
+            self.model = model.to(DEVICE)
+            self.model.eval()
+            print("✅ HiFi-GAN model loaded from vtuber-plan via torch.hub")
+            return True
+        except Exception as e:
+            print(f"Error loading vtuber-plan HiFi-GAN model: {e}")
+            return False
     def vocode(
         self,
         mel_spectrogram: np.ndarray,
@@ -283,6 +306,8 @@ class HiFiGANVocoder:
             if PARALLEL_WAVEGAN_AVAILABLE:
                 return self._vocode_parallel_wavegan(mel_spectrogram, sample_rate)
             elif HIFIGAN_DIRECT_AVAILABLE:
+                return self._vocode_hifigan_direct(mel_spectrogram, sample_rate)
+            elif VTUBER_PLAN_AVAILABLE:
                 return self._vocode_hifigan_direct(mel_spectrogram, sample_rate)
             else:
                 return None

@@ -292,7 +292,9 @@ class XTTSEngine:
         # Aplikace quality preset pokud je zadán
         if quality_mode:
             preset_params = self._apply_quality_preset(quality_mode)
-            speed = preset_params["speed"]
+            # Rychlost (speed) chceme zachovat z parametrů volání,
+            # protože ji uživatel nastavuje v UI posuvníkem
+            # speed = preset_params["speed"]
             temperature = preset_params["temperature"]
             length_penalty = preset_params["length_penalty"]
             repetition_penalty = preset_params["repetition_penalty"]
