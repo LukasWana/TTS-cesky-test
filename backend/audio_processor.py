@@ -112,6 +112,81 @@ class AudioProcessor:
         return True, None
 
     @staticmethod
+    def analyze_audio_quality(file_path: str) -> dict:
+        """
+        Analyzuje kvalitu audio souboru (SNR, clipping, délka)
+
+        Returns:
+            Dictionary s výsledky analýzy
+        """
+        try:
+            audio, sr = librosa.load(file_path, sr=None)
+
+            # 1. SNR estimation
+            snr = AudioProcessor.estimate_snr(audio)
+
+            # 2. Clipping detection
+            clipping_ratio = AudioProcessor.check_clipping(audio)
+
+            # 3. Duration
+            duration = librosa.get_duration(y=audio, sr=sr)
+
+            # 4. Celkové hodnocení
+            score = "good"
+            warnings = []
+
+            if snr < 15:
+                score = "poor"
+                warnings.append("Vysoká úroveň šumu v pozadí")
+            elif snr < 25:
+                score = "fair"
+                warnings.append("Mírný šum v pozadí")
+
+            if clipping_ratio > 0.01:
+                score = "poor"
+                warnings.append("Audio je přebuzené (clipping)")
+
+            if duration < 6:
+                warnings.append("Audio je příliš krátké pro kvalitní klonování")
+
+            return {
+                "snr": float(snr),
+                "clipping_ratio": float(clipping_ratio),
+                "duration": float(duration),
+                "score": score,
+                "warnings": warnings
+            }
+        except Exception as e:
+            return {"error": str(e), "score": "unknown", "warnings": ["Nepodařilo se analyzovat kvalitu"]}
+
+    @staticmethod
+    def estimate_snr(audio: np.ndarray) -> float:
+        """Odhadne poměr signálu k šumu (SNR) v dB"""
+        # Velmi zjednodušený odhad: RMS signálu vs RMS tichých částí
+        # Najdeme tiché části (pod 10. percentil magnitudy)
+        rms_total = np.sqrt(np.mean(audio**2))
+        if rms_total == 0: return 0
+
+        # Rozdělíme na okna a najdeme okno s nejnižší energií (noise floor)
+        win_length = 2048
+        hop_length = 512
+        if len(audio) < win_length: return 20.0 # Fallback pro velmi krátké audio
+
+        rms_windows = librosa.feature.rms(y=audio, frame_length=win_length, hop_length=hop_length)[0]
+        noise_floor = np.percentile(rms_windows, 10)
+
+        if noise_floor == 0: return 50.0 # Velmi čisté audio
+
+        snr = 20 * np.log10(rms_total / (noise_floor + 1e-10))
+        return max(0, snr)
+
+    @staticmethod
+    def check_clipping(audio: np.ndarray, threshold: float = 0.99) -> float:
+        """Vrátí poměr samplů, které dosahují threshold (clipping)"""
+        clipping_samples = np.sum(np.abs(audio) >= threshold)
+        return clipping_samples / len(audio)
+
+    @staticmethod
     def convert_audio(
         input_path: str,
         output_path: str,
@@ -285,16 +360,8 @@ class AudioProcessor:
             # 1. Ořez ticha s jemnějším threshold
             audio, _ = librosa.effects.trim(audio, top_db=30)
 
-            # 2. De-essing (redukce sykavek) - high-frequency de-emphasis
-            try:
-                from scipy import signal
-                # Band-stop filter pro 4-8 kHz (sykavky)
-                sos = signal.butter(4, [4000, 8000], btype='bandstop', fs=sr, output='sos')
-                audio = signal.sosfiltfilt(sos, audio)
-            except ImportError:
-                print("Warning: scipy není dostupný, de-essing přeskočen")
-            except Exception as e:
-                print(f"Warning: De-essing failed: {e}")
+            # 2. De-essing (redukce sykavek)
+            audio = AudioEnhancer.apply_deesser(audio, sr)
 
             # 3. Pokročilá redukce šumu
             audio = AudioEnhancer.reduce_noise_advanced(audio, sr)

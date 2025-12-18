@@ -374,10 +374,14 @@ async def upload_voice(voice_file: UploadFile = File(...)):
         if error:
             raise HTTPException(status_code=400, detail=error)
 
+        # Analýza kvality
+        quality_info = AudioProcessor.analyze_audio_quality(processed_path)
+
         return {
             "voice_id": voice_id,
             "processed": True,
-            "file_path": processed_path
+            "file_path": processed_path,
+            "quality": quality_info
         }
 
     except HTTPException:
@@ -462,11 +466,15 @@ async def record_voice(
         # Vytvoření URL pro přístup k souboru
         audio_url = f"/api/audio/demo/{filename}"
 
+        # Analýza kvality
+        quality_info = AudioProcessor.analyze_audio_quality(str(output_path))
+
         return {
             "success": True,
             "filename": filename,
             "audio_url": audio_url,
-            "file_path": str(output_path)
+            "file_path": str(output_path),
+            "quality": quality_info
         }
 
     except HTTPException:
