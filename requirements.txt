@@ -42,5 +42,5 @@ yt-dlp>=2024.0.0
 webrtcvad>=2.0.10
 
 # HiFi-GAN vocoder (volitelné)
-# parallel-wavegan>=0.5.0  # Odkomentujte pokud chcete použít HiFi-GAN
+parallel-wavegan>=0.5.0  # Použijte pokud chcete HiFi-GAN
 # hifigan  # Alternativní implementace

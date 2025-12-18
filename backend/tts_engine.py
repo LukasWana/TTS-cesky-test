@@ -31,6 +31,7 @@ from backend.config import (
     ENABLE_PROSODY_CONTROL
 )
 from backend.audio_enhancer import AudioEnhancer
+from backend.vocoder_hifigan import get_hifigan_vocoder
 
 # Monkey patch pro správnou podporu češtiny v num2words (TTS upstream používá kód "cz")
 try:
@@ -57,6 +58,7 @@ class XTTSEngine:
         self.device = DEVICE
         self.is_loading = False
         self.is_loaded = False
+        self.vocoder = get_hifigan_vocoder()
 
     async def load_model(self):
         """Načte XTTS-v2 model asynchronně"""
@@ -465,6 +467,50 @@ class XTTSEngine:
                 except Exception as e:
                     print(f"⚠️ Warning: Změna rychlosti selhala: {e}, pokračuji s původní rychlostí")
 
+            # HiFi-GAN Vocoder refinement (pokud zapnuto)
+            if use_hifigan and self.vocoder.is_available():
+                try:
+                    import librosa
+                    import soundfile as sf
+
+                    print("🚀 Aplikuji HiFi-GAN vocoder refinement...")
+                    # Načtení aktuálního audio
+                    audio, sr = librosa.load(output_path, sr=None)
+
+                    # 1. Výpočet mel-spectrogramu z vygenerovaného audio
+                    # HiFi-GAN obvykle očekává specifické parametry mel-spectrogramu
+                    mel = librosa.feature.melspectrogram(
+                        y=audio,
+                        sr=sr,
+                        n_fft=1024,
+                        hop_length=256,
+                        win_length=1024,
+                        n_mels=80,
+                        fmin=0,
+                        fmax=8000
+                    )
+
+                    # OPRAVA: HiFi-GAN očekává log-mel (v dB), ne power-mel
+                    # Použijeme stabilnější logaritmickou transformaci
+                    mel_log = np.log10(np.maximum(mel, 1e-5))
+
+                    # 2. Resyntéza pomocí HiFi-GAN
+                    refined_audio = self.vocoder.vocode(mel_log)
+
+                    if refined_audio is not None:
+                        # 3. Normalizace po vocodingu (HiFi-GAN může mít jiný rozsah)
+                        if np.max(np.abs(refined_audio)) > 0:
+                            refined_audio = refined_audio / np.max(np.abs(refined_audio)) * 0.95
+
+                        # Uložení vylepšeného audio
+                        sf.write(output_path, refined_audio, sr)
+                        print("✅ HiFi-GAN refinement dokončen")
+                    else:
+                        print("⚠️ HiFi-GAN vocoding vrátil None, refinement přeskočen")
+
+                except Exception as e:
+                    print(f"⚠️ Warning: HiFi-GAN refinement selhal: {e}")
+
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
@@ -503,11 +549,29 @@ class XTTSEngine:
             "min.": "minuta",
             "sek.": "sekunda",
             "km/h": "kilometrů za hodinu",
-            "m/s": "metrů za sekundu"
+            "m/s": "metrů za sekundu",
+            "cca": "přibližně",
+            "atp.": "a tak podobně",
+            "tzv.": "takzvaný",
+            "vč.": "včetně",
+            "vč": "včetně",
+            "čes.": "český",
+            "angl.": "anglický",
+            "tel.": "telefon",
+            "č.p.": "číslo popisné",
+            "č.j.": "číslo jednací",
+            "Kč": "korun českých",
+            "mil.": "milionů",
+            "mld.": "miliard",
+            "tis.": "tisíc"
         }
         for abbr, full in abbreviations.items():
             # Nahradit pouze celá slova (s mezerami nebo interpunkcí)
-            pattern = r'\b' + re.escape(abbr) + r'\b'
+            # Použijeme regex, který bere v úvahu i tečku na konci zkratky
+            if abbr.endswith('.'):
+                pattern = r'\b' + re.escape(abbr)
+            else:
+                pattern = r'\b' + re.escape(abbr) + r'\b'
             text = re.sub(pattern, full, text, flags=re.IGNORECASE)
 
         # 3. Normalizace mezer
