@@ -33,5 +33,23 @@
   letter-spacing: 0.5px;
 }
 
+.loading-progress {
+  width: 320px;
+  max-width: 85vw;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.loading-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.25);
+  /* Změna na delší a plynulejší přechod */
+  transition: width 0.8s linear;
+}
+
 
 
