@@ -78,43 +78,99 @@ function App() {
 
   // Ref pro sledování, zda se právě načítá nastavení (aby se neukládalo při načítání)
   const isLoadingSettingsRef = useRef(false)
+
+  // Ref pro aktuální nastavení - vždy obsahuje nejnovější hodnoty
+  const currentSettingsRef = useRef({
+    ttsSettings: DEFAULT_TTS_SETTINGS,
+    qualitySettings: DEFAULT_QUALITY_SETTINGS
+  })
+
+  // Aktualizovat ref při každé změně nastavení
+  useEffect(() => {
+    currentSettingsRef.current = {
+      ttsSettings: { ...ttsSettings },
+      qualitySettings: { ...qualitySettings }
+    }
+  }, [ttsSettings, qualitySettings])
+
+  // Debounce timer pro ukládání
+  const saveTimeoutRef = useRef(null)
+
   const saveCurrentVariantNow = () => {
     // Ukládat pouze pro demo hlasy a když je selectedVoice skutečný hlas (ne 'demo1')
     if (!selectedVoice || selectedVoice === 'demo1') return
     if (voiceType !== 'demo') return
     if (isLoadingSettingsRef.current) return
 
+    // Použít hodnoty z ref (vždy aktuální)
     const settings = {
-      ttsSettings: { ...ttsSettings },
-      qualitySettings: { ...qualitySettings }
+      ttsSettings: { ...currentSettingsRef.current.ttsSettings },
+      qualitySettings: { ...currentSettingsRef.current.qualitySettings }
     }
-    saveVariantSettings(selectedVoice, activeVariant, settings)
-    console.log('💾 Ukládám nastavení pro:', selectedVoice, activeVariant, settings) // Debug
+
+    try {
+      saveVariantSettings(selectedVoice, activeVariant, settings)
+      console.log('💾 Ukládám nastavení pro:', selectedVoice, activeVariant, settings) // Debug
+    } catch (err) {
+      console.error('Chyba při ukládání nastavení:', err)
+    }
   }
 
   const handleVariantChange = (nextVariant) => {
     if (nextVariant === activeVariant) return
-    // Než přepneme variantu, ulož aktuální stav "hejblátek"
+
+    // Zrušit případný pending debounce
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = null
+    }
+
+    // Než přepneme variantu, ulož aktuální stav synchronně (bez debounce)
     saveCurrentVariantNow()
+
+    // Změnit variantu
     setActiveVariant(nextVariant)
   }
 
   // Uložení nastavení aktuální varianty do localStorage (vázané na hlas)
-  // Ukládá se při každé změně nastavení, ale ne při načítání
+  // Ukládá se s debounce při změně nastavení, ale ne při načítání nebo změně varianty
   useEffect(() => {
     if (isLoadingSettingsRef.current) return
     if (!selectedVoice || selectedVoice === 'demo1') return
     if (voiceType !== 'demo') return
-    // Ulož vždy při změně (jednodušší a spolehlivé)
-    saveCurrentVariantNow()
+
+    // Zrušit předchozí timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    // Nastavit nový timeout pro debounce (300ms)
+    saveTimeoutRef.current = setTimeout(() => {
+      saveCurrentVariantNow()
+      saveTimeoutRef.current = null
+    }, 300)
+
+    // Cleanup - zrušit timeout při unmount nebo změně závislostí
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        saveTimeoutRef.current = null
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeVariant, ttsSettings, qualitySettings, selectedVoice, voiceType])
+  }, [ttsSettings, qualitySettings, selectedVoice, voiceType])
 
   // Načtení nastavení při změně varianty nebo hlasu
   useEffect(() => {
     // Načítat pouze pro demo hlasy a když je selectedVoice skutečný hlas
     if (!selectedVoice || selectedVoice === 'demo1') return
     if (voiceType !== 'demo') return
+
+    // Zrušit případný pending debounce pro ukládání
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = null
+    }
 
     // Reset generovaného audio při změně varianty
     setGeneratedAudio(null)
@@ -123,42 +179,76 @@ function App() {
     // Nastav flag, že se právě načítá (aby se neukládalo)
     isLoadingSettingsRef.current = true
 
+    // Načíst nastavení
     const saved = loadVariantSettings(selectedVoice, activeVariant)
     console.log('📖 Načítám nastavení pro:', selectedVoice, activeVariant, saved) // Debug
 
+    // Validace a načtení nastavení atomicky
+    let loadedTts, loadedQuality
+
     if (saved && saved.ttsSettings && saved.qualitySettings) {
-      // Načti uložené nastavení - vytvoř nové objekty s explicitními hodnotami
-      const loadedTts = {
-        speed: saved.ttsSettings.speed ?? DEFAULT_TTS_SETTINGS.speed,
-        temperature: saved.ttsSettings.temperature ?? DEFAULT_TTS_SETTINGS.temperature,
-        lengthPenalty: saved.ttsSettings.lengthPenalty ?? DEFAULT_TTS_SETTINGS.lengthPenalty,
-        repetitionPenalty: saved.ttsSettings.repetitionPenalty ?? DEFAULT_TTS_SETTINGS.repetitionPenalty,
-        topK: saved.ttsSettings.topK ?? DEFAULT_TTS_SETTINGS.topK,
-        topP: saved.ttsSettings.topP ?? DEFAULT_TTS_SETTINGS.topP,
-        seed: saved.ttsSettings.seed ?? DEFAULT_TTS_SETTINGS.seed
-      }
-      const loadedQuality = {
-        qualityMode: saved.qualitySettings.qualityMode ?? DEFAULT_QUALITY_SETTINGS.qualityMode,
-        enhancementPreset: saved.qualitySettings.enhancementPreset ?? DEFAULT_QUALITY_SETTINGS.enhancementPreset,
-        enableEnhancement: saved.qualitySettings.enableEnhancement ?? DEFAULT_QUALITY_SETTINGS.enableEnhancement
+      // Validace a načtení TTS nastavení s fallback na výchozí hodnoty
+      loadedTts = {
+        speed: typeof saved.ttsSettings.speed === 'number' && !isNaN(saved.ttsSettings.speed)
+          ? saved.ttsSettings.speed
+          : DEFAULT_TTS_SETTINGS.speed,
+        temperature: typeof saved.ttsSettings.temperature === 'number' && !isNaN(saved.ttsSettings.temperature)
+          ? saved.ttsSettings.temperature
+          : DEFAULT_TTS_SETTINGS.temperature,
+        lengthPenalty: typeof saved.ttsSettings.lengthPenalty === 'number' && !isNaN(saved.ttsSettings.lengthPenalty)
+          ? saved.ttsSettings.lengthPenalty
+          : DEFAULT_TTS_SETTINGS.lengthPenalty,
+        repetitionPenalty: typeof saved.ttsSettings.repetitionPenalty === 'number' && !isNaN(saved.ttsSettings.repetitionPenalty)
+          ? saved.ttsSettings.repetitionPenalty
+          : DEFAULT_TTS_SETTINGS.repetitionPenalty,
+        topK: typeof saved.ttsSettings.topK === 'number' && !isNaN(saved.ttsSettings.topK)
+          ? saved.ttsSettings.topK
+          : DEFAULT_TTS_SETTINGS.topK,
+        topP: typeof saved.ttsSettings.topP === 'number' && !isNaN(saved.ttsSettings.topP)
+          ? saved.ttsSettings.topP
+          : DEFAULT_TTS_SETTINGS.topP,
+        seed: saved.ttsSettings.seed !== undefined && saved.ttsSettings.seed !== null
+          ? (typeof saved.ttsSettings.seed === 'number' ? saved.ttsSettings.seed : null)
+          : DEFAULT_TTS_SETTINGS.seed
       }
 
-      // Aktualizuj state přímo (reaktivně)
-      setTtsSettings(loadedTts)
-      setQualitySettings(loadedQuality)
-
-      // Po načtení resetuj flag
-      isLoadingSettingsRef.current = false
+      // Validace a načtení quality nastavení s fallback na výchozí hodnoty
+      loadedQuality = {
+        qualityMode: saved.qualitySettings.qualityMode !== undefined
+          ? saved.qualitySettings.qualityMode
+          : DEFAULT_QUALITY_SETTINGS.qualityMode,
+        enhancementPreset: typeof saved.qualitySettings.enhancementPreset === 'string'
+          ? saved.qualitySettings.enhancementPreset
+          : DEFAULT_QUALITY_SETTINGS.enhancementPreset,
+        enableEnhancement: typeof saved.qualitySettings.enableEnhancement === 'boolean'
+          ? saved.qualitySettings.enableEnhancement
+          : DEFAULT_QUALITY_SETTINGS.enableEnhancement
+      }
     } else {
-      // Výchozí nastavení pro novou variantu - vytvoř nové objekty
-      const defaultTts = { ...DEFAULT_TTS_SETTINGS }
-      const defaultQuality = { ...DEFAULT_QUALITY_SETTINGS }
+      // Výchozí nastavení pro novou variantu
+      loadedTts = { ...DEFAULT_TTS_SETTINGS }
+      loadedQuality = { ...DEFAULT_QUALITY_SETTINGS }
+    }
 
-      // Aktualizuj state přímo (reaktivně)
-      setTtsSettings(defaultTts)
-      setQualitySettings(defaultQuality)
+    // Aktualizuj state atomicky (všechno najednou)
+    setTtsSettings(loadedTts)
+    setQualitySettings(loadedQuality)
 
-      // Po načtení resetuj flag
+    // Aktualizuj také ref
+    currentSettingsRef.current = {
+      ttsSettings: { ...loadedTts },
+      qualitySettings: { ...loadedQuality }
+    }
+
+    // Po načtení resetuj flag (v cleanup funkci pro jistotu)
+    const timeoutId = setTimeout(() => {
+      isLoadingSettingsRef.current = false
+    }, 0)
+
+    // Cleanup funkce
+    return () => {
+      clearTimeout(timeoutId)
+      // Zajistit, že se flag resetuje i při unmount
       isLoadingSettingsRef.current = false
     }
   }, [activeVariant, selectedVoice, voiceType])
@@ -342,13 +432,23 @@ function App() {
             onChange={setTtsSettings}
             onReset={() => {
               // Resetovat nastavení pro aktuální variantu
-              setTtsSettings(DEFAULT_TTS_SETTINGS)
-              setQualitySettings(DEFAULT_QUALITY_SETTINGS)
+              const resetTts = { ...DEFAULT_TTS_SETTINGS }
+              const resetQuality = { ...DEFAULT_QUALITY_SETTINGS }
+
+              setTtsSettings(resetTts)
+              setQualitySettings(resetQuality)
+
+              // Aktualizovat ref okamžitě
+              currentSettingsRef.current = {
+                ttsSettings: { ...resetTts },
+                qualitySettings: { ...resetQuality }
+              }
+
               // Uložit resetované hodnoty do localStorage pro tuto variantu
               if (selectedVoice && selectedVoice !== 'demo1' && voiceType === 'demo') {
                 const resetSettings = {
-                  ttsSettings: { ...DEFAULT_TTS_SETTINGS },
-                  qualitySettings: { ...DEFAULT_QUALITY_SETTINGS }
+                  ttsSettings: { ...resetTts },
+                  qualitySettings: { ...resetQuality }
                 }
                 saveVariantSettings(selectedVoice, activeVariant, resetSettings)
               }
