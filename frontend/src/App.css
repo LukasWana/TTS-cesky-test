@@ -71,15 +71,16 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #282c3d 0%, #150a20 100%);
   color: white;
   border: none;
-  padding: 15px 40px;
+  padding: 25px 60px;
   font-size: 1.1rem;
-  border-radius: 30px;
+  border-radius: 60px;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
   font-weight: 600;
+  width: 600px;
 }
 
 .btn-primary:hover:not(:disabled) {

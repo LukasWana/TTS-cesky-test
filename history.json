@@ -1,5 +1,90 @@
 [
   {
+    "id": "75a5aae5-2352-490d-a62b-df52d499f7fb",
+    "audio_url": "/api/audio/75a5aae5-2352-490d-a62b-df52d499f7fb.wav",
+    "filename": "75a5aae5-2352-490d-a62b-df52d499f7fb.wav",
+    "text": "Příběh o vášnivém citu křesťanské dívky Vigdis Adelais k rabínovu synu Davidovi, odehrávající se v prostředí středověké Francie i exotické nilské delty.",
+    "voice_type": "demo",
+    "voice_name": "Brodksy",
+    "tts_params": {
+      "speed": 0.7,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.0,
+      "top_k": 50,
+      "top_p": 0.85
+    },
+    "created_at": "2025-12-18T12:08:39.367122"
+  },
+  {
+    "id": "cf6836fd-57d8-4171-a359-25732790b044",
+    "audio_url": "/api/audio/cf6836fd-57d8-4171-a359-25732790b044.wav",
+    "filename": "cf6836fd-57d8-4171-a359-25732790b044.wav",
+    "text": "\"Bábo, roste řepa!\"\r\n\"Prosím tě, co vidíš!\"\r\n\"Bábo, což jsi slepá?\"\r\n\"Dědku, ty mě šidíš!\"\r\nZavolali vnučku,\r\nvnučka pejska,\r\npejsek kočku,\r\nkočka myš.",
+    "voice_type": "demo",
+    "voice_name": "werich-hlas",
+    "tts_params": {
+      "speed": 0.5,
+      "temperature": 0.2,
+      "length_penalty": 1.0,
+      "repetition_penalty": 1.4,
+      "top_k": 20,
+      "top_p": 0.2
+    },
+    "created_at": "2025-12-18T11:40:10.602362"
+  },
+  {
+    "id": "708e7f17-7482-46bf-8919-8ab11f1b5f1a",
+    "audio_url": "/api/audio/708e7f17-7482-46bf-8919-8ab11f1b5f1a.wav",
+    "filename": "708e7f17-7482-46bf-8919-8ab11f1b5f1a.wav",
+    "text": "\"Bábo, roste řepa!\"\r\n\"Prosím tě, co vidíš!\"\r\n\"Bábo, což jsi slepá?\"\r\n\"Dědku, ty mě šidíš!\"\r\nZavolali vnučku,\r\nvnučka pejska,\r\npejsek kočku,\r\nkočka myš.",
+    "voice_type": "demo",
+    "voice_name": "Brodksy",
+    "tts_params": {
+      "speed": 0.5,
+      "temperature": 0.2,
+      "length_penalty": 1.0,
+      "repetition_penalty": 1.4,
+      "top_k": 20,
+      "top_p": 0.2
+    },
+    "created_at": "2025-12-18T11:38:45.535304"
+  },
+  {
+    "id": "647d7e13-49e0-49c1-91bb-f135fe1c5da5",
+    "audio_url": "/api/audio/647d7e13-49e0-49c1-91bb-f135fe1c5da5.wav",
+    "filename": "647d7e13-49e0-49c1-91bb-f135fe1c5da5.wav",
+    "text": "\"Bábo, roste řepa!\"\r\n\"Prosím tě, co vidíš!\"\r\n\"Bábo, což jsi slepá?\"\r\n\"Dědku, ty mě šidíš!\"\r\nZavolali vnučku,\r\nvnučka pejska,\r\npejsek kočku,\r\nkočka myš.",
+    "voice_type": "demo",
+    "voice_name": "Brodksy",
+    "tts_params": {
+      "speed": 0.5,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 1.4,
+      "top_k": 20,
+      "top_p": 0.2
+    },
+    "created_at": "2025-12-18T11:38:09.474831"
+  },
+  {
+    "id": "0f9de763-db45-4fb2-a827-e855f819e122",
+    "audio_url": "/api/audio/0f9de763-db45-4fb2-a827-e855f819e122.wav",
+    "filename": "0f9de763-db45-4fb2-a827-e855f819e122.wav",
+    "text": "\"Bábo, roste řepa!\"\r\n\"Prosím tě, co vidíš!\"\r\n\"Bábo, což jsi slepá?\"\r\n\"Dědku, ty mě šidíš!\"\r\nZavolali vnučku,\r\nvnučka pejska,\r\npejsek kočku,\r\nkočka myš.",
+    "voice_type": "demo",
+    "voice_name": "buchty01",
+    "tts_params": {
+      "speed": 0.5,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 1.4,
+      "top_k": 20,
+      "top_p": 0.2
+    },
+    "created_at": "2025-12-18T11:34:12.536198"
+  },
+  {
     "id": "9bbdf660-e792-42c2-8b57-9e6fbd6864f8",
     "audio_url": "/api/audio/9bbdf660-e792-42c2-8b57-9e6fbd6864f8.wav",
     "filename": "9bbdf660-e792-42c2-8b57-9e6fbd6864f8.wav",
