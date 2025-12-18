@@ -55,9 +55,10 @@ class AudioEnhancer:
             enhancement_config = preset_config.get("enhancement", {})
 
         # Použití preset hodnot nebo explicitních parametrů
-        use_eq = enable_eq if enable_eq is not None else enhancement_config.get("enable_eq", True)
+        # EQ a komprese jsou vypnuté pro eliminaci preboostu a zachování přirozené dynamiky
+        use_eq = False  # Vypnuto - eliminace preboostu
         use_noise_reduction = enable_noise_reduction if enable_noise_reduction is not None else enhancement_config.get("enable_noise_reduction", False)
-        use_compression = enable_compression if enable_compression is not None else enhancement_config.get("enable_compression", True)
+        use_compression = False  # Vypnuto - zachování přirozené dynamiky
 
         # 1. Ořez ticha
         audio = AudioEnhancer.trim_silence(audio, sr, top_db=25)
@@ -70,15 +71,16 @@ class AudioEnhancer:
         if use_eq:
             audio = AudioEnhancer.apply_eq(audio, sr)
 
-        # 4. Komprese dynamiky (pokud zapnuto)
+        # 4. Komprese dynamiky (pokud zapnuto) - jemná komprese pro transienty
         if use_compression:
-            audio = AudioEnhancer.compress_dynamic_range(audio, ratio=3.0)
+            audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
 
         # 5. Fade in/out
         audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=50)
 
-        # 6. Finální normalizace
-        audio = AudioEnhancer.normalize_audio(audio)
+        # 6. Finální normalizace podle best practices pro hlas
+        # Peak: -3 dB, RMS: -16 až -20 dB (výchozí -18 dB)
+        audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
 
         # Uložení zpět do souboru
         sf.write(audio_path, audio, sr)
@@ -129,23 +131,45 @@ class AudioEnhancer:
         return audio
 
     @staticmethod
-    def normalize_audio(audio: np.ndarray) -> np.ndarray:
+    def normalize_audio(audio: np.ndarray, peak_target_db: float = -3.0, rms_target_db: float = -18.0) -> np.ndarray:
         """
-        Normalizace audio s ochranou před clippingem
+        Normalizace audio podle best practices pro hlas:
+        - Peak: -3 dB (ne 0 dB!)
+        - RMS: -16 až -20 dB (ne -6 dB!)
 
         Args:
             audio: Audio data
+            peak_target_db: Cílová peak úroveň v dB (výchozí: -3.0)
+            rms_target_db: Cílová RMS úroveň v dB (výchozí: -18.0, rozsah -20 až -16)
 
         Returns:
             Normalizované audio
         """
-        # Normalizace
-        audio = librosa.util.normalize(audio)
+        if len(audio) == 0:
+            return audio
 
-        # Soft limiter (prevence clippingu)
-        threshold = 0.95
-        audio = np.clip(audio, -threshold, threshold)
-        audio = audio / threshold
+        # 1. RMS normalizace - POUZE snižovat, neboostovat
+        current_rms = np.sqrt(np.mean(audio ** 2))
+        if current_rms > 0:
+            rms_target_linear = 10 ** (rms_target_db / 20)
+            # Pouze snižovat pokud je RMS vyšší než cíl, neboostovat pokud je nižší
+            if current_rms > rms_target_linear:
+                rms_gain = rms_target_linear / current_rms
+                audio = audio * rms_gain
+            # Pokud je RMS nižší než cíl, necháme ho být (neboostujeme)
+
+        # 2. Peak normalizace na -3 dB - POUZE snižovat, nezvětšovat
+        peak_target_linear = 10 ** (peak_target_db / 20)  # -3 dB = 0.7079
+        current_peak = np.max(np.abs(audio))
+        if current_peak > peak_target_linear:
+            # Pokud je peak vyšší než cíl, snížíme
+            peak_gain = peak_target_linear / current_peak
+            audio = audio * peak_gain
+        # Pokud je peak nižší než cíl, necháme ho být (neboostujeme)
+
+        # 3. Soft limiter na -0.1 dB jako ochrana proti popům
+        limiter_threshold = 10 ** (-0.1 / 20)  # -0.1 dB = 0.9886
+        audio = np.clip(audio, -limiter_threshold, limiter_threshold)
 
         return audio
 
@@ -170,11 +194,10 @@ class AudioEnhancer:
             sos = signal.butter(4, [1000, 4000], btype='band', fs=sr, output='sos')
             boosted = signal.sosfiltfilt(sos, audio)
 
-            # Jemné zvýraznění (3% boost - sníženo pro jemnější zvuk)
-            audio = audio + 0.03 * boosted
+            # Jemné zvýraznění (sníženo z 3% na 1.5% pro eliminaci preboostu)
+            audio = audio + 0.015 * boosted
 
-            # Normalizace po EQ
-            audio = librosa.util.normalize(audio)
+            # NENORMALIZUJEME - normalizace bude až na konci řetězce
 
         except Exception as e:
             print(f"Warning: EQ correction failed: {e}, continuing without EQ")
@@ -202,8 +225,8 @@ class AudioEnhancer:
             # Odhad šumu z tichých částí (10. percentil)
             noise_floor = np.percentile(magnitude, 10)
 
-            # Spektrální subtrakce
-            alpha = 2.0  # Over-subtraction factor
+            # Spektrální subtrakce (zmírněno pro lepší kvalitu)
+            alpha = 1.5  # Over-subtraction factor (sníženo z 2.0 na 1.5)
             beta = 0.01  # Spectral floor
 
             magnitude_clean = magnitude - alpha * noise_floor
@@ -220,17 +243,17 @@ class AudioEnhancer:
             return audio
 
     @staticmethod
-    def compress_dynamic_range(audio: np.ndarray, ratio: float = 3.0, threshold: float = -12.0) -> np.ndarray:
+    def compress_dynamic_range(audio: np.ndarray, ratio: float = 2.5, threshold: float = -12.0) -> np.ndarray:
         """
-        Komprese dynamiky pro vyrovnání hlasitosti
+        Jemná komprese dynamiky pro zvládnutí transientů (zmírněno pro lepší kvalitu)
 
         Args:
             audio: Audio data
-            ratio: Kompresní poměr (vyšší = více komprese)
+            ratio: Kompresní poměr (sníženo z 3.0 na 2.5 pro jemnější kompresi)
             threshold: Threshold v dB
 
         Returns:
-            Komprimované audio
+            Komprimované audio (BEZ normalizace - normalizace bude až na konci)
         """
         try:
             # Převod na dB
@@ -249,9 +272,7 @@ class AudioEnhancer:
             compressed_linear = 10 ** (compressed_db / 20)
             compressed_audio = np.sign(audio) * compressed_linear
 
-            # Normalizace
-            compressed_audio = librosa.util.normalize(compressed_audio)
-
+            # NENORMALIZUJEME - normalizace bude až na konci řetězce
             return compressed_audio
 
         except Exception as e:
