@@ -67,7 +67,7 @@ XTTS_MODEL_NAME = os.getenv(
 MODEL_CACHE_DIR = str(MODELS_DIR)
 
 # Audio processing settings
-TARGET_SAMPLE_RATE = 22050
+TARGET_SAMPLE_RATE = 44100  # CD kvalita (44.1 kHz)
 TARGET_CHANNELS = 1  # mono
 MIN_VOICE_DURATION = 6.0  # sekundy
 MAX_TEXT_LENGTH = 500  # znaků
@@ -96,7 +96,7 @@ DEVICE_FORCED = FORCE_DEVICE != "auto"
 # Audio enhancement settings
 ENABLE_AUDIO_ENHANCEMENT = os.getenv("ENABLE_AUDIO_ENHANCEMENT", "True").lower() == "true"
 AUDIO_ENHANCEMENT_PRESET = os.getenv("AUDIO_ENHANCEMENT_PRESET", "natural")  # high_quality, natural, fast
-OUTPUT_SAMPLE_RATE = int(os.getenv("OUTPUT_SAMPLE_RATE", "22050"))  # 22050, 24000, 44100
+OUTPUT_SAMPLE_RATE = int(os.getenv("OUTPUT_SAMPLE_RATE", "44100"))  # 22050, 24000, 44100 (výchozí: 44100 = CD kvalita)
 ENABLE_EQ_CORRECTION = os.getenv("ENABLE_EQ_CORRECTION", "True").lower() == "true"
 ENABLE_ADVANCED_NOISE_REDUCTION = os.getenv("ENABLE_ADVANCED_NOISE_REDUCTION", "False").lower() == "true"
 

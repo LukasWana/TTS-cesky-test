@@ -6,6 +6,7 @@ import librosa
 import soundfile as sf
 from pathlib import Path
 from typing import Optional
+from backend.config import OUTPUT_SAMPLE_RATE
 
 try:
     from scipy import signal
@@ -40,7 +41,7 @@ class AudioEnhancer:
             Cesta k vylepšenému audio souboru
         """
         # Načtení audio
-        audio, sr = librosa.load(audio_path, sr=22050)
+        audio, sr = librosa.load(audio_path, sr=OUTPUT_SAMPLE_RATE)
 
         # Určení nastavení podle presetu
         try:

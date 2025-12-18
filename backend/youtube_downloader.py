@@ -48,25 +48,32 @@ def validate_youtube_url(url: str) -> Tuple[bool, Optional[str]]:
 def extract_video_id(url: str) -> Optional[str]:
     """
     Extrahuje video ID z YouTube URL
+    Ignoruje parametry playlistu a další parametry - najde video ID i v URL s parametry
 
     Args:
-        url: YouTube URL
+        url: YouTube URL (může obsahovat parametry jako &list=, &index=, atd.)
 
     Returns:
         Video ID nebo None
     """
     patterns = [
-        r'(?:https?://)?(?:www\.)?(?:m\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})',
-        r'(?:https?://)?(?:www\.)?youtube\.com/watch\?.*[&?]v=([a-zA-Z0-9_-]{11})',
-        r'(?:https?://)?youtu\.be/([a-zA-Z0-9_-]{11})',
-        r'(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]{11})',
-        r'(?:https?://)?(?:www\.)?youtube\.com/v/([a-zA-Z0-9_-]{11})',
+        # Standardní formát: ?v=VIDEO_ID nebo &v=VIDEO_ID (i s dalšími parametry)
+        r'[?&]v=([a-zA-Z0-9_-]{11})',
+        # youtu.be formát: /VIDEO_ID
+        r'youtu\.be/([a-zA-Z0-9_-]{11})',
+        # Embed formát: /embed/VIDEO_ID
+        r'/embed/([a-zA-Z0-9_-]{11})',
+        # Starý formát: /v/VIDEO_ID
+        r'/v/([a-zA-Z0-9_-]{11})',
     ]
 
     for pattern in patterns:
         match = re.search(pattern, url)
         if match:
-            return match.group(1)
+            video_id = match.group(1)
+            # Ověření, že video ID má správnou délku (11 znaků)
+            if len(video_id) == 11:
+                return video_id
 
     return None
 
@@ -144,6 +151,15 @@ def download_youtube_audio(
         temp_dir.mkdir(exist_ok=True)
         temp_file = temp_dir / f"youtube_{uuid.uuid4()}.%(ext)s"
 
+        # Extrahování video ID z URL
+        expected_video_id = extract_video_id(url)
+        if not expected_video_id:
+            return False, "Nelze extrahovat video ID z URL"
+
+        # Vytvoření čisté URL pouze s video ID (bez parametrů playlistu)
+        # Tím zajistíme, že se stáhne správné video, ne jiné z playlistu
+        clean_url = f"https://www.youtube.com/watch?v={expected_video_id}"
+
         # yt-dlp options
         ydl_opts = {
             'format': 'bestaudio/best',
@@ -153,16 +169,28 @@ def download_youtube_audio(
                 'preferredcodec': 'wav',
                 'preferredquality': '192',
             }],
-            'quiet': True,  # Tichý režim pro produkci
+            'quiet': True,  # Tichý režim
             'no_warnings': True,
             'extract_flat': False,
             'noplaylist': True,  # Ignorovat playlisty, stáhnout jen video
         }
 
-        # Stáhnutí audio
+        # Stáhnutí audio s ověřením video ID
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+                # Nejdřív získáme informace o videu pomocí čisté URL, abychom ověřili ID
+                info = ydl.extract_info(clean_url, download=False)
+                actual_video_id = info.get('id')
+
+                # Ověření, že se stahuje správné video
+                if actual_video_id != expected_video_id:
+                    return False, f"Chyba: Očekáváno video ID '{expected_video_id}', ale yt-dlp našlo '{actual_video_id}'. Video může být nedostupné nebo bylo přesměrováno."
+
+                print(f"✅ Ověřeno: Stahuje se správné video ID: {actual_video_id}")
+                print(f"📹 Název videa: {info.get('title', 'Unknown')}")
+
+                # Nyní stáhneme audio pomocí čisté URL
+                ydl.download([clean_url])
         except yt_dlp.utils.DownloadError as e:
             error_msg = str(e)
             if "Private video" in error_msg:
@@ -200,11 +228,12 @@ def download_youtube_audio(
 
             downloaded_file = trimmed_file
 
-        # Zpracování pomocí AudioProcessor (22050 Hz, mono)
+        # Zpracování pomocí AudioProcessor (44100 Hz, mono - CD kvalita)
+        # Vypnuto pokročilé zpracování - způsobovalo flanger efekt a pumpování
         success, error = AudioProcessor.convert_audio(
             str(downloaded_file),
             output_path,
-            apply_advanced_processing=True
+            apply_advanced_processing=False
         )
 
         # Smazat dočasné soubory

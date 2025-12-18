@@ -134,7 +134,8 @@ async def generate_speech(
     top_p: float = Form(None),
     quality_mode: str = Form(None),
     enhancement_preset: str = Form(None),
-    enable_enhancement: str = Form(None)
+    enable_enhancement: str = Form(None),
+    seed: int = Form(None)
 ):
     """
     Generuje řeč z textu
@@ -152,6 +153,7 @@ async def generate_speech(
         quality_mode: Režim kvality (high_quality, natural, fast) - přepíše jednotlivé parametry
         enhancement_preset: Preset pro audio enhancement (high_quality, natural, fast)
         enable_enhancement: Zapnout/vypnout audio enhancement (true/false, výchozí: true)
+        seed: Seed pro reprodukovatelnost generování (volitelné, pokud není zadán, použije se fixní seed 42)
     """
     try:
         # Validace textu
@@ -264,7 +266,8 @@ async def generate_speech(
                 repetition_penalty=tts_repetition_penalty,
                 top_k=tts_top_k,
                 top_p=tts_top_p,
-                quality_mode=tts_quality_mode
+                quality_mode=tts_quality_mode,
+                seed=seed
             )
         finally:
             # Obnovit původní nastavení
@@ -388,7 +391,7 @@ async def record_voice(
         with open(temp_path, 'wb') as f:
             f.write(audio_data)
 
-        # Zpracování pomocí AudioProcessor (22050 Hz, mono, pokročilé zpracování)
+        # Zpracování pomocí AudioProcessor (44100 Hz, mono, pokročilé zpracování - CD kvalita)
         output_path = DEMO_VOICES_DIR / filename
         success, error = AudioProcessor.convert_audio(
             str(temp_path),

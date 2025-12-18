@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 from TTS.api import TTS
 import torch
+import numpy as np
 from num2words import num2words
 from TTS.tts.layers.xtts import tokenizer as xtts_tokenizer
 from backend.config import (
@@ -20,7 +21,9 @@ from backend.config import (
     DEVICE_FORCED,
     ENABLE_AUDIO_ENHANCEMENT,
     AUDIO_ENHANCEMENT_PRESET,
-    QUALITY_PRESETS
+    QUALITY_PRESETS,
+    TARGET_SAMPLE_RATE,
+    OUTPUT_SAMPLE_RATE
 )
 from backend.audio_enhancer import AudioEnhancer
 
@@ -175,7 +178,8 @@ class XTTSEngine:
         repetition_penalty: float = 2.0,
         top_k: int = 50,
         top_p: float = 0.85,
-        quality_mode: Optional[str] = None
+        quality_mode: Optional[str] = None,
+        seed: Optional[int] = None
     ) -> str:
         """
         Generuje řeč z textu
@@ -191,6 +195,7 @@ class XTTSEngine:
             top_k: Top-k sampling (výchozí: 50)
             top_p: Top-p sampling (výchozí: 0.85)
             quality_mode: Quality preset (high_quality, natural, fast) - přepíše jednotlivé parametry
+            seed: Seed pro reprodukovatelnost generování (volitelné)
 
         Returns:
             Cesta k vygenerovanému audio souboru
@@ -230,7 +235,8 @@ class XTTSEngine:
             repetition_penalty,
             top_k,
             top_p,
-            quality_mode
+            quality_mode,
+            seed
         )
 
         return str(output_path)
@@ -247,10 +253,27 @@ class XTTSEngine:
         repetition_penalty: float = 2.0,
         top_k: int = 50,
         top_p: float = 0.85,
-        quality_mode: Optional[str] = None
+        quality_mode: Optional[str] = None,
+        seed: Optional[int] = None
     ):
         """Synchronní generování řeči"""
         try:
+            # Nastavení seedu pro reprodukovatelnost
+            if seed is not None:
+                torch.manual_seed(seed)
+                if torch.cuda.is_available():
+                    torch.cuda.manual_seed_all(seed)
+                np.random.seed(seed)
+                print(f"🌱 Seed nastaven na: {seed}")
+            else:
+                # Pokud není seed zadán, použijeme fixní seed pro konzistenci
+                fixed_seed = 42
+                torch.manual_seed(fixed_seed)
+                if torch.cuda.is_available():
+                    torch.cuda.manual_seed_all(fixed_seed)
+                np.random.seed(fixed_seed)
+                print(f"🌱 Použit fixní seed: {fixed_seed} (pro reprodukovatelnost)")
+
             # Zkontroluj, jestli speaker_wav existuje
             if not Path(speaker_wav).exists():
                 raise Exception(f"Speaker audio file not found: {speaker_wav}")
@@ -260,35 +283,96 @@ class XTTSEngine:
             processed_text = self._preprocess_text_for_czech(text, language)
 
             # Příprava parametrů pro tts_to_file
+            # Vždy předáváme všechny parametry, ne jen když se liší od výchozích hodnot
+            # POZNÁMKA: XTTS-v2 nemusí podporovat parametr "speed" přímo v tts_to_file,
+            # takže změnu rychlosti provádíme pomocí post-processing (viz níže)
             tts_params = {
                 "text": processed_text,
                 "speaker_wav": speaker_wav,
                 "language": language,
-                "file_path": output_path
+                "file_path": output_path,
+                # speed se nepředává - použijeme post-processing místo toho
+                "temperature": temperature,
+                "length_penalty": length_penalty,
+                "repetition_penalty": repetition_penalty,
+                "top_k": top_k,
+                "top_p": top_p
             }
 
-            # Přidání volitelných parametrů (pokud jsou podporovány)
-            # XTTS-v2 může podporovat různé parametry v závislosti na verzi
-            if speed != 1.0:
-                tts_params["speed"] = speed
-            if temperature != 0.7:
-                tts_params["temperature"] = temperature
-            if length_penalty != 1.0:
-                tts_params["length_penalty"] = length_penalty
-            if repetition_penalty != 2.0:
-                tts_params["repetition_penalty"] = repetition_penalty
-            if top_k != 50:
-                tts_params["top_k"] = top_k
-            if top_p != 0.85:
-                tts_params["top_p"] = top_p
+            # Logování parametrů pro debug
+            print(f"🔊 TTS Generation Parameters:")
+            print(f"   Speed: {speed}")
+            print(f"   Temperature: {temperature}")
+            print(f"   Length Penalty: {length_penalty}")
+            print(f"   Repetition Penalty: {repetition_penalty}")
+            print(f"   Top-K: {top_k}")
+            print(f"   Top-P: {top_p}")
+            print(f"   Quality Mode: {quality_mode if quality_mode else 'None (using individual params)'}")
 
             # Generování řeči
-            # TTS API může vracet různé hodnoty v závislosti na verzi
-            result = self.model.tts_to_file(**tts_params)
+            # XTTS-v2 podporuje tyto parametry přímo v tts_to_file:
+            # - temperature: Teplota pro sampling (0.0-1.0)
+            # - length_penalty: Length penalty (0.5-2.0)
+            # - repetition_penalty: Repetition penalty (1.0-5.0)
+            # - top_k: Top-k sampling (1-100)
+            # - top_p: Top-p sampling (0.0-1.0)
+            # POZNÁMKA: speed se nepředává - použijeme post-processing místo toho
+            # Pokud některý parametr není podporován, XTTS ho ignoruje nebo vyhodí TypeError
+            try:
+                result = self.model.tts_to_file(**tts_params)
+            except TypeError as e:
+                # Pokud některý parametr není podporován, zkusíme bez volitelných parametrů
+                error_msg = str(e)
+                print(f"⚠️ Warning: Some parameters may not be supported: {error_msg}")
+                print("   Attempting with basic parameters only (temperature)...")
+
+                # Základní parametry + pouze temperature (nejčastěji podporované)
+                basic_params = {
+                    "text": processed_text,
+                    "speaker_wav": speaker_wav,
+                    "language": language,
+                    "file_path": output_path,
+                    "temperature": temperature
+                }
+
+                result = self.model.tts_to_file(**basic_params)
+                print("   ⚠️ Note: Some advanced parameters (length_penalty, repetition_penalty, top_k, top_p) may not be supported by this XTTS version")
 
             # Zkontroluj, jestli soubor byl vytvořen
             if not Path(output_path).exists():
                 raise Exception(f"Output file was not created: {output_path}")
+
+            # Post-processing: upsampling a změna rychlosti
+            # XTTS-v2 generuje na 22050 Hz, ale chceme CD kvalitu (44100 Hz)
+            try:
+                import librosa
+                import soundfile as sf
+
+                # Načtení audio s původní sample rate
+                audio, sr = librosa.load(output_path, sr=None)
+
+                # Upsampling na cílovou sample rate (pokud je jiná)
+                if sr != OUTPUT_SAMPLE_RATE:
+                    print(f"🎵 Upsampling audio z {sr} Hz na {OUTPUT_SAMPLE_RATE} Hz (CD kvalita)...")
+                    audio = librosa.resample(audio, orig_sr=sr, target_sr=OUTPUT_SAMPLE_RATE)
+                    sr = OUTPUT_SAMPLE_RATE
+                    print(f"✅ Audio upsamplováno na {OUTPUT_SAMPLE_RATE} Hz")
+
+                # Změna rychlosti pomocí time_stretch (pokud speed != 1.0)
+                # XTTS může nepodporovat parametr speed, takže použijeme post-processing
+                if speed != 1.0:
+                    print(f"🎚️  Aplikuji změnu rychlosti: {speed}x pomocí post-processing...")
+                    # time_stretch používá rate (1.0 = normální rychlost, 2.0 = 2x rychlejší, 0.5 = 2x pomalejší)
+                    # speed parametr je přímo rate
+                    audio = librosa.effects.time_stretch(audio, rate=speed)
+                    print(f"✅ Rychlost změněna na {speed}x")
+
+                # Uložení zpět (s upsamplovaným a případně upraveným audio)
+                sf.write(output_path, audio, sr)
+
+            except Exception as e:
+                print(f"⚠️ Warning: Post-processing (upsampling/speed) failed: {e}, continuing with original audio")
+                # Pokračujeme s původním audio
 
             # Post-processing audio enhancement (pokud je zapnuto)
             if ENABLE_AUDIO_ENHANCEMENT:
@@ -411,10 +495,12 @@ class XTTSEngine:
                     TTS_LENGTH_PENALTY,
                     TTS_REPETITION_PENALTY,
                     TTS_TOP_K,
-                    TTS_TOP_P
+                    TTS_TOP_P,
+                    OUTPUTS_DIR
                 )
-                await self.generate(
-                    text="Zahřívací text pro optimalizaci modelu.",
+                # Generuj warmup audio s krátkým textem
+                warmup_output = await self.generate(
+                    text="Warmup.",
                     speaker_wav=demo_voice_path,
                     language="cs",
                     speed=TTS_SPEED,
@@ -424,6 +510,13 @@ class XTTSEngine:
                     top_k=TTS_TOP_K,
                     top_p=TTS_TOP_P
                 )
+                # Smazat warmup soubor, aby se neukládal do historie
+                warmup_path = Path(warmup_output)
+                if warmup_path.exists():
+                    try:
+                        warmup_path.unlink()
+                    except Exception:
+                        pass  # Ignoruj chyby při mazání
                 print("Model warmup dokončen")
             except Exception as e:
                 print(f"Warmup selhal: {str(e)}")
