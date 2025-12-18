@@ -1,5 +1,90 @@
 [
   {
+    "id": "974b3ef3-e44d-4932-ab20-6a4991d810d1",
+    "audio_url": "/api/audio/974b3ef3-e44d-4932-ab20-6a4991d810d1.wav",
+    "filename": "974b3ef3-e44d-4932-ab20-6a4991d810d1.wav",
+    "text": "\"Bábo, roste řepa!\"\r\n\"Prosím tě, co vidíš!\"\r\n\"Bábo, což jsi slepá?\"\r\n\"Dědku, ty mě šidíš!\"\r\nZavolali vnučku,\r\nvnučka pejska,\r\npejsek kočku,\r\nkočka myš",
+    "voice_type": "demo",
+    "voice_name": "Brodksy",
+    "tts_params": {
+      "speed": 0.6,
+      "temperature": 0.25,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.5,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-18T13:18:21.883906"
+  },
+  {
+    "id": "abf47935-4454-4d45-a97b-670a4dc29dbc",
+    "audio_url": "/api/audio/abf47935-4454-4d45-a97b-670a4dc29dbc.wav",
+    "filename": "abf47935-4454-4d45-a97b-670a4dc29dbc.wav",
+    "text": "\"Bábo, roste řepa!\"\r\n\"Prosím tě, co vidíš!\"\r\n\"Bábo, což jsi slepá?\"\r\n\"Dědku, ty mě šidíš!\"\r\nZavolali vnučku,\r\nvnučka pejska,\r\npejsek kočku,\r\nkočka myš",
+    "voice_type": "demo",
+    "voice_name": "Brodksy",
+    "tts_params": {
+      "speed": 0.6,
+      "temperature": 0.5,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.5,
+      "top_k": 20,
+      "top_p": 0.5
+    },
+    "created_at": "2025-12-18T13:17:29.869097"
+  },
+  {
+    "id": "e8b2c187-4bbf-4bd1-b8e7-c6e0a59e0d84",
+    "audio_url": "/api/audio/e8b2c187-4bbf-4bd1-b8e7-c6e0a59e0d84.wav",
+    "filename": "e8b2c187-4bbf-4bd1-b8e7-c6e0a59e0d84.wav",
+    "text": "\"Bábo, roste řepa!\"\r\n\"Prosím tě, co vidíš!\"\r\n\"Bábo, což jsi slepá?\"\r\n\"Dědku, ty mě šidíš!\"\r\nZavolali vnučku,\r\nvnučka pejska,\r\npejsek kočku,\r\nkočka myš",
+    "voice_type": "demo",
+    "voice_name": "buchty01",
+    "tts_params": {
+      "speed": 0.5,
+      "temperature": 0.5,
+      "length_penalty": 1.0,
+      "repetition_penalty": 1.4,
+      "top_k": 20,
+      "top_p": 0.2
+    },
+    "created_at": "2025-12-18T13:10:35.018322"
+  },
+  {
+    "id": "6e263a98-93fc-456e-bb42-a390e6ae5c9a",
+    "audio_url": "/api/audio/6e263a98-93fc-456e-bb42-a390e6ae5c9a.wav",
+    "filename": "6e263a98-93fc-456e-bb42-a390e6ae5c9a.wav",
+    "text": "Příběh o vášnivém citu křesťanské dívky Vigdis Adelais k rabínovu synu Davidovi, odehrávající se v prostředí středověké Francie i exotické nilské delty. Autor ve vyprávění používá přítomný čas s minimem přímé řeči. To románu dodává na působivosti a napínavosti.",
+    "voice_type": "demo",
+    "voice_name": "buchty01",
+    "tts_params": {
+      "speed": 0.5,
+      "temperature": 0.7,
+      "length_penalty": 1.0,
+      "repetition_penalty": 1.4,
+      "top_k": 20,
+      "top_p": 0.2
+    },
+    "created_at": "2025-12-18T12:49:24.541962"
+  },
+  {
+    "id": "057be095-c892-4ee8-a567-5bcb41d4665f",
+    "audio_url": "/api/audio/057be095-c892-4ee8-a567-5bcb41d4665f.wav",
+    "filename": "057be095-c892-4ee8-a567-5bcb41d4665f.wav",
+    "text": "Příběh o vášnivém citu křesťanské dívky Vigdis Adelais k rabínovu synu Davidovi, odehrávající se v prostředí středověké Francie i exotické nilské delty. Autor ve vyprávění používá přítomný čas s minimem přímé řeči. To románu dodává na působivosti a napínavosti.",
+    "voice_type": "demo",
+    "voice_name": "Brodksy",
+    "tts_params": {
+      "speed": 0.6,
+      "temperature": 0.5,
+      "length_penalty": 1.0,
+      "repetition_penalty": 2.5,
+      "top_k": 30,
+      "top_p": 0.8
+    },
+    "created_at": "2025-12-18T12:48:56.063829"
+  },
+  {
     "id": "75a5aae5-2352-490d-a62b-df52d499f7fb",
     "audio_url": "/api/audio/75a5aae5-2352-490d-a62b-df52d499f7fb.wav",
     "filename": "75a5aae5-2352-490d-a62b-df52d499f7fb.wav",
