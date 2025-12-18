@@ -100,6 +100,31 @@ OUTPUT_SAMPLE_RATE = int(os.getenv("OUTPUT_SAMPLE_RATE", "44100"))  # 22050, 240
 ENABLE_EQ_CORRECTION = os.getenv("ENABLE_EQ_CORRECTION", "True").lower() == "true"
 ENABLE_ADVANCED_NOISE_REDUCTION = os.getenv("ENABLE_ADVANCED_NOISE_REDUCTION", "False").lower() == "true"
 
+# Multi-pass generování
+ENABLE_MULTI_PASS = os.getenv("ENABLE_MULTI_PASS", "False").lower() == "true"
+MULTI_PASS_COUNT = int(os.getenv("MULTI_PASS_COUNT", "3"))
+
+# Voice Activity Detection
+ENABLE_VAD = os.getenv("ENABLE_VAD", "True").lower() == "true"
+VAD_AGGRESSIVENESS = int(os.getenv("VAD_AGGRESSIVENESS", "2"))  # 0-3
+
+# Prosody Control
+ENABLE_PROSODY_CONTROL = os.getenv("ENABLE_PROSODY_CONTROL", "True").lower() == "true"
+
+# Speaker Adaptation
+ENABLE_SPEAKER_CACHE = os.getenv("ENABLE_SPEAKER_CACHE", "True").lower() == "true"
+SPEAKER_CACHE_DIR = BASE_DIR / "speaker_cache"
+SPEAKER_CACHE_DIR.mkdir(exist_ok=True)
+
+# Vocoder Upgrade
+ENABLE_HIFIGAN = os.getenv("ENABLE_HIFIGAN", "False").lower() == "true"
+HIFIGAN_MODEL_PATH = os.getenv("HIFIGAN_MODEL_PATH", None)
+
+# Batch Processing
+ENABLE_BATCH_PROCESSING = os.getenv("ENABLE_BATCH_PROCESSING", "True").lower() == "true"
+MAX_CHUNK_LENGTH = int(os.getenv("MAX_CHUNK_LENGTH", "200"))  # znaků
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "20"))  # znaků
+
 # Quality presets pro TTS generování
 QUALITY_PRESETS = {
     "high_quality": {
