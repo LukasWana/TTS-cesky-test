@@ -34,6 +34,12 @@ uploads/*
 outputs/*
 !outputs/.gitkeep
 
+# Runtime data
+history.json
+
+# Local-only demo voices (keep repo lightweight / avoid accidental commits)
+frontend/assets/demo-voices/František Novotný .wav
+
 # Temporary files
 frontend/assets/demo-voices/temp/
 **/temp/
