@@ -1,40 +1,73 @@
 .audio-player-section {
-  margin-top: 30px;
-  padding: 20px;
-  background: #f9f9f9;
-  border-radius: 10px;
+  margin-top: 40px;
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.audio-player-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
 }
 
 .audio-player-section h2 {
-  margin-bottom: 15px;
-  color: #333;
+  color: #fff;
   font-size: 1.5rem;
+  font-weight: 600;
 }
 
-.audio-player-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
+.audio-time {
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
 }
 
-.audio-player {
+.waveform-container {
   width: 100%;
-  height: 50px;
+  margin-bottom: 32px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.audio-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.play-button {
+  padding: 12px 28px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.play-button:hover {
+  background: #4f46e5;
+  transform: translateY(-1px);
 }
 
 .download-button {
-  align-self: flex-start;
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 12px 28px;
+  background: rgba(255, 255, 255, 0.05);
   color: white;
-  border: none;
-  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
   cursor: pointer;
-  font-weight: 500;
-  transition: transform 0.2s;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
 .download-button:hover {
-  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
 }
 
