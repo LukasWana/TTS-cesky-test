@@ -37,3 +37,10 @@ huggingface-hub==0.20.0
 
 # YouTube download
 yt-dlp>=2024.0.0
+
+# Voice Activity Detection
+webrtcvad>=2.0.10
+
+# HiFi-GAN vocoder (volitelné)
+# parallel-wavegan>=0.5.0  # Odkomentujte pokud chcete použít HiFi-GAN
+# hifigan  # Alternativní implementace
