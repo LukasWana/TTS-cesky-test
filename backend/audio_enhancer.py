@@ -60,8 +60,18 @@ class AudioEnhancer:
         use_noise_reduction = enable_noise_reduction if enable_noise_reduction is not None else enhancement_config.get("enable_noise_reduction", False)
         use_compression = False  # Vypnuto - zachování přirozené dynamiky
 
-        # 1. Ořez ticha
-        audio = AudioEnhancer.trim_silence(audio, sr, top_db=25)
+        # 1. Ořez ticha (s VAD pokud je dostupné)
+        try:
+            from backend.vad_processor import get_vad_processor
+            from backend.config import ENABLE_VAD
+            if ENABLE_VAD:
+                vad_processor = get_vad_processor()
+                audio = vad_processor.trim_silence_vad(audio, sr)
+            else:
+                audio = AudioEnhancer.trim_silence(audio, sr, top_db=25)
+        except Exception as e:
+            print(f"Warning: VAD trim failed, using standard trim: {e}")
+            audio = AudioEnhancer.trim_silence(audio, sr, top_db=25)
 
         # 2. Pokročilá redukce šumu (pokud zapnuto)
         if use_noise_reduction:
