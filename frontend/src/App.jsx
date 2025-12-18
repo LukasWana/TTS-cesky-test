@@ -7,7 +7,7 @@ import LoadingSpinner from './components/LoadingSpinner'
 import TTSSettings from './components/TTSSettings'
 import History from './components/History'
 import Tabs from './components/Tabs'
-import { generateSpeech, getDemoVoices, getModelStatus } from './services/api'
+import { generateSpeech, getDemoVoices, getModelStatus, getTtsProgress, subscribeToTtsProgress } from './services/api'
 import './App.css'
 
 // Výchozí hodnoty TTS parametrů
@@ -31,6 +31,10 @@ const DEFAULT_QUALITY_SETTINGS = {
   enableVad: true,
   enableBatch: true,
   useHifigan: false,
+  // HiFi-GAN nastavení
+  hifiganRefinementIntensity: 1.0,
+  hifiganNormalizeOutput: true,
+  hifiganNormalizeGain: 0.95,
   // Normalizace (RMS/peak + limiter) může působit "přebuzile" – necháme defaultně vypnuté
   enableNormalization: false,
   enableDenoiser: true,
@@ -79,6 +83,7 @@ function App() {
   const [generatedAudio, setGeneratedAudio] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [ttsProgress, setTtsProgress] = useState(null)
   const [demoVoices, setDemoVoices] = useState([])
   const [modelStatus, setModelStatus] = useState(null)
   const [voiceQuality, setVoiceQuality] = useState(null)
@@ -101,6 +106,10 @@ function App() {
     ttsSettings: DEFAULT_TTS_SETTINGS,
     qualitySettings: DEFAULT_QUALITY_SETTINGS
   })
+
+  // Ref pro progress SSE connection - pro cleanup při novém spuštění nebo unmount
+  const progressEventSourceRef = useRef(null)
+  const progressStoppedRef = useRef(false)
 
   // Aktualizovat ref při každé změně nastavení
   useEffect(() => {
@@ -250,7 +259,7 @@ function App() {
         speed: typeof saved.ttsSettings.speed === 'number' && !isNaN(saved.ttsSettings.speed)
           ? saved.ttsSettings.speed
           : DEFAULT_TTS_SETTINGS.speed,
-        temperature: typeof saved.ttsSettings.temperature === 'number' && !isNaN(saved.ttsSettings.temperature)
+        temperature: typeof saved.ttsSettings.temperature === 'number' && !isNaN(saved.ttsSettings.temperature) && saved.ttsSettings.temperature > 0
           ? saved.ttsSettings.temperature
           : DEFAULT_TTS_SETTINGS.temperature,
         lengthPenalty: typeof saved.ttsSettings.lengthPenalty === 'number' && !isNaN(saved.ttsSettings.lengthPenalty)
@@ -313,7 +322,16 @@ function App() {
           : DEFAULT_QUALITY_SETTINGS.enableBatch,
         useHifigan: typeof saved.qualitySettings.useHifigan === 'boolean'
           ? saved.qualitySettings.useHifigan
-          : DEFAULT_QUALITY_SETTINGS.useHifigan
+          : DEFAULT_QUALITY_SETTINGS.useHifigan,
+        hifiganRefinementIntensity: typeof saved.qualitySettings.hifiganRefinementIntensity === 'number'
+          ? saved.qualitySettings.hifiganRefinementIntensity
+          : DEFAULT_QUALITY_SETTINGS.hifiganRefinementIntensity,
+        hifiganNormalizeOutput: typeof saved.qualitySettings.hifiganNormalizeOutput === 'boolean'
+          ? saved.qualitySettings.hifiganNormalizeOutput
+          : DEFAULT_QUALITY_SETTINGS.hifiganNormalizeOutput,
+        hifiganNormalizeGain: typeof saved.qualitySettings.hifiganNormalizeGain === 'number'
+          ? saved.qualitySettings.hifiganNormalizeGain
+          : DEFAULT_QUALITY_SETTINGS.hifiganNormalizeGain
       }
     } else {
       // Výchozí nastavení pro novou variantu
@@ -349,6 +367,15 @@ function App() {
     loadDemoVoices()
     // Kontrola statusu modelu
     checkModelStatus()
+
+    // Cleanup při unmount - uzavřít všechny progress SSE spojení
+    return () => {
+      if (progressEventSourceRef.current) {
+        progressEventSourceRef.current.close()
+        progressEventSourceRef.current = null
+      }
+      progressStoppedRef.current = true
+    }
   }, [])
 
   const loadDemoVoices = async () => {
@@ -380,9 +407,15 @@ function App() {
       return
     }
 
+    // Pokud už probíhá generování, nové spuštění ignorovat
+    if (loading) {
+      return
+    }
+
     setLoading(true)
     setError(null)
     setGeneratedAudio(null)
+    setTtsProgress(null)
 
     try {
       let voiceFile = null
@@ -416,6 +449,10 @@ function App() {
         enableVad: qualitySettings.enableVad,
         enableBatch: qualitySettings.enableBatch,
         useHifigan: qualitySettings.useHifigan,
+        // HiFi-GAN parametry
+        hifiganRefinementIntensity: qualitySettings.hifiganRefinementIntensity,
+        hifiganNormalizeOutput: qualitySettings.hifiganNormalizeOutput,
+        hifiganNormalizeGain: qualitySettings.hifiganNormalizeGain,
         enableNormalization: qualitySettings.enableNormalization,
         enableDenoiser: qualitySettings.enableDenoiser,
         enableCompressor: qualitySettings.enableCompressor,
@@ -424,7 +461,64 @@ function App() {
         enableTrim: qualitySettings.enableTrim
       }
 
-      const result = await generateSpeech(text, voiceFile, demoVoice, ttsParams)
+      // Zrušit předchozí progress SSE spojení, pokud běží
+      if (progressEventSourceRef.current) {
+        progressEventSourceRef.current.close()
+        progressEventSourceRef.current = null
+      }
+      progressStoppedRef.current = false
+
+      // Pro progress během běžícího requestu: vytvoř job_id na klientovi a použij SSE pro real-time updates
+      const jobId =
+        (typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID()) ||
+        `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+      // aby UI hned ukázalo 0% (ne „nic") ještě před tím, než backend job zaregistruje
+      setTtsProgress({ percent: 0, message: 'Odesílám požadavek…', eta_seconds: null })
+
+      // Připojit se k SSE streamu pro real-time progress updates
+      const eventSource = subscribeToTtsProgress(
+        jobId,
+        (progressData) => {
+          if (progressStoppedRef.current) return
+          setTtsProgress(progressData)
+
+          // Pokud je progress dokončen nebo chybný, SSE se automaticky uzavře
+          if (progressData.status === 'done' || progressData.status === 'error') {
+            progressStoppedRef.current = true
+          }
+        },
+        (error) => {
+          console.error('SSE progress error:', error)
+          // Při chybě SSE můžeme fallback na jednorázový dotaz
+          if (!progressStoppedRef.current) {
+            getTtsProgress(jobId).then(p => {
+              setTtsProgress(p)
+            }).catch(() => {
+              // Ignorovat chyby při fallbacku
+            })
+          }
+        }
+      )
+
+      progressEventSourceRef.current = eventSource
+
+      const result = await generateSpeech(text, voiceFile, demoVoice, ttsParams, jobId)
+
+      // Zastavit SSE po dokončení generování (může být už uzavřeno automaticky)
+      progressStoppedRef.current = true
+      if (progressEventSourceRef.current) {
+        progressEventSourceRef.current.close()
+        progressEventSourceRef.current = null
+      }
+
+      // Finální kontrola progressu (pro jistotu)
+      try {
+        const p = await getTtsProgress(jobId)
+        setTtsProgress(p)
+      } catch (e) {
+        // ignore
+      }
 
       // Pokud je multi-pass, zobrazit varianty
       if (result.variants && result.variants.length > 0) {
@@ -441,6 +535,12 @@ function App() {
     } catch (err) {
       setError(err.message || 'Chyba při generování řeči')
       console.error('Generate error:', err)
+      // Zastavit SSE při chybě
+      progressStoppedRef.current = true
+      if (progressEventSourceRef.current) {
+        progressEventSourceRef.current.close()
+        progressEventSourceRef.current = null
+      }
     } finally {
       setLoading(false)
     }
@@ -530,83 +630,87 @@ function App() {
           <Tabs activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} />
 
           {activeTab === 'generate' && (
-            <>
-              <VoiceSelector
-                demoVoices={demoVoices}
-                selectedVoice={selectedVoice}
-                voiceType={voiceType}
-                uploadedVoiceFileName={uploadedVoiceFileName}
-                onVoiceSelect={setSelectedVoice}
-                onVoiceTypeChange={setVoiceType}
-                onVoiceUpload={handleVoiceUpload}
-                onVoiceRecord={handleVoiceRecord}
-                onYouTubeImport={handleYouTubeImport}
-                voiceQuality={voiceQuality}
-              />
+            <div className="generate-layout">
+              <div className="generate-content">
+                <VoiceSelector
+                  demoVoices={demoVoices}
+                  selectedVoice={selectedVoice}
+                  voiceType={voiceType}
+                  uploadedVoiceFileName={uploadedVoiceFileName}
+                  onVoiceSelect={setSelectedVoice}
+                  onVoiceTypeChange={setVoiceType}
+                  onVoiceUpload={handleVoiceUpload}
+                  onVoiceRecord={handleVoiceRecord}
+                  onYouTubeImport={handleYouTubeImport}
+                  voiceQuality={voiceQuality}
+                />
 
-              <TextInput
-                value={text}
-                onChange={setText}
-                maxLength={5000}
-                versions={textVersions}
-                onSaveVersion={() => saveTextVersion(text)}
-                onDeleteVersion={deleteTextVersion}
-              />
+                <TextInput
+                  value={text}
+                  onChange={setText}
+                  maxLength={5000}
+                  versions={textVersions}
+                  onSaveVersion={() => saveTextVersion(text)}
+                  onDeleteVersion={deleteTextVersion}
+                />
 
-              <TTSSettings
-                settings={ttsSettings}
-                onChange={setTtsSettings}
-                onReset={() => {
-                  // Resetovat nastavení pro aktuální variantu
-                  const resetTts = { ...DEFAULT_TTS_SETTINGS }
-                  const resetQuality = { ...DEFAULT_QUALITY_SETTINGS }
+                <div className="generate-section">
+                  <button
+                    className="btn-primary"
+                    onClick={handleGenerate}
+                    disabled={loading || !text.trim()}
+                  >
+                    {loading ? '⏳ Generuji...' : '🔊 Generovat řeč'}
+                  </button>
+                </div>
 
-                  setTtsSettings(resetTts)
-                  setQualitySettings(resetQuality)
+                {loading && <LoadingSpinner progress={ttsProgress} />}
 
-                  // Aktualizovat ref okamžitě
-                  currentSettingsRef.current = {
-                    ttsSettings: { ...resetTts },
-                    qualitySettings: { ...resetQuality }
-                  }
+                {error && (
+                  <div className="error-message">
+                    ⚠️ {error}
+                  </div>
+                )}
 
-                  // Uložit resetované hodnoty do localStorage pro tuto variantu
-                  if (selectedVoice && selectedVoice !== 'demo1' && voiceType === 'demo') {
-                    const resetSettings = {
+                {generatedAudio && !loading && (
+                  <AudioPlayer audioUrl={generatedAudio} />
+                )}
+              </div>
+
+              <div className="settings-panel">
+                <TTSSettings
+                  settings={ttsSettings}
+                  onChange={setTtsSettings}
+                  onReset={() => {
+                    // Resetovat nastavení pro aktuální variantu
+                    const resetTts = { ...DEFAULT_TTS_SETTINGS }
+                    const resetQuality = { ...DEFAULT_QUALITY_SETTINGS }
+
+                    setTtsSettings(resetTts)
+                    setQualitySettings(resetQuality)
+
+                    // Aktualizovat ref okamžitě
+                    currentSettingsRef.current = {
                       ttsSettings: { ...resetTts },
                       qualitySettings: { ...resetQuality }
                     }
-                    saveVariantSettings(selectedVoice, activeVariant, resetSettings)
-                  }
-                }}
-                qualitySettings={qualitySettings}
-                onQualityChange={setQualitySettings}
-                activeVariant={activeVariant}
-                onVariantChange={handleVariantChange}
-              />
 
-              <div className="generate-section">
-                <button
-                  className="btn-primary"
-                  onClick={handleGenerate}
-                  disabled={loading || !text.trim()}
-                >
-                  {loading ? '⏳ Generuji...' : '🔊 Generovat řeč'}
-                </button>
+                    // Uložit resetované hodnoty do localStorage pro tuto variantu
+                    if (selectedVoice && selectedVoice !== 'demo1' && voiceType === 'demo') {
+                      const resetSettings = {
+                        ttsSettings: { ...resetTts },
+                        qualitySettings: { ...resetQuality }
+                      }
+                      saveVariantSettings(selectedVoice, activeVariant, resetSettings)
+                    }
+                  }}
+                  qualitySettings={qualitySettings}
+                  onQualityChange={setQualitySettings}
+                  activeVariant={activeVariant}
+                  onVariantChange={handleVariantChange}
+                />
               </div>
-
-              {loading && <LoadingSpinner />}
-
-              {error && (
-                <div className="error-message">
-                  ⚠️ {error}
-                </div>
-              )}
-
-              {generatedAudio && !loading && (
-                <AudioPlayer audioUrl={generatedAudio} />
-              )}
-            </>
+            </div>
           )}
 
           {activeTab === 'history' && (
