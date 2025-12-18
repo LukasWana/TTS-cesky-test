@@ -25,6 +25,9 @@ const API_BASE_URL = 'http://localhost:8000'
  * @param {boolean} ttsParams.enableVad - Zapnout Voice Activity Detection
  * @param {boolean} ttsParams.enableBatch - Zapnout batch processing
  * @param {boolean} ttsParams.useHifigan - Použít HiFi-GAN vocoder
+ * @param {number} ttsParams.hifiganRefinementIntensity - Intenzita HiFi-GAN refinement (0.0-1.0)
+ * @param {boolean} ttsParams.hifiganNormalizeOutput - Normalizovat výstup HiFi-GAN
+ * @param {number} ttsParams.hifiganNormalizeGain - Normalizační gain (0.5-1.0)
  * @param {boolean} ttsParams.enableNormalization - Zapnout normalizaci
  * @param {boolean} ttsParams.enableDenoiser - Zapnout redukci šumu
  * @param {boolean} ttsParams.enableCompressor - Zapnout kompresi
@@ -32,9 +35,12 @@ const API_BASE_URL = 'http://localhost:8000'
  * @param {boolean} ttsParams.enableEq - Zapnout EQ
  * @param {boolean} ttsParams.enableTrim - Zapnout ořez ticha
  */
-export async function generateSpeech(text, voiceFile = null, demoVoice = null, ttsParams = {}) {
+export async function generateSpeech(text, voiceFile = null, demoVoice = null, ttsParams = {}, jobId = null) {
   const formData = new FormData()
   formData.append('text', text)
+  if (jobId) {
+    formData.append('job_id', jobId)
+  }
 
   if (voiceFile) {
     formData.append('voice_file', voiceFile)
@@ -88,6 +94,15 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
   if (ttsParams.useHifigan !== undefined) {
     formData.append('use_hifigan', ttsParams.useHifigan.toString())
   }
+  if (ttsParams.hifiganRefinementIntensity !== undefined && ttsParams.useHifigan) {
+    formData.append('hifigan_refinement_intensity', ttsParams.hifiganRefinementIntensity.toString())
+  }
+  if (ttsParams.hifiganNormalizeOutput !== undefined && ttsParams.useHifigan) {
+    formData.append('hifigan_normalize_output', ttsParams.hifiganNormalizeOutput.toString())
+  }
+  if (ttsParams.hifiganNormalizeGain !== undefined && ttsParams.useHifigan) {
+    formData.append('hifigan_normalize_gain', ttsParams.hifiganNormalizeGain.toString())
+  }
   if (ttsParams.enableNormalization !== undefined) {
     formData.append('enable_normalization', ttsParams.enableNormalization.toString())
   }
@@ -118,6 +133,60 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
   }
 
   return await response.json()
+}
+
+/**
+ * Získá průběh generování TTS pro daný jobId (polling - pro zpětnou kompatibilitu)
+ */
+export async function getTtsProgress(jobId) {
+  const response = await fetch(`${API_BASE_URL}/api/tts/progress/${jobId}`)
+  if (!response.ok) {
+    // Progress může dočasně vracet 404 (např. před startem) – caller si to ošetří
+    const err = await response.json().catch(() => ({}))
+    const e = new Error(err.detail || 'Progress není dostupný')
+    e.status = response.status
+    throw e
+  }
+  return await response.json()
+}
+
+/**
+ * Vytvoří EventSource pro real-time progress updates pomocí Server-Sent Events (SSE)
+ * @param {string} jobId - ID jobu pro sledování
+ * @param {Function} onProgress - Callback funkce volaná při každé aktualizaci progressu
+ * @param {Function} onError - Callback funkce volaná při chybě
+ * @returns {EventSource} EventSource instance pro případné uzavření
+ */
+export function subscribeToTtsProgress(jobId, onProgress, onError) {
+  const eventSource = new EventSource(`${API_BASE_URL}/api/tts/progress/${jobId}/stream`)
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      onProgress(data)
+
+      // Pokud je job hotový nebo chybný, uzavřít spojení
+      if (data.status === 'done' || data.status === 'error') {
+        eventSource.close()
+      }
+    } catch (err) {
+      console.error('Chyba při parsování SSE dat:', err)
+      if (onError) {
+        onError(err)
+      }
+    }
+  }
+
+  eventSource.onerror = (error) => {
+    console.error('SSE chyba:', error)
+    if (onError) {
+      onError(error)
+    }
+    // EventSource automaticky zkusí znovu připojit, ale můžeme ho uzavřít při kritické chybě
+    // eventSource.close()
+  }
+
+  return eventSource
 }
 
 /**
