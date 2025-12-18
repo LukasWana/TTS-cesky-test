@@ -267,7 +267,8 @@ async def generate_speech(
                 top_k=tts_top_k,
                 top_p=tts_top_p,
                 quality_mode=tts_quality_mode,
-                seed=seed
+                seed=seed,
+                enhancement_preset=enhancement_preset_value
             )
         finally:
             # Obnovit původní nastavení

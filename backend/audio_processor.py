@@ -63,7 +63,7 @@ class AudioProcessor:
                 "-i", str(input_path),
                 "-ar", str(target_sr),
                 "-ac", str(target_channels),
-                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",  # Loudness normalization
+                # DOČASNĚ VYPNUTO: "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",  # Loudness normalization
                 "-y",  # Přepsat výstupní soubor
                 str(output_path)
             ]
@@ -153,17 +153,17 @@ class AudioProcessor:
                 # Použijeme preemphasis jako aproximaci
                 audio = librosa.effects.preemphasis(audio, coef=0.97)
 
-                # Jednoduchá redukce šumu (spectral gating)
-                stft = librosa.stft(audio)
-                magnitude = np.abs(stft)
-                # Threshold na 10% maximální hodnoty
-                threshold = np.max(magnitude) * 0.1
-                mask = magnitude > threshold
-                stft_clean = stft * mask
-                audio = librosa.istft(stft_clean)
+                # DOČASNĚ VYPNUTO: Jednoduchá redukce šumu (spectral gating)
+                # stft = librosa.stft(audio)
+                # magnitude = np.abs(stft)
+                # # Threshold na 10% maximální hodnoty
+                # threshold = np.max(magnitude) * 0.1
+                # mask = magnitude > threshold
+                # stft_clean = stft * mask
+                # audio = librosa.istft(stft_clean)
 
-            # Normalizace hlasitosti
-            audio = librosa.util.normalize(audio)
+            # DOČASNĚ VYPNUTO: Normalizace hlasitosti
+            # audio = librosa.util.normalize(audio)
 
             # Uložení
             sf.write(output_path, audio, target_sr)
@@ -302,12 +302,15 @@ class AudioProcessor:
             # 4. EQ korekce pro vyrovnání frekvenčního spektra
             audio = AudioEnhancer.apply_eq(audio, sr)
 
-            # 5. Vylepšená normalizace s kompresí
+            # 5. Jemná komprese pro zvládnutí transientů
             audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
-            audio = AudioEnhancer.normalize_audio(audio)
 
             # 6. Fade in/out
             audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=30)
+
+            # 7. Finální normalizace podle best practices pro hlas
+            # Peak: -3 dB, RMS: -16 až -20 dB
+            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
 
             # Uložení
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)

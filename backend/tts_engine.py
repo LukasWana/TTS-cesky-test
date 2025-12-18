@@ -179,7 +179,8 @@ class XTTSEngine:
         top_k: int = 50,
         top_p: float = 0.85,
         quality_mode: Optional[str] = None,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        enhancement_preset: Optional[str] = None
     ) -> str:
         """
         Generuje řeč z textu
@@ -196,6 +197,7 @@ class XTTSEngine:
             top_p: Top-p sampling (výchozí: 0.85)
             quality_mode: Quality preset (high_quality, natural, fast) - přepíše jednotlivé parametry
             seed: Seed pro reprodukovatelnost generování (volitelné)
+            enhancement_preset: Preset pro audio enhancement (high_quality, natural, fast)
 
         Returns:
             Cesta k vygenerovanému audio souboru
@@ -236,7 +238,8 @@ class XTTSEngine:
             top_k,
             top_p,
             quality_mode,
-            seed
+            seed,
+            enhancement_preset
         )
 
         return str(output_path)
@@ -254,7 +257,8 @@ class XTTSEngine:
         top_k: int = 50,
         top_p: float = 0.85,
         quality_mode: Optional[str] = None,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        enhancement_preset: Optional[str] = None
     ):
         """Synchronní generování řeči"""
         try:
@@ -342,7 +346,7 @@ class XTTSEngine:
             if not Path(output_path).exists():
                 raise Exception(f"Output file was not created: {output_path}")
 
-            # Post-processing: upsampling a změna rychlosti
+            # Post-processing: upsampling
             # XTTS-v2 generuje na 22050 Hz, ale chceme CD kvalitu (44100 Hz)
             try:
                 import librosa
@@ -358,30 +362,40 @@ class XTTSEngine:
                     sr = OUTPUT_SAMPLE_RATE
                     print(f"✅ Audio upsamplováno na {OUTPUT_SAMPLE_RATE} Hz")
 
-                # Změna rychlosti pomocí time_stretch (pokud speed != 1.0)
-                # XTTS může nepodporovat parametr speed, takže použijeme post-processing
-                if speed != 1.0:
-                    print(f"🎚️  Aplikuji změnu rychlosti: {speed}x pomocí post-processing...")
-                    # time_stretch používá rate (1.0 = normální rychlost, 2.0 = 2x rychlejší, 0.5 = 2x pomalejší)
-                    # speed parametr je přímo rate
-                    audio = librosa.effects.time_stretch(audio, rate=speed)
-                    print(f"✅ Rychlost změněna na {speed}x")
-
-                # Uložení zpět (s upsamplovaným a případně upraveným audio)
+                # Uložení s upsamplovaným audio (před enhancement)
                 sf.write(output_path, audio, sr)
 
             except Exception as e:
-                print(f"⚠️ Warning: Post-processing (upsampling/speed) failed: {e}, continuing with original audio")
+                print(f"⚠️ Warning: Post-processing (upsampling) failed: {e}, continuing with original audio")
                 # Pokračujeme s původním audio
 
             # Post-processing audio enhancement (pokud je zapnuto)
             if ENABLE_AUDIO_ENHANCEMENT:
                 try:
-                    # Použít preset z quality_mode nebo výchozí
-                    enhancement_preset = quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET
-                    AudioEnhancer.enhance_output(output_path, preset=enhancement_preset)
+                    # Použít předaný enhancement_preset, nebo výchozí z configu
+                    preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
+                    AudioEnhancer.enhance_output(output_path, preset=preset_to_use)
                 except Exception as e:
                     print(f"Warning: Audio enhancement failed: {e}, continuing with original audio")
+
+            # Změna rychlosti pomocí time_stretch (pokud speed != 1.0) - APLIKUJE SE PO ENHANCEMENT
+            # XTTS může nepodporovat parametr speed, takže použijeme post-processing
+            if speed != 1.0:
+                try:
+                    import librosa
+                    import soundfile as sf
+
+                    print(f"🎚️  Aplikuji změnu rychlosti: {speed}x pomocí post-processing...")
+                    # Načtení audio po enhancement
+                    audio, sr = librosa.load(output_path, sr=None)
+                    # time_stretch používá rate (1.0 = normální rychlost, 2.0 = 2x rychlejší, 0.5 = 2x pomalejší)
+                    # speed parametr je přímo rate
+                    audio = librosa.effects.time_stretch(audio, rate=speed)
+                    print(f"✅ Rychlost změněna na {speed}x")
+                    # Uložení s upravenou rychlostí
+                    sf.write(output_path, audio, sr)
+                except Exception as e:
+                    print(f"⚠️ Warning: Změna rychlosti selhala: {e}, pokračuji s původní rychlostí")
 
         except Exception as e:
             import traceback
