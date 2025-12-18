@@ -3,13 +3,21 @@ XTTS-v2 TTS Engine wrapper
 """
 import uuid
 import asyncio
+import threading
+import warnings
 from pathlib import Path
 from typing import Optional, List
+import re
+import time
 from TTS.api import TTS
 import torch
 import numpy as np
+import backend.config as config
 from num2words import num2words
 from TTS.tts.layers.xtts import tokenizer as xtts_tokenizer
+
+# Potlačení deprecation warning z librosa (pkg_resources je zastaralé, ale knihovna ho ještě používá)
+warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*", category=UserWarning)
 from backend.config import (
     DEVICE,
     XTTS_MODEL_NAME,
@@ -60,6 +68,198 @@ class XTTSEngine:
         self.is_loading = False
         self.is_loaded = False
         self.vocoder = get_hifigan_vocoder()
+        # None = ještě nezkoušeno, False = není dostupné, jinak tokenizer instance
+        self._bpe_tokenizer = None
+
+    def _get_bpe_tokenizer(self):
+        """
+        Vytvoří/vrátí XTTS BPE tokenizer (stejný tokenizer.json jako upstream XTTS).
+        Používá se pro počítání tokenů a bezpečné dělení textu pod limit 400 tokenů.
+        """
+        if self._bpe_tokenizer is False:
+            return None
+        if self._bpe_tokenizer is not None:
+            return self._bpe_tokenizer
+
+        def _silence_len_warnings(tok_obj):
+            # VoiceBpeTokenizer.encode() volá check_input_length(), která printuje warningy
+            # při překročení char limitu (typicky 186 pro cs). To je pro nás při token-countingu
+            # velmi hlučné a není to chyba, takže to ztišíme.
+            try:
+                if hasattr(tok_obj, "check_input_length"):
+                    tok_obj.check_input_length = lambda *_args, **_kwargs: None
+            except Exception:
+                pass
+
+        # 1) Zkus tokenizer přímo z modelu (nejspolehlivější)
+        try:
+            if self.model is not None and hasattr(self.model, "synthesizer"):
+                tts_model = getattr(self.model.synthesizer, "tts_model", None)
+                model_tokenizer = getattr(tts_model, "tokenizer", None)
+                if model_tokenizer is not None:
+                    _silence_len_warnings(model_tokenizer)
+                    self._bpe_tokenizer = model_tokenizer
+                    return self._bpe_tokenizer
+        except Exception:
+            pass
+
+        # 2) Fallback: tokenizer.json z balíčku (ne všechny instalace ho bohužel obsahují)
+        try:
+            candidate = Path(getattr(xtts_tokenizer, "DEFAULT_VOCAB_FILE", "")).resolve()
+            if not candidate.exists():
+                # V některých build/instalacích je tokenizer.json uložen v assets (tortoise)
+                base_tts_dir = Path(xtts_tokenizer.__file__).resolve().parents[2]  # .../TTS/tts
+                alt = base_tts_dir / "utils" / "assets" / "tortoise" / "tokenizer.json"
+                if alt.exists():
+                    candidate = alt.resolve()
+
+            if candidate.exists():
+                tok = xtts_tokenizer.VoiceBpeTokenizer(str(candidate))
+                _silence_len_warnings(tok)
+                self._bpe_tokenizer = tok
+                return self._bpe_tokenizer
+        except Exception as e:
+            print(f"Warning: XTTS tokenizer init failed: {e}")
+
+        # 3) Nedostupné → necháme None a nebudeme znovu zkoušet (bez spamování warningů)
+        self._bpe_tokenizer = False
+        return None
+
+    def _count_xtts_tokens(self, text: str, language: str = "cs") -> Optional[int]:
+        """Vrátí počet XTTS tokenů pro daný text, nebo None pokud se to nepovede."""
+        tok = self._get_bpe_tokenizer()
+        if tok is None:
+            return None
+        try:
+            # VoiceBpeTokenizer má encode(txt, lang) → ids
+            if hasattr(tok, "encode"):
+                return len(tok.encode(text, language))
+        except Exception:
+            return None
+        return None
+
+    def _split_text_by_xtts_tokens(self, text: str, language: str = "cs") -> List[str]:
+        """
+        Rozseká text tak, aby žádný chunk nepřekročil config.XTTS_TARGET_MAX_TOKENS.
+        Preferuje dělení na koncích vět, pak na slovech, a nakonec nouzově po znacích.
+        """
+        max_tokens = getattr(config, "XTTS_TARGET_MAX_TOKENS", 380)
+        text = re.sub(r"\s+", " ", (text or "").strip())
+        if not text:
+            return []
+
+        # Pokud tokenizer není dostupný, drž se konzervativního char splitu (bez overlap = žádné opakování)
+        if self._get_bpe_tokenizer() is None:
+            try:
+                from backend.text_splitter import TextSplitter
+                return TextSplitter.split_text(text, max_length=MAX_CHUNK_LENGTH, overlap=0)
+            except Exception:
+                # úplný fallback: hrubé dělení po MAX_CHUNK_LENGTH znacích
+                return [text[i:i + MAX_CHUNK_LENGTH].strip() for i in range(0, len(text), MAX_CHUNK_LENGTH) if text[i:i + MAX_CHUNK_LENGTH].strip()]
+
+        n = self._count_xtts_tokens(text, language)
+        if n is not None and n <= max_tokens:
+            return [text]
+
+        def split_hard_by_chars(s: str) -> List[str]:
+            out: List[str] = []
+            s = s.strip()
+            if not s:
+                return out
+            start = 0
+            while start < len(s):
+                # binární vyhledání nejdelšího prefixu, který se vejde do token budgetu
+                lo = start + 1
+                hi = len(s)
+                best = None
+                while lo <= hi:
+                    mid = (lo + hi) // 2
+                    part = s[start:mid].strip()
+                    if not part:
+                        lo = mid + 1
+                        continue
+                    tn = self._count_xtts_tokens(part, language)
+                    if tn is None:
+                        # fallback: když selže tokenizer, řežeme po MAX_CHUNK_LENGTH znacích
+                        best = min(start + MAX_CHUNK_LENGTH, len(s))
+                        break
+                    if tn <= max_tokens:
+                        best = mid
+                        lo = mid + 1
+                    else:
+                        hi = mid - 1
+
+                if best is None:
+                    best = start + 1
+                chunk = s[start:best].strip()
+                if chunk:
+                    out.append(chunk)
+                start = best
+            return out
+
+        def split_by_words(sentence: str) -> List[str]:
+            words = [w for w in sentence.strip().split(" ") if w]
+            out: List[str] = []
+            cur = ""
+            for w in words:
+                cand = w if not cur else f"{cur} {w}"
+                tn = self._count_xtts_tokens(cand, language)
+                if tn is not None and tn <= max_tokens:
+                    cur = cand
+                    continue
+
+                if cur:
+                    out.append(cur)
+                    cur = w
+                    # Pokud i samotné slovo/fragment přetéká, řež tvrdě
+                    if (self._count_xtts_tokens(cur, language) or (max_tokens + 1)) > max_tokens:
+                        out.extend(split_hard_by_chars(cur))
+                        cur = ""
+                else:
+                    out.extend(split_hard_by_chars(w))
+                    cur = ""
+
+            if cur:
+                out.append(cur)
+            return out
+
+        # Primárně dělení na věty
+        sentences = re.split(r"(?<=[.!?…])\s+", text)
+        chunks: List[str] = []
+        cur = ""
+        for s in sentences:
+            s = (s or "").strip()
+            if not s:
+                continue
+            cand = s if not cur else f"{cur} {s}"
+            tn = self._count_xtts_tokens(cand, language)
+            if tn is not None and tn <= max_tokens:
+                cur = cand
+                continue
+
+            if cur:
+                chunks.append(cur)
+                cur = ""
+
+            # samotná věta je dlouhá → rozdělit podle slov / nouzově po znacích
+            if (self._count_xtts_tokens(s, language) or (max_tokens + 1)) <= max_tokens:
+                cur = s
+            else:
+                chunks.extend(split_by_words(s))
+
+        if cur:
+            chunks.append(cur)
+
+        # Poslední pojistka: kdyby cokoli přeteklo (např. tokenizer None), dořež
+        safe_chunks: List[str] = []
+        for ch in chunks:
+            tn = self._count_xtts_tokens(ch, language)
+            if tn is None or tn <= max_tokens:
+                safe_chunks.append(ch)
+            else:
+                safe_chunks.extend(split_hard_by_chars(ch))
+
+        return [c for c in safe_chunks if c.strip()]
 
     async def load_model(self):
         """Načte XTTS-v2 model asynchronně"""
@@ -200,7 +400,8 @@ class XTTSEngine:
         enable_deesser: bool = True,
         enable_eq: bool = True,
         enable_trim: bool = True,
-        handle_pauses: bool = True
+        handle_pauses: bool = True,
+        job_id: Optional[str] = None
     ):
         """
         Generuje řeč z textu
@@ -239,6 +440,28 @@ class XTTSEngine:
         if not self.model:
             raise Exception("Model není načten")
 
+        # Progress (pokud používáme job_id z frontendu)
+        if job_id:
+            try:
+                from backend.progress_manager import ProgressManager
+                ProgressManager.update(job_id, percent=2, stage="prepare", message="Připravuji generování…")
+            except Exception:
+                pass
+
+        # Aplikace quality preset pokud je zadán - MUSÍ být PŘED kontrolou multi-pass a batch
+        # aby se parametry správně aplikovaly ve všech případech
+        if quality_mode:
+            preset_params = self._apply_quality_preset(quality_mode)
+            # Rychlost (speed) chceme zachovat z parametrů volání,
+            # protože ji uživatel nastavuje v UI posuvníkem
+            # speed = preset_params["speed"]
+            temperature = preset_params["temperature"]
+            length_penalty = preset_params["length_penalty"]
+            repetition_penalty = preset_params["repetition_penalty"]
+            top_k = preset_params["top_k"]
+            top_p = preset_params["top_p"]
+            print(f"🎯 Quality mode '{quality_mode}' aplikován - parametry přepsány z presetu")
+
         # Multi-pass generování
         if multi_pass or (ENABLE_MULTI_PASS and not multi_pass):
             return await self.generate_multi_pass(
@@ -262,16 +485,21 @@ class XTTSEngine:
                 enable_compressor=enable_compressor,
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
-                enable_trim=enable_trim
+                enable_trim=enable_trim,
+                job_id=job_id
             )
 
-        # Skutečné pauzy: [PAUSE] a [PAUSE:ms]
+        # Skutečné pauzy: [PAUSE] / [pause] a [PAUSE:ms] / [pause:ms]
         # Pozn.: ProsodyProcessor historicky převáděl pauzy jen na mezery (a při batch splitu se ztratí).
         # Tady to řešíme správně: vygenerujeme úseky zvlášť a mezi ně vložíme ticho v milisekundách.
-        if handle_pauses and "[PAUSE" in text:
+        if handle_pauses:
             import re
-            # Najdi všechny pauzy a rozsekej text
-            pause_re = re.compile(r"\[PAUSE(?::(\d+))?\]")
+            # Najdi všechny pauzy a rozsekej text (case-insensitive).
+            # Podporované formy:
+            # - [pause]
+            # - [pause:500], [pause=500]
+            # - [pause:500ms], [pause = 500 ms]
+            pause_re = re.compile(r"\[pause(?:\s*[:=]\s*(\d+)\s*(?:ms)?)?\]", re.IGNORECASE)
             matches = list(pause_re.finditer(text))
             if matches:
                 segments: List[str] = []
@@ -330,7 +558,19 @@ class XTTSEngine:
                         f"leading_pause={leading_pause_ms}ms"
                     )
                     part_paths: List[str] = []
-                    for seg in segments:
+                    for idx, seg in enumerate(segments):
+                        if job_id:
+                            try:
+                                from backend.progress_manager import ProgressManager
+                                ProgressManager.update(
+                                    job_id,
+                                    percent=5 + (80.0 * idx / max(1, len(segments))),
+                                    stage="pause_segments",
+                                    message=f"Generuji segment {idx+1}/{len(segments)}…",
+                                    meta_update={"segment": idx + 1, "segments_total": len(segments)},
+                                )
+                            except Exception:
+                                pass
                         part_path = await self.generate(
                             text=seg,
                             speaker_wav=speaker_wav,
@@ -345,7 +585,9 @@ class XTTSEngine:
                             seed=seed,
                             enhancement_preset=enhancement_preset,
                             multi_pass=False,
-                            enable_batch=False,  # nepoužívej batch, ať se pauzy nezničí
+                            # Batch uvnitř segmentu je OK (segment sám neobsahuje [PAUSE]),
+                            # a zároveň to chrání před XTTS limitem 400 tokenů.
+                            enable_batch=enable_batch,
                             enable_vad=enable_vad,
                             use_hifigan=use_hifigan,
                             enable_normalization=enable_normalization,
@@ -355,12 +597,19 @@ class XTTSEngine:
                             enable_eq=enable_eq,
                             enable_trim=enable_trim,
                             handle_pauses=False,  # zabraň rekurzivnímu parsování
+                            job_id=job_id,
                         )
                         part_paths.append(part_path)
 
                     # Spoj WAVy + vlož ticho přesně podle ms
                     final_output = OUTPUTS_DIR / f"{uuid.uuid4()}.wav"
                     try:
+                        if job_id:
+                            try:
+                                from backend.progress_manager import ProgressManager
+                                ProgressManager.update(job_id, percent=90, stage="concat", message="Skládám segmenty…")
+                            except Exception:
+                                pass
                         import librosa
                         import soundfile as sf
 
@@ -417,7 +666,19 @@ class XTTSEngine:
                     return str(final_output)
 
         # Batch processing pro dlouhé texty
-        use_batch = enable_batch if enable_batch is not None else (ENABLE_BATCH_PROCESSING and len(text) > MAX_CHUNK_LENGTH)
+        hard_limit = getattr(config, "XTTS_MAX_TOKENS", 400)
+        target_limit = getattr(config, "XTTS_TARGET_MAX_TOKENS", 380)
+        token_count = self._count_xtts_tokens(text, language)
+
+        # Pokud hrozí/už nastal token overflow, batch je povinný (jinak XTTS spadne).
+        if token_count is not None and token_count > hard_limit:
+            enable_batch = True
+
+        use_batch = enable_batch if enable_batch is not None else (
+            ENABLE_BATCH_PROCESSING and (
+                (token_count is not None and token_count > target_limit) or (len(text) > MAX_CHUNK_LENGTH)
+            )
+        )
         if use_batch:
             return await self.generate_batch(
                 text=text,
@@ -439,20 +700,9 @@ class XTTSEngine:
                 enable_compressor=enable_compressor,
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
-                enable_trim=enable_trim
+                enable_trim=enable_trim,
+                job_id=job_id
             )
-
-        # Aplikace quality preset pokud je zadán
-        if quality_mode:
-            preset_params = self._apply_quality_preset(quality_mode)
-            # Rychlost (speed) chceme zachovat z parametrů volání,
-            # protože ji uživatel nastavuje v UI posuvníkem
-            # speed = preset_params["speed"]
-            temperature = preset_params["temperature"]
-            length_penalty = preset_params["length_penalty"]
-            repetition_penalty = preset_params["repetition_penalty"]
-            top_k = preset_params["top_k"]
-            top_p = preset_params["top_p"]
 
         # Prosody preprocessing
         try:
@@ -467,6 +717,12 @@ class XTTSEngine:
         output_path = OUTPUTS_DIR / output_filename
 
         # Generování v thread poolu
+        if job_id:
+            try:
+                from backend.progress_manager import ProgressManager
+                ProgressManager.update(job_id, percent=10, stage="synth", message="Syntetizuji…")
+            except Exception:
+                pass
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None,
@@ -491,9 +747,11 @@ class XTTSEngine:
             enable_compressor,
             enable_deesser,
             enable_eq,
-            enable_trim
+            enable_trim,
+            job_id
         )
 
+        # finální 100% řeší backend/main.py (ProgressManager.done(job_id))
         return str(output_path)
 
     def _generate_sync(
@@ -518,12 +776,23 @@ class XTTSEngine:
         enable_compressor: bool = True,
         enable_deesser: bool = True,
         enable_eq: bool = True,
-        enable_trim: bool = True
+        enable_trim: bool = True,
+        job_id: Optional[str] = None
     ):
         # DEBUG: Ověření, že speed parametr skutečně přichází
         print(f"🔍 DEBUG _generate_sync START: speed={speed}, type={type(speed)}, output_path={output_path}")
         """Synchronní generování řeči"""
+        def _progress(pct: float, stage: str, msg: str):
+            if not job_id:
+                return
+            try:
+                from backend.progress_manager import ProgressManager
+                ProgressManager.update(job_id, percent=pct, stage=stage, message=msg)
+            except Exception:
+                pass
+
         try:
+            _progress(12, "prep", "Připravuji vstup…")
             # Nastavení seedu pro reprodukovatelnost
             if seed is not None:
                 torch.manual_seed(seed)
@@ -547,6 +816,7 @@ class XTTSEngine:
             # Předzpracování textu pro češtinu - převod čísel na slova
             # TTS knihovna má problém s num2words pro češtinu, takže převedeme čísla ručně
             processed_text = self._preprocess_text_for_czech(text, language)
+            _progress(15, "tts", "Generuji řeč (XTTS)…")
 
             # Příprava parametrů pro tts_to_file
             # Vždy předáváme všechny parametry, ne jen když se liší od výchozích hodnot
@@ -575,39 +845,76 @@ class XTTSEngine:
             print(f"   Top-P: {top_p}")
             print(f"   Quality Mode: {quality_mode if quality_mode else 'None (using individual params)'}")
 
-            # Generování řeči
-            # XTTS-v2 podporuje tyto parametry přímo v tts_to_file:
-            # - temperature: Teplota pro sampling (0.0-1.0)
-            # - length_penalty: Length penalty (0.5-2.0)
-            # - repetition_penalty: Repetition penalty (1.0-5.0)
-            # - top_k: Top-k sampling (1-100)
-            # - top_p: Top-p sampling (0.0-1.0)
-            # POZNÁMKA: speed se nepředává - použijeme post-processing místo toho
-            # Pokud některý parametr není podporován, XTTS ho ignoruje nebo vyhodí TypeError
+            # Heartbeat mechanismus během XTTS inference (ukáže, že proces stále běží)
+            heartbeat_stop = threading.Event()
+            heartbeat_pct = [15.0]  # mutable pro thread
+
+            def heartbeat_worker():
+                """Aktualizuje progress pravidelně během inference"""
+                import time
+                # Odhad rychlosti: cca 15 znaků za sekundu na průměrném stroji
+                # Pro 150 znaků (cca 10s) chceme dojít z 15% na 50% (+35%)
+                char_count = len(text)
+                estimated_seconds = max(3.0, char_count / 15.0)
+                # Kolik procent přidat každých 0.5 sekundy
+                increment = (35.0 / (estimated_seconds * 2.0))
+
+                while not heartbeat_stop.is_set():
+                    time.sleep(0.5)
+                    if heartbeat_stop.is_set():
+                        break
+                    # Postupně zvyšuj progress (15% → 55% během inference)
+                    # Častější malé updaty + CSS transition na FE vytvoří plynulý pohyb
+                    heartbeat_pct[0] = min(55.0, heartbeat_pct[0] + increment)
+                    _progress(heartbeat_pct[0], "tts", f"Generuji řeč… ({int(heartbeat_pct[0])}%)")
+
+            heartbeat_thread = None
+            if job_id:
+                heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True)
+                heartbeat_thread.start()
+
             try:
-                result = self.model.tts_to_file(**tts_params)
-            except TypeError as e:
-                # Pokud některý parametr není podporován, zkusíme bez volitelných parametrů
-                error_msg = str(e)
-                print(f"⚠️ Warning: Some parameters may not be supported: {error_msg}")
-                print("   Attempting with basic parameters only (temperature)...")
+                # Generování řeči
+                # XTTS-v2 podporuje tyto parametry přímo v tts_to_file:
+                # - temperature: Teplota pro sampling (0.0-1.0)
+                # - length_penalty: Length penalty (0.5-2.0)
+                # - repetition_penalty: Repetition penalty (1.0-5.0)
+                # - top_k: Top-k sampling (1-100)
+                # - top_p: Top-p sampling (0.0-1.0)
+                # POZNÁMKA: speed se nepředává - použijeme post-processing místo toho
+                # Pokud některý parametr není podporován, XTTS ho ignoruje nebo vyhodí TypeError
+                try:
+                    result = self.model.tts_to_file(**tts_params)
+                except TypeError as e:
+                    # Pokud některý parametr není podporován, zkusíme bez volitelných parametrů
+                    error_msg = str(e)
+                    print(f"⚠️ Warning: Some parameters may not be supported: {error_msg}")
+                    print("   Attempting with basic parameters only (temperature)...")
 
-                # Základní parametry + pouze temperature (nejčastěji podporované)
-                basic_params = {
-                    "text": processed_text,
-                    "speaker_wav": speaker_wav,
-                    "language": language,
-                    "file_path": output_path,
-                    "temperature": temperature
-                }
+                    # Základní parametry + pouze temperature (nejčastěji podporované)
+                    basic_params = {
+                        "text": processed_text,
+                        "speaker_wav": speaker_wav,
+                        "language": language,
+                        "file_path": output_path,
+                        "temperature": temperature
+                    }
 
-                result = self.model.tts_to_file(**basic_params)
-                print("   ⚠️ Note: Some advanced parameters (length_penalty, repetition_penalty, top_k, top_p) may not be supported by this XTTS version")
+                    result = self.model.tts_to_file(**basic_params)
+                    print("   ⚠️ Note: Some advanced parameters (length_penalty, repetition_penalty, top_k, top_p) may not be supported by this XTTS version")
+            finally:
+                # Zastav heartbeat
+                if heartbeat_thread:
+                    heartbeat_stop.set()
+                    heartbeat_thread.join(timeout=1.0)
 
             # Zkontroluj, jestli soubor byl vytvořen
             if not Path(output_path).exists():
                 raise Exception(f"Output file was not created: {output_path}")
 
+            _progress(55, "tts", "XTTS inference dokončeno")
+
+            _progress(58, "upsample", "Načítám audio…")
             # Post-processing: upsampling
             # XTTS-v2 generuje na 22050 Hz, ale chceme CD kvalitu (44100 Hz)
             try:
@@ -619,6 +926,7 @@ class XTTSEngine:
 
                 # Upsampling na cílovou sample rate (pokud je jiná)
                 if sr != OUTPUT_SAMPLE_RATE:
+                    _progress(62, "upsample", f"Převzorkování z {sr} Hz na {OUTPUT_SAMPLE_RATE} Hz…")
                     print(f"🎵 Upsampling audio z {sr} Hz na {OUTPUT_SAMPLE_RATE} Hz (CD kvalita)...")
                     audio = librosa.resample(audio, orig_sr=sr, target_sr=OUTPUT_SAMPLE_RATE)
                     sr = OUTPUT_SAMPLE_RATE
@@ -626,6 +934,7 @@ class XTTSEngine:
 
                 # Uložení s upsamplovaným audio (před enhancement)
                 sf.write(output_path, audio, sr)
+                _progress(65, "upsample", "Upsampling dokončen")
 
             except Exception as e:
                 print(f"⚠️ Warning: Post-processing (upsampling) failed: {e}, continuing with original audio")
@@ -634,61 +943,133 @@ class XTTSEngine:
             # Post-processing audio enhancement (pokud je zapnuto)
             if ENABLE_AUDIO_ENHANCEMENT:
                 try:
+                    # Rozděl enhancement na více kroků pro lepší progress feedback
+                    _progress(68, "enhance", "Načítám audio pro enhancement…")
+                    import librosa
+                    import soundfile as sf
+                    audio, sr = librosa.load(output_path, sr=OUTPUT_SAMPLE_RATE)
+
                     # Použít předaný enhancement_preset, nebo výchozí z configu
                     preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
-                    # Předat enable_vad do enhancement
-                    AudioEnhancer.enhance_output(
-                        output_path,
-                        preset=preset_to_use,
-                        enable_normalization=enable_normalization,
-                        enable_noise_reduction=enable_denoiser,
-                        enable_compression=enable_compressor,
-                        enable_deesser=enable_deesser,
-                        enable_eq=enable_eq,
-                        enable_trim=enable_trim
-                    )
+
+                    # Počítáme aktivní kroky pro správné rozložení procent
+                    active_steps = []
+                    if enable_trim:
+                        active_steps.append("trim")
+                    if enable_denoiser:
+                        active_steps.append("denoiser")
+                    if enable_eq:
+                        active_steps.append("eq")
+                    if enable_compressor:
+                        active_steps.append("compressor")
+                    if enable_deesser:
+                        active_steps.append("deesser")
+                    active_steps.append("final")  # fade + DC + normalizace
+
+                    step_size = 20.0 / max(1, len(active_steps))  # 68-88% pro enhancement
+                    current_pct = 68.0
+
+                    # 1. Trim (pokud zapnuto)
+                    if enable_trim:
+                        current_pct += step_size
+                        _progress(current_pct, "enhance", "Ořez ticha…")
+                        try:
+                            from backend.vad_processor import get_vad_processor
+                            from backend.config import ENABLE_VAD
+                            if ENABLE_VAD:
+                                vad_processor = get_vad_processor()
+                                audio = vad_processor.trim_silence_vad(audio, sr)
+                            else:
+                                audio, _ = librosa.effects.trim(audio, top_db=25)
+                        except Exception:
+                            audio, _ = librosa.effects.trim(audio, top_db=25)
+
+                    # 2. Noise reduction (pokud zapnuto)
+                    if enable_denoiser:
+                        current_pct += step_size
+                        _progress(current_pct, "enhance", "Redukce šumu…")
+                        audio = AudioEnhancer.reduce_noise_advanced(audio, sr)
+
+                    # 3. EQ (pokud zapnuto)
+                    if enable_eq:
+                        current_pct += step_size
+                        _progress(current_pct, "enhance", "EQ korekce…")
+                        audio = AudioEnhancer.apply_eq(audio, sr)
+
+                    # 4. Komprese (pokud zapnuto)
+                    if enable_compressor:
+                        current_pct += step_size
+                        _progress(current_pct, "enhance", "Komprese dynamiky…")
+                        audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
+
+                    # 5. De-esser (pokud zapnuto)
+                    if enable_deesser:
+                        current_pct += step_size
+                        _progress(current_pct, "enhance", "De-esser…")
+                        audio = AudioEnhancer.apply_deesser(audio, sr)
+
+                    # 6. Fade in/out + DC offset + normalizace
+                    current_pct += step_size
+                    _progress(current_pct, "enhance", "Finální úpravy enhancement…")
+                    audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=50)
+                    audio = AudioEnhancer.remove_dc_offset(audio)
+
+                    if enable_normalization:
+                        audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
+
+                    # Uložení
+                    sf.write(output_path, audio, sr)
+                    _progress(88, "enhance", "Enhancement dokončen")
                 except Exception as e:
                     print(f"Warning: Audio enhancement failed: {e}, continuing with original audio")
+                    _progress(88, "enhance", "Enhancement přeskočen (chyba)")
 
             # HiFi-GAN Vocoder refinement (pokud zapnuto)
             # POZNÁMKA: Musí být před změnou rychlosti, aby speed nebyl přepsán
             if use_hifigan and self.vocoder.is_available():
                 try:
+                    _progress(93, "hifigan", "HiFi-GAN refinement…")
                     import librosa
                     import soundfile as sf
 
                     print("🚀 Aplikuji HiFi-GAN vocoder refinement...")
                     # Načtení aktuálního audio
                     audio, sr = librosa.load(output_path, sr=None)
+                    original_audio = audio.copy()  # Uložit pro případné blending
 
                     # 1. Výpočet mel-spectrogramu z vygenerovaného audio
-                    # HiFi-GAN obvykle očekává specifické parametry mel-spectrogramu
+                    # Použijeme parametry z configu
+                    mel_params = self.vocoder.mel_params
                     mel = librosa.feature.melspectrogram(
                         y=audio,
                         sr=sr,
-                        n_fft=1024,
-                        hop_length=256,
-                        win_length=1024,
-                        n_mels=80,
-                        fmin=0,
-                        fmax=8000
+                        n_fft=mel_params["n_fft"],
+                        hop_length=mel_params["hop_length"],
+                        win_length=mel_params["win_length"],
+                        n_mels=mel_params["n_mels"],
+                        fmin=mel_params["fmin"],
+                        fmax=mel_params["fmax"]
                     )
 
                     # OPRAVA: HiFi-GAN očekává log-mel (v dB), ne power-mel
                     # Použijeme stabilnější logaritmickou transformaci
                     mel_log = np.log10(np.maximum(mel, 1e-5))
 
-                    # 2. Resyntéza pomocí HiFi-GAN
-                    refined_audio = self.vocoder.vocode(mel_log)
+                    # 2. Resyntéza pomocí HiFi-GAN (s blending pokud je intensity < 1.0)
+                    refined_audio = self.vocoder.vocode(
+                        mel_log,
+                        sample_rate=sr,
+                        # Vždy předáme originál; vocoder si podle aktuální intensity z configu rozhodne,
+                        # jestli blendovat (UI → backend.main dočasně přepíše config hodnoty).
+                        original_audio=original_audio
+                    )
 
                     if refined_audio is not None:
-                        # 3. Normalizace po vocodingu (HiFi-GAN může mít jiný rozsah)
-                        if np.max(np.abs(refined_audio)) > 0:
-                            refined_audio = refined_audio / np.max(np.abs(refined_audio)) * 0.95
-
                         # Uložení vylepšeného audio
                         sf.write(output_path, refined_audio, sr)
-                        print("✅ HiFi-GAN refinement dokončen")
+                        intensity = config.HIFIGAN_REFINEMENT_INTENSITY
+                        intensity_str = f" (intensity: {intensity:.2f})" if intensity < 1.0 else ""
+                        print(f"✅ HiFi-GAN refinement dokončen{intensity_str}")
                     else:
                         print("⚠️ HiFi-GAN vocoding vrátil None, refinement přeskočen")
 
@@ -704,6 +1085,7 @@ class XTTSEngine:
             if abs(speed_float - 1.0) > 0.001:
                 # Preferujeme FFmpeg atempo: mění tempo bez změny výšky (pitch)
                 try:
+                    _progress(95, "speed", f"Úprava rychlosti na {speed_float}x…")
                     import os
                     import subprocess
                     from backend.audio_processor import AudioProcessor
@@ -757,6 +1139,7 @@ class XTTSEngine:
             # Finální headroom (po VŠEM): stáhne hlasitost, aby výstup nepůsobil "přebuzile"
             # Aplikuje se i když je normalizace/komprese vypnutá, protože samotný model může generovat hodně "hot" signál.
             try:
+                _progress(97, "final", "Finální úpravy (headroom)…")
                 import librosa
                 import soundfile as sf
 
@@ -769,6 +1152,9 @@ class XTTSEngine:
                 print(f"🔉 Aplikuji finální headroom: {OUTPUT_HEADROOM_DB} dB")
             except Exception as e:
                 print(f"⚠️ Warning: Finální headroom selhal: {e}")
+            # 99% necháme až pro úplně poslední krok v backend/main.py (těsně před done=100),
+            # ať to v UI nevypadá, že je to "hotové", ale ještě dlouho to stojí.
+            _progress(96, "final", "Dokončuji…")
 
         except Exception as e:
             import traceback
@@ -948,7 +1334,8 @@ class XTTSEngine:
         enable_compressor: bool = True,
         enable_deesser: bool = True,
         enable_eq: bool = True,
-        enable_trim: bool = True
+        enable_trim: bool = True,
+        job_id: Optional[str] = None
     ) -> List[dict]:
         """
         Generuje více variant řeči s různými parametry
@@ -984,6 +1371,18 @@ class XTTSEngine:
         ]
 
         for i in range(variant_count):
+            if job_id:
+                try:
+                    from backend.progress_manager import ProgressManager
+                    ProgressManager.update(
+                        job_id,
+                        percent=2 + (90.0 * i / max(1, variant_count)),
+                        stage="multi_pass",
+                        message=f"Generuji variantu {i+1}/{variant_count}…",
+                        meta_update={"variant": i + 1, "variants_total": variant_count},
+                    )
+                except Exception:
+                    pass
             variant_seed = base_seed + i
             variant_temp = temperature_variations[i % len(temperature_variations)]
 
@@ -1010,7 +1409,8 @@ class XTTSEngine:
                 enable_compressor=enable_compressor,
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
-                enable_trim=enable_trim
+                enable_trim=enable_trim,
+                job_id=job_id
             )
 
             filename = Path(output_path).name
@@ -1047,7 +1447,8 @@ class XTTSEngine:
         enable_compressor: bool = True,
         enable_deesser: bool = True,
         enable_eq: bool = True,
-        enable_trim: bool = True
+        enable_trim: bool = True,
+        job_id: Optional[str] = None
     ) -> str:
         """
         Generuje řeč pro dlouhý text pomocí batch processing
@@ -1071,11 +1472,28 @@ class XTTSEngine:
         Returns:
             Cesta k finálnímu spojenému audio souboru
         """
-        from backend.text_splitter import TextSplitter
         from backend.audio_concatenator import AudioConcatenator
 
-        # Rozděl text na části
-        chunks = TextSplitter.split_text(text)
+        # Rozděl text na části podle XTTS tokenů (ochrana proti limitu 400 tokenů)
+        chunks = self._split_text_by_xtts_tokens(text, language=language)
+        token_counts = [self._count_xtts_tokens(c, language) for c in chunks]
+        # fallback na délku v znacích, pokud tokenizer není k dispozici
+        units = [(tc if tc is not None and tc > 0 else max(1, len(ch))) for tc, ch in zip(token_counts, chunks)]
+        total_units = max(1, sum(units))
+        done_units = 0
+
+        if job_id:
+            try:
+                from backend.progress_manager import ProgressManager
+                ProgressManager.update(
+                    job_id,
+                    percent=3,
+                    stage="batch_prepare",
+                    message=f"Rozděleno na {len(chunks)} částí…",
+                    meta_update={"chunks_total": len(chunks), "total_units": total_units, "unit": "tokens_or_chars"},
+                )
+            except Exception:
+                pass
 
         if len(chunks) == 1:
             # Pokud je jen jedna část, použij standardní generování
@@ -1101,7 +1519,8 @@ class XTTSEngine:
                 enable_compressor=enable_compressor,
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
-                enable_trim=enable_trim
+                enable_trim=enable_trim,
+                job_id=job_id
             )
 
         print(f"📦 Batch processing: rozděleno na {len(chunks)} částí")
@@ -1109,6 +1528,28 @@ class XTTSEngine:
         # Generuj každou část
         audio_files = []
         for i, chunk in enumerate(chunks):
+            if job_id:
+                try:
+                    from backend.progress_manager import ProgressManager
+                    # ETA: odhad z už hotových částí (sekundy / unit), po 1. části je to už celkem stabilní
+                    now = time.time()
+                    started_at = ProgressManager.get(job_id).get("started_at", now)  # type: ignore[union-attr]
+                    elapsed = max(0.0, now - float(started_at))
+                    rate = (elapsed / done_units) if done_units > 0 else None
+                    remaining = max(0, total_units - done_units)
+                    eta = int(rate * remaining) if rate is not None else None
+
+                    percent = 5 + (85.0 * done_units / total_units)
+                    ProgressManager.update(
+                        job_id,
+                        percent=percent,
+                        eta_seconds=eta,
+                        stage="batch",
+                        message=f"Generuji část {i+1}/{len(chunks)}…",
+                        meta_update={"chunk": i + 1, "chunks_total": len(chunks), "done_units": done_units},
+                    )
+                except Exception:
+                    pass
             print(f"   Generuji část {i+1}/{len(chunks)}...")
             chunk_output = await self.generate(
                 text=chunk,
@@ -1132,15 +1573,45 @@ class XTTSEngine:
                 enable_compressor=enable_compressor,
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
-                enable_trim=enable_trim
+                enable_trim=enable_trim,
+                job_id=job_id
             )
             audio_files.append(chunk_output)
+            done_units += units[i]
+
+            if job_id:
+                try:
+                    from backend.progress_manager import ProgressManager
+                    now = time.time()
+                    started_at = ProgressManager.get(job_id).get("started_at", now)  # type: ignore[union-attr]
+                    elapsed = max(0.0, now - float(started_at))
+                    rate = elapsed / max(1, done_units)
+                    remaining = max(0, total_units - done_units)
+                    eta = int(rate * remaining)
+                    percent = 5 + (85.0 * done_units / total_units)
+                    ProgressManager.update(
+                        job_id,
+                        percent=percent,
+                        eta_seconds=eta,
+                        stage="batch",
+                        message=f"Hotovo {i+1}/{len(chunks)} částí…",
+                        meta_update={"done_units": done_units},
+                    )
+                except Exception:
+                    pass
 
         # Spoj audio části
         output_filename = f"{uuid.uuid4()}.wav"
         output_path = OUTPUTS_DIR / output_filename
 
         print(f"🔗 Spojuji {len(audio_files)} audio částí...")
+        if job_id:
+            try:
+                from backend.progress_manager import ProgressManager
+                # concat + post tvoří posledních ~10–15%
+                ProgressManager.update(job_id, percent=92, stage="concat", message="Spojuji části…", eta_seconds=5)
+            except Exception:
+                pass
         AudioConcatenator.concatenate_audio(
             audio_files,
             str(output_path),
@@ -1155,6 +1626,12 @@ class XTTSEngine:
                 pass
 
         print(f"✅ Batch processing dokončen: {output_path}")
+        if job_id:
+            try:
+                from backend.progress_manager import ProgressManager
+                ProgressManager.update(job_id, percent=95, stage="post", message="Dokončuji…")
+            except Exception:
+                pass
         return str(output_path)
 
     def get_status(self) -> dict:
