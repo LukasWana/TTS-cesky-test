@@ -31,11 +31,14 @@ const DEFAULT_QUALITY_SETTINGS = {
   enableVad: true,
   enableBatch: true,
   useHifigan: false,
-  enableNormalization: true,
+  // Normalizace (RMS/peak + limiter) může působit "přebuzile" – necháme defaultně vypnuté
+  enableNormalization: false,
   enableDenoiser: true,
-  enableCompressor: true,
+  // Komprese často dělá "nalezlý/přebuzelý" pocit – necháme defaultně vypnuté
+  enableCompressor: false,
   enableDeesser: true,
-  enableEq: true,
+  // EQ (zvýraznění řečového pásma) může působit "přebuzile"/ostře – necháme defaultně vypnuté
+  enableEq: false,
   enableTrim: true
 }
 

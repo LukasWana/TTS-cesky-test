@@ -101,6 +101,10 @@ ENABLE_EQ_CORRECTION = os.getenv("ENABLE_EQ_CORRECTION", "True").lower() == "tru
 ENABLE_ADVANCED_NOISE_REDUCTION = os.getenv("ENABLE_ADVANCED_NOISE_REDUCTION", "False").lower() == "true"
 ENABLE_DEESSER = os.getenv("ENABLE_DEESSER", "True").lower() == "true"
 
+# Výstupní headroom (dB). Pomáhá proti "přebuzelému" pocitu i když to neklipuje.
+# Doporučení: -6.0 dB (víc headroomu), případně -3.0 dB
+OUTPUT_HEADROOM_DB = float(os.getenv("OUTPUT_HEADROOM_DB", "-6.0"))
+
 # Multi-pass generování
 ENABLE_MULTI_PASS = os.getenv("ENABLE_MULTI_PASS", "False").lower() == "true"
 MULTI_PASS_COUNT = int(os.getenv("MULTI_PASS_COUNT", "3"))

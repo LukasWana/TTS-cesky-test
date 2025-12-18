@@ -24,6 +24,7 @@ from backend.config import (
     QUALITY_PRESETS,
     TARGET_SAMPLE_RATE,
     OUTPUT_SAMPLE_RATE,
+    OUTPUT_HEADROOM_DB,
     ENABLE_MULTI_PASS,
     MULTI_PASS_COUNT,
     ENABLE_BATCH_PROCESSING,
@@ -198,7 +199,8 @@ class XTTSEngine:
         enable_compressor: bool = True,
         enable_deesser: bool = True,
         enable_eq: bool = True,
-        enable_trim: bool = True
+        enable_trim: bool = True,
+        handle_pauses: bool = True
     ):
         """
         Generuje řeč z textu
@@ -262,6 +264,157 @@ class XTTSEngine:
                 enable_eq=enable_eq,
                 enable_trim=enable_trim
             )
+
+        # Skutečné pauzy: [PAUSE] a [PAUSE:ms]
+        # Pozn.: ProsodyProcessor historicky převáděl pauzy jen na mezery (a při batch splitu se ztratí).
+        # Tady to řešíme správně: vygenerujeme úseky zvlášť a mezi ně vložíme ticho v milisekundách.
+        if handle_pauses and "[PAUSE" in text:
+            import re
+            # Najdi všechny pauzy a rozsekej text
+            pause_re = re.compile(r"\[PAUSE(?::(\d+))?\]")
+            matches = list(pause_re.finditer(text))
+            if matches:
+                segments: List[str] = []
+                pauses_ms: List[int] = []
+                leading_pause_ms = 0
+                last = 0
+                pending_pause = 0
+
+                for m in matches:
+                    seg = text[last:m.start()]
+                    dur_raw = m.group(1)
+                    try:
+                        dur = int(dur_raw) if dur_raw is not None else 500
+                    except Exception:
+                        dur = 500
+                    dur = max(0, min(dur, 10000))  # 0–10s safety
+
+                    # Přidej segment (i prázdný zatím), pauzy slučujeme pokud jsou za sebou
+                    if seg.strip():
+                        is_first_segment = len(segments) == 0
+                        segments.append(seg.strip())
+                        if pending_pause > 0:
+                            # Pokud ještě nemáme žádný segment, jde o pauzu NA ZAČÁTKU
+                            if is_first_segment:
+                                leading_pause_ms += pending_pause
+                            else:
+                                pauses_ms.append(pending_pause)
+                            pending_pause = 0
+                        pending_pause += dur
+                    else:
+                        pending_pause += dur
+
+                    last = m.end()
+
+                tail = text[last:]
+                if tail.strip():
+                    is_first_segment = len(segments) == 0
+                    segments.append(tail.strip())
+                    if pending_pause > 0:
+                        if is_first_segment:
+                            leading_pause_ms += pending_pause
+                        else:
+                            pauses_ms.append(pending_pause)
+                        pending_pause = 0
+                else:
+                    # trailing pause bez dalšího textu: zachovej jako pauzu na konci
+                    if pending_pause > 0 and segments:
+                        pauses_ms.append(pending_pause)
+                    pending_pause = 0
+
+                # Pokud máme aspoň 2 segmenty, vygeneruj a spoj se skutečným tichem
+                if len(segments) >= 2:
+                    print(
+                        f"⏸️  Detekovány pauzy v textu: {len(segments)} segmentů, "
+                        f"{len(pauses_ms)} pauz (včetně případné pauzy na konci), "
+                        f"leading_pause={leading_pause_ms}ms"
+                    )
+                    part_paths: List[str] = []
+                    for seg in segments:
+                        part_path = await self.generate(
+                            text=seg,
+                            speaker_wav=speaker_wav,
+                            language=language,
+                            speed=speed,
+                            temperature=temperature,
+                            length_penalty=length_penalty,
+                            repetition_penalty=repetition_penalty,
+                            top_k=top_k,
+                            top_p=top_p,
+                            quality_mode=quality_mode,
+                            seed=seed,
+                            enhancement_preset=enhancement_preset,
+                            multi_pass=False,
+                            enable_batch=False,  # nepoužívej batch, ať se pauzy nezničí
+                            enable_vad=enable_vad,
+                            use_hifigan=use_hifigan,
+                            enable_normalization=enable_normalization,
+                            enable_denoiser=enable_denoiser,
+                            enable_compressor=enable_compressor,
+                            enable_deesser=enable_deesser,
+                            enable_eq=enable_eq,
+                            enable_trim=enable_trim,
+                            handle_pauses=False,  # zabraň rekurzivnímu parsování
+                        )
+                        part_paths.append(part_path)
+
+                    # Spoj WAVy + vlož ticho přesně podle ms
+                    final_output = OUTPUTS_DIR / f"{uuid.uuid4()}.wav"
+                    try:
+                        import librosa
+                        import soundfile as sf
+
+                        sr = OUTPUT_SAMPLE_RATE
+                        # Krátký fade proti "klikům". 8ms je u krátkých pauz (10–50ms) moc a vizuálně je to může "srovnat".
+                        # Držíme to malé, aby délka pauz odpovídala zadaným hodnotám.
+                        fade_samples = int(0.001 * sr)  # 1 ms
+
+                        out_parts: List[np.ndarray] = []
+                        if leading_pause_ms > 0:
+                            leading_samps = int(leading_pause_ms * sr / 1000)
+                            print(f"⏱️  Leading pause: {leading_pause_ms} ms => {leading_samps} samples @ {sr} Hz")
+                            out_parts.append(np.zeros(leading_samps, dtype=np.float32))
+                        for i, p in enumerate(part_paths):
+                            audio, _sr = librosa.load(p, sr=sr, mono=True)
+                            # DŮLEŽITÉ: při segmentaci na jednotlivá slova model často přidá vlastní dlouhé ticho
+                            # na začátek/konec každého segmentu, takže pak všechny pauzy zní stejně dlouhé.
+                            # Proto každý segment před spojením ořízneme na řeč a necháme jen malý padding.
+                            try:
+                                from backend.vad_processor import get_vad_processor
+                                vadp = get_vad_processor()
+                                trimmed = vadp.trim_silence_vad(audio, sample_rate=sr, padding_ms=30.0)
+                                if trimmed is not None and len(trimmed) > 0:
+                                    audio = trimmed
+                            except Exception:
+                                # Fallback: energetický trim (může být méně přesný než VAD)
+                                try:
+                                    audio, _ = librosa.effects.trim(audio, top_db=35)
+                                except Exception:
+                                    pass
+                            # jemný fade in/out
+                            if len(audio) > fade_samples * 2:
+                                audio[:fade_samples] *= np.linspace(0.0, 1.0, fade_samples)
+                                audio[-fade_samples:] *= np.linspace(1.0, 0.0, fade_samples)
+                            out_parts.append(audio)
+
+                            if i < len(pauses_ms):
+                                pause_ms = pauses_ms[i]
+                                pause_samps = int(pause_ms * sr / 1000)
+                                if pause_samps > 0:
+                                    print(f"⏱️  Pause[{i}]: {pause_ms} ms => {pause_samps} samples @ {sr} Hz")
+                                    out_parts.append(np.zeros(pause_samps, dtype=np.float32))
+
+                        final_audio = np.concatenate(out_parts) if out_parts else np.array([], dtype=np.float32)
+                        sf.write(str(final_output), final_audio, sr)
+                    finally:
+                        # uklidit dočasné segmenty
+                        for p in part_paths:
+                            try:
+                                Path(p).unlink(missing_ok=True)
+                            except Exception:
+                                pass
+
+                    return str(final_output)
 
         # Batch processing pro dlouhé texty
         use_batch = enable_batch if enable_batch is not None else (ENABLE_BATCH_PROCESSING and len(text) > MAX_CHUNK_LENGTH)
@@ -367,6 +520,8 @@ class XTTSEngine:
         enable_eq: bool = True,
         enable_trim: bool = True
     ):
+        # DEBUG: Ověření, že speed parametr skutečně přichází
+        print(f"🔍 DEBUG _generate_sync START: speed={speed}, type={type(speed)}, output_path={output_path}")
         """Synchronní generování řeči"""
         try:
             # Nastavení seedu pro reprodukovatelnost
@@ -495,26 +650,8 @@ class XTTSEngine:
                 except Exception as e:
                     print(f"Warning: Audio enhancement failed: {e}, continuing with original audio")
 
-            # Změna rychlosti pomocí time_stretch (pokud speed != 1.0) - APLIKUJE SE PO ENHANCEMENT
-            # XTTS může nepodporovat parametr speed, takže použijeme post-processing
-            if speed != 1.0:
-                try:
-                    import librosa
-                    import soundfile as sf
-
-                    print(f"🎚️  Aplikuji změnu rychlosti: {speed}x pomocí post-processing...")
-                    # Načtení audio po enhancement
-                    audio, sr = librosa.load(output_path, sr=None)
-                    # time_stretch používá rate (1.0 = normální rychlost, 2.0 = 2x rychlejší, 0.5 = 2x pomalejší)
-                    # speed parametr je přímo rate
-                    audio = librosa.effects.time_stretch(audio, rate=speed)
-                    print(f"✅ Rychlost změněna na {speed}x")
-                    # Uložení s upravenou rychlostí
-                    sf.write(output_path, audio, sr)
-                except Exception as e:
-                    print(f"⚠️ Warning: Změna rychlosti selhala: {e}, pokračuji s původní rychlostí")
-
             # HiFi-GAN Vocoder refinement (pokud zapnuto)
+            # POZNÁMKA: Musí být před změnou rychlosti, aby speed nebyl přepsán
             if use_hifigan and self.vocoder.is_available():
                 try:
                     import librosa
@@ -557,6 +694,81 @@ class XTTSEngine:
 
                 except Exception as e:
                     print(f"⚠️ Warning: HiFi-GAN refinement selhal: {e}")
+
+            # Změna rychlosti pomocí time_stretch (pokud speed != 1.0)
+            # POZNÁMKA: Musí být až PO HiFi-GAN, aby se změna rychlosti nepřepsala
+            # XTTS může nepodporovat parametr speed, takže použijeme post-processing
+            speed_float = float(speed) if speed is not None else 1.0
+
+            # Tolerance kvůli float porovnání
+            if abs(speed_float - 1.0) > 0.001:
+                # Preferujeme FFmpeg atempo: mění tempo bez změny výšky (pitch)
+                try:
+                    import os
+                    import subprocess
+                    from backend.audio_processor import AudioProcessor
+
+                    if AudioProcessor._check_ffmpeg():
+                        print(f"🎚️  Aplikuji změnu rychlosti (tempo) přes FFmpeg atempo: {speed_float}x")
+                        tmp_path = f"{output_path}.tmp_speed.wav"
+                        # atempo podporuje 0.5–2.0 (což odpovídá validaci v API)
+                        cmd = [
+                            "ffmpeg",
+                            "-hide_banner",
+                            "-loglevel",
+                            "error",
+                            "-y",
+                            "-i",
+                            str(output_path),
+                            "-filter:a",
+                            f"atempo={speed_float}",
+                            "-ar",
+                            str(OUTPUT_SAMPLE_RATE),
+                            tmp_path,
+                        ]
+                        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+                        os.replace(tmp_path, str(output_path))
+                        print("✅ Rychlost změněna (FFmpeg atempo)")
+                    else:
+                        raise FileNotFoundError("FFmpeg není dostupný")
+                except Exception as e:
+                    # Fallback bez FFmpeg: resample (změní i výšku hlasu), ale rychlost bude fungovat
+                    try:
+                        import librosa
+                        import soundfile as sf
+
+                        print(
+                            f"⚠️  FFmpeg atempo nelze použít ({e}). "
+                            f"Použiji fallback přes resampling (změní i výšku): {speed_float}x"
+                        )
+                        audio, sr = librosa.load(output_path, sr=None)
+                        # Pro rychlejší řeč potřebujeme méně samplů => target_sr = sr / speed
+                        target_sr = max(8000, int(sr / speed_float))
+                        audio_rs = librosa.resample(audio, orig_sr=sr, target_sr=target_sr)
+                        # Zapíšeme při původním sr -> efekt rychlosti (s posunem pitch)
+                        sf.write(output_path, audio_rs, sr)
+                        print("✅ Rychlost změněna (fallback resampling)")
+                    except Exception as e2:
+                        print(f"⚠️ Warning: Změna rychlosti selhala i ve fallbacku: {e2}, pokračuji bez změny rychlosti")
+            else:
+                # Normální rychlost
+                pass
+
+            # Finální headroom (po VŠEM): stáhne hlasitost, aby výstup nepůsobil "přebuzile"
+            # Aplikuje se i když je normalizace/komprese vypnutá, protože samotný model může generovat hodně "hot" signál.
+            try:
+                import librosa
+                import soundfile as sf
+
+                audio, sr = librosa.load(output_path, sr=None)
+                gain = 10 ** (float(OUTPUT_HEADROOM_DB) / 20.0)  # např. -6 dB => ~0.501
+                audio = audio * gain
+                # bezpečnostní clip (float WAV může jít mimo rozsah)
+                audio = np.clip(audio, -1.0, 1.0)
+                sf.write(output_path, audio, sr)
+                print(f"🔉 Aplikuji finální headroom: {OUTPUT_HEADROOM_DB} dB")
+            except Exception as e:
+                print(f"⚠️ Warning: Finální headroom selhal: {e}")
 
         except Exception as e:
             import traceback

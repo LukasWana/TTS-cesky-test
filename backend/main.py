@@ -126,7 +126,7 @@ async def generate_speech(
     text: str = Form(...),
     voice_file: UploadFile = File(None),
     demo_voice: str = Form(None),
-    speed: float = Form(None),
+    speed: str = Form(None),  # Přijímáme jako string, protože Form může poslat string
     temperature: float = Form(None),
     length_penalty: float = Form(None),
     repetition_penalty: float = Form(None),
@@ -224,7 +224,21 @@ async def generate_speech(
             )
 
         # Nastavení TTS parametrů (použij výchozí hodnoty pokud nejsou zadány)
-        tts_speed = speed if speed is not None else TTS_SPEED
+        # Parsování speed - může být string z Form, takže převedeme na float
+        if speed is not None:
+            try:
+                if isinstance(speed, str):
+                    tts_speed = float(speed)
+                else:
+                    tts_speed = float(speed)
+            except (ValueError, TypeError):
+                print(f"⚠️ Warning: Neplatná hodnota speed '{speed}', použiji výchozí {TTS_SPEED}")
+                tts_speed = TTS_SPEED
+        else:
+            tts_speed = TTS_SPEED
+
+        # (bez debug logů)
+
         tts_temperature = temperature if temperature is not None else TTS_TEMPERATURE
         tts_length_penalty = length_penalty if length_penalty is not None else TTS_LENGTH_PENALTY
         tts_repetition_penalty = repetition_penalty if repetition_penalty is not None else TTS_REPETITION_PENALTY
