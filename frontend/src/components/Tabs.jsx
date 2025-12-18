@@ -20,3 +20,5 @@ function Tabs({ activeTab, onTabChange, tabs }) {
 
 export default Tabs
 
+
+
