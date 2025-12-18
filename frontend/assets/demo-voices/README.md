@@ -168,3 +168,5 @@ demo-voices/
 - [FFmpeg Dokumentace](https://ffmpeg.org/documentation.html)
 - [Librosa Dokumentace](https://librosa.org/doc/latest/index.html)
 
+
+
