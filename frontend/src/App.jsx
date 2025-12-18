@@ -24,7 +24,13 @@ const DEFAULT_TTS_SETTINGS = {
 const DEFAULT_QUALITY_SETTINGS = {
   qualityMode: null,
   enhancementPreset: 'natural',
-  enableEnhancement: true
+  enableEnhancement: true,
+  // Nové možnosti:
+  multiPass: false,
+  multiPassCount: 3,
+  enableVad: true,
+  enableBatch: true,
+  useHifigan: false
 }
 
 // Klíče pro localStorage - varianty jsou vázané na konkrétní hlas (id)
@@ -318,11 +324,26 @@ function App() {
         seed: ttsSettings.seed,
         qualityMode: qualitySettings.qualityMode,
         enhancementPreset: qualitySettings.enhancementPreset,
-        enableEnhancement: qualitySettings.enableEnhancement
+        enableEnhancement: qualitySettings.enableEnhancement,
+        // Nové parametry:
+        multiPass: qualitySettings.multiPass,
+        multiPassCount: qualitySettings.multiPassCount,
+        enableVad: qualitySettings.enableVad,
+        enableBatch: qualitySettings.enableBatch,
+        useHifigan: qualitySettings.useHifigan
       }
 
       const result = await generateSpeech(text, voiceFile, demoVoice, ttsParams)
-      setGeneratedAudio(result.audio_url)
+
+      // Pokud je multi-pass, zobrazit varianty
+      if (result.variants && result.variants.length > 0) {
+        // Prozatím použijeme první variantu
+        // V budoucnu můžete přidat VariantSelector komponent
+        setGeneratedAudio(result.variants[0].audio_url)
+        console.log('Multi-pass: vygenerováno', result.variants.length, 'variant')
+      } else {
+        setGeneratedAudio(result.audio_url)
+      }
     } catch (err) {
       setError(err.message || 'Chyba při generování řeči')
       console.error('Generate error:', err)

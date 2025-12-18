@@ -299,6 +299,112 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
             </div>
           </div>
 
+          {/* Pokročilé funkce */}
+          <div className="quality-section">
+            <h4>Pokročilé funkce</h4>
+
+            {/* Multi-pass generování */}
+            <div className="setting-item">
+              <label htmlFor="multiPass">
+                <input
+                  type="checkbox"
+                  id="multiPass"
+                  checked={quality.multiPass || false}
+                  onChange={(e) => onQualityChange && onQualityChange({
+                    ...quality,
+                    multiPass: e.target.checked
+                  })}
+                />
+                Multi-pass generování (více variant)
+              </label>
+              <div className="setting-description">
+                Vygeneruje více variant a umožní výběr nejlepší
+              </div>
+              {quality.multiPass && (
+                <div className="setting-item" style={{ marginTop: '10px', marginLeft: '20px' }}>
+                  <label htmlFor="multiPassCount">
+                    Počet variant
+                    <span className="setting-value">{quality.multiPassCount || 3}</span>
+                  </label>
+                  <input
+                    type="range"
+                    id="multiPassCount"
+                    min="2"
+                    max="5"
+                    step="1"
+                    value={quality.multiPassCount || 3}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      multiPassCount: parseInt(e.target.value)
+                    })}
+                  />
+                  <div className="setting-range">
+                    <span>2</span>
+                    <span>3</span>
+                    <span>5</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Voice Activity Detection */}
+            <div className="setting-item">
+              <label htmlFor="enableVad">
+                <input
+                  type="checkbox"
+                  id="enableVad"
+                  checked={quality.enableVad !== false}
+                  onChange={(e) => onQualityChange && onQualityChange({
+                    ...quality,
+                    enableVad: e.target.checked
+                  })}
+                />
+                Voice Activity Detection (VAD)
+              </label>
+              <div className="setting-description">
+                Lepší detekce řeči vs. ticho pro přesnější ořez
+              </div>
+            </div>
+
+            {/* Batch processing */}
+            <div className="setting-item">
+              <label htmlFor="enableBatch">
+                <input
+                  type="checkbox"
+                  id="enableBatch"
+                  checked={quality.enableBatch !== false}
+                  onChange={(e) => onQualityChange && onQualityChange({
+                    ...quality,
+                    enableBatch: e.target.checked
+                  })}
+                />
+                Batch processing (pro dlouhé texty)
+              </label>
+              <div className="setting-description">
+                Automaticky rozdělí dlouhé texty na části a spojí je
+              </div>
+            </div>
+
+            {/* HiFi-GAN vocoder */}
+            <div className="setting-item">
+              <label htmlFor="useHifigan">
+                <input
+                  type="checkbox"
+                  id="useHifigan"
+                  checked={quality.useHifigan || false}
+                  onChange={(e) => onQualityChange && onQualityChange({
+                    ...quality,
+                    useHifigan: e.target.checked
+                  })}
+                />
+                Použít HiFi-GAN vocoder (vyžaduje model)
+              </label>
+              <div className="setting-description">
+                Pokročilejší vocoder pro lepší kvalitu zvuku (volitelné)
+              </div>
+            </div>
+          </div>
+
           <div className="settings-actions">
             <button className="btn-reset" onClick={onReset}>
               🔄 Obnovit výchozí hodnoty pro {variants.find(v => v.id === activeVariant)?.label || 'tuto variantu'}
