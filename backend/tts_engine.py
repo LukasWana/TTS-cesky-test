@@ -4,7 +4,7 @@ XTTS-v2 TTS Engine wrapper
 import uuid
 import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from TTS.api import TTS
 import torch
 import numpy as np
@@ -23,7 +23,12 @@ from backend.config import (
     AUDIO_ENHANCEMENT_PRESET,
     QUALITY_PRESETS,
     TARGET_SAMPLE_RATE,
-    OUTPUT_SAMPLE_RATE
+    OUTPUT_SAMPLE_RATE,
+    ENABLE_MULTI_PASS,
+    MULTI_PASS_COUNT,
+    ENABLE_BATCH_PROCESSING,
+    MAX_CHUNK_LENGTH,
+    ENABLE_PROSODY_CONTROL
 )
 from backend.audio_enhancer import AudioEnhancer
 
@@ -180,8 +185,13 @@ class XTTSEngine:
         top_p: float = 0.85,
         quality_mode: Optional[str] = None,
         seed: Optional[int] = None,
-        enhancement_preset: Optional[str] = None
-    ) -> str:
+        enhancement_preset: Optional[str] = None,
+        multi_pass: bool = False,
+        multi_pass_count: int = 3,
+        enable_batch: Optional[bool] = None,
+        enable_vad: Optional[bool] = None,
+        use_hifigan: bool = False
+    ):
         """
         Generuje řeč z textu
 
@@ -198,15 +208,60 @@ class XTTSEngine:
             quality_mode: Quality preset (high_quality, natural, fast) - přepíše jednotlivé parametry
             seed: Seed pro reprodukovatelnost generování (volitelné)
             enhancement_preset: Preset pro audio enhancement (high_quality, natural, fast)
+            multi_pass: Zapnout multi-pass generování (výchozí: False)
+            multi_pass_count: Počet variant při multi-pass (výchozí: 3)
+            enable_batch: Zapnout batch processing pro dlouhé texty (None = auto)
+            enable_vad: Zapnout VAD pro lepší trim (None = použít config)
+            use_hifigan: Použít HiFi-GAN vocoder (výchozí: False)
 
         Returns:
-            Cesta k vygenerovanému audio souboru
+            Cesta k vygenerovanému audio souboru nebo seznam variant při multi-pass
         """
         if not self.is_loaded:
             await self.load_model()
 
         if not self.model:
             raise Exception("Model není načten")
+
+        # Multi-pass generování
+        if multi_pass or (ENABLE_MULTI_PASS and not multi_pass):
+            return await self.generate_multi_pass(
+                text=text,
+                speaker_wav=speaker_wav,
+                language=language,
+                speed=speed,
+                temperature=temperature,
+                length_penalty=length_penalty,
+                repetition_penalty=repetition_penalty,
+                top_k=top_k,
+                top_p=top_p,
+                quality_mode=quality_mode,
+                enhancement_preset=enhancement_preset,
+                variant_count=multi_pass_count if multi_pass else MULTI_PASS_COUNT,
+                enable_batch=enable_batch,
+                enable_vad=enable_vad,
+                use_hifigan=use_hifigan
+            )
+
+        # Batch processing pro dlouhé texty
+        use_batch = enable_batch if enable_batch is not None else (ENABLE_BATCH_PROCESSING and len(text) > MAX_CHUNK_LENGTH)
+        if use_batch:
+            return await self.generate_batch(
+                text=text,
+                speaker_wav=speaker_wav,
+                language=language,
+                speed=speed,
+                temperature=temperature,
+                length_penalty=length_penalty,
+                repetition_penalty=repetition_penalty,
+                top_k=top_k,
+                top_p=top_p,
+                quality_mode=quality_mode,
+                seed=seed,
+                enhancement_preset=enhancement_preset,
+                enable_vad=enable_vad,
+                use_hifigan=use_hifigan
+            )
 
         # Aplikace quality preset pokud je zadán
         if quality_mode:
@@ -217,6 +272,14 @@ class XTTSEngine:
             repetition_penalty = preset_params["repetition_penalty"]
             top_k = preset_params["top_k"]
             top_p = preset_params["top_p"]
+
+        # Prosody preprocessing
+        try:
+            from backend.prosody_processor import ProsodyProcessor
+            if ENABLE_PROSODY_CONTROL:
+                text, _ = ProsodyProcessor.process_text(text)
+        except Exception as e:
+            print(f"Warning: Prosody processing failed: {e}")
 
         # Vytvoření výstupní cesty
         output_filename = f"{uuid.uuid4()}.wav"
@@ -239,7 +302,9 @@ class XTTSEngine:
             top_p,
             quality_mode,
             seed,
-            enhancement_preset
+            enhancement_preset,
+            enable_vad,
+            use_hifigan
         )
 
         return str(output_path)
@@ -258,7 +323,9 @@ class XTTSEngine:
         top_p: float = 0.85,
         quality_mode: Optional[str] = None,
         seed: Optional[int] = None,
-        enhancement_preset: Optional[str] = None
+        enhancement_preset: Optional[str] = None,
+        enable_vad: Optional[bool] = None,
+        use_hifigan: bool = False
     ):
         """Synchronní generování řeči"""
         try:
@@ -374,6 +441,7 @@ class XTTSEngine:
                 try:
                     # Použít předaný enhancement_preset, nebo výchozí z configu
                     preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
+                    # Předat enable_vad do enhancement
                     AudioEnhancer.enhance_output(output_path, preset=preset_to_use)
                 except Exception as e:
                     print(f"Warning: Audio enhancement failed: {e}, continuing with original audio")
@@ -534,6 +602,207 @@ class XTTSEngine:
                 print("Model warmup dokončen")
             except Exception as e:
                 print(f"Warmup selhal: {str(e)}")
+
+    async def generate_multi_pass(
+        self,
+        text: str,
+        speaker_wav: str,
+        language: str = "cs",
+        speed: float = 1.0,
+        temperature: float = 0.7,
+        length_penalty: float = 1.0,
+        repetition_penalty: float = 2.0,
+        top_k: int = 50,
+        top_p: float = 0.85,
+        quality_mode: Optional[str] = None,
+        enhancement_preset: Optional[str] = None,
+        variant_count: int = 3,
+        enable_batch: Optional[bool] = None,
+        enable_vad: Optional[bool] = None,
+        use_hifigan: bool = False
+    ) -> List[dict]:
+        """
+        Generuje více variant řeči s různými parametry
+
+        Args:
+            text: Text k syntéze
+            speaker_wav: Cesta k audio souboru s hlasem
+            language: Jazyk
+            speed: Rychlost řeči
+            temperature: Základní teplota
+            length_penalty: Length penalty
+            repetition_penalty: Repetition penalty
+            top_k: Top-k sampling
+            top_p: Top-p sampling
+            quality_mode: Quality preset
+            enhancement_preset: Enhancement preset
+            variant_count: Počet variant k vygenerování
+            enable_batch: Zapnout batch processing
+            enable_vad: Zapnout VAD
+            use_hifigan: Použít HiFi-GAN
+
+        Returns:
+            Seznam variant s metadaty
+        """
+        variants = []
+        base_seed = 42
+
+        # Variace teplot pro různé varianty
+        temperature_variations = [
+            temperature - 0.1,
+            temperature,
+            temperature + 0.1
+        ]
+
+        for i in range(variant_count):
+            variant_seed = base_seed + i
+            variant_temp = temperature_variations[i % len(temperature_variations)]
+
+            # Generuj variantu
+            output_path = await self.generate(
+                text=text,
+                speaker_wav=speaker_wav,
+                language=language,
+                speed=speed,
+                temperature=variant_temp,
+                length_penalty=length_penalty,
+                repetition_penalty=repetition_penalty,
+                top_k=top_k,
+                top_p=top_p,
+                quality_mode=quality_mode,
+                seed=variant_seed,
+                enhancement_preset=enhancement_preset,
+                multi_pass=False,  # Zabrání rekurzi
+                enable_batch=enable_batch,
+                enable_vad=enable_vad,
+                use_hifigan=use_hifigan
+            )
+
+            filename = Path(output_path).name
+            audio_url = f"/api/audio/{filename}"
+
+            variants.append({
+                "audio_url": audio_url,
+                "filename": filename,
+                "seed": variant_seed,
+                "temperature": variant_temp,
+                "index": i + 1
+            })
+
+        return variants
+
+    async def generate_batch(
+        self,
+        text: str,
+        speaker_wav: str,
+        language: str = "cs",
+        speed: float = 1.0,
+        temperature: float = 0.7,
+        length_penalty: float = 1.0,
+        repetition_penalty: float = 2.0,
+        top_k: int = 50,
+        top_p: float = 0.85,
+        quality_mode: Optional[str] = None,
+        seed: Optional[int] = None,
+        enhancement_preset: Optional[str] = None,
+        enable_vad: Optional[bool] = None,
+        use_hifigan: bool = False
+    ) -> str:
+        """
+        Generuje řeč pro dlouhý text pomocí batch processing
+
+        Args:
+            text: Text k syntéze
+            speaker_wav: Cesta k audio souboru s hlasem
+            language: Jazyk
+            speed: Rychlost řeči
+            temperature: Teplota
+            length_penalty: Length penalty
+            repetition_penalty: Repetition penalty
+            top_k: Top-k sampling
+            top_p: Top-p sampling
+            quality_mode: Quality preset
+            seed: Seed
+            enhancement_preset: Enhancement preset
+            enable_vad: Zapnout VAD
+            use_hifigan: Použít HiFi-GAN
+
+        Returns:
+            Cesta k finálnímu spojenému audio souboru
+        """
+        from backend.text_splitter import TextSplitter
+        from backend.audio_concatenator import AudioConcatenator
+
+        # Rozděl text na části
+        chunks = TextSplitter.split_text(text)
+
+        if len(chunks) == 1:
+            # Pokud je jen jedna část, použij standardní generování
+            return await self.generate(
+                text=text,
+                speaker_wav=speaker_wav,
+                language=language,
+                speed=speed,
+                temperature=temperature,
+                length_penalty=length_penalty,
+                repetition_penalty=repetition_penalty,
+                top_k=top_k,
+                top_p=top_p,
+                quality_mode=quality_mode,
+                seed=seed,
+                enhancement_preset=enhancement_preset,
+                multi_pass=False,
+                enable_batch=False,
+                enable_vad=enable_vad,
+                use_hifigan=use_hifigan
+            )
+
+        print(f"📦 Batch processing: rozděleno na {len(chunks)} částí")
+
+        # Generuj každou část
+        audio_files = []
+        for i, chunk in enumerate(chunks):
+            print(f"   Generuji část {i+1}/{len(chunks)}...")
+            chunk_output = await self.generate(
+                text=chunk,
+                speaker_wav=speaker_wav,
+                language=language,
+                speed=speed,
+                temperature=temperature,
+                length_penalty=length_penalty,
+                repetition_penalty=repetition_penalty,
+                top_k=top_k,
+                top_p=top_p,
+                quality_mode=quality_mode,
+                seed=seed,
+                enhancement_preset=enhancement_preset,
+                multi_pass=False,
+                enable_batch=False,
+                enable_vad=enable_vad,
+                use_hifigan=use_hifigan
+            )
+            audio_files.append(chunk_output)
+
+        # Spoj audio části
+        output_filename = f"{uuid.uuid4()}.wav"
+        output_path = OUTPUTS_DIR / output_filename
+
+        print(f"🔗 Spojuji {len(audio_files)} audio částí...")
+        AudioConcatenator.concatenate_audio(
+            audio_files,
+            str(output_path),
+            crossfade_ms=50
+        )
+
+        # Smazat dočasné části
+        for audio_file in audio_files:
+            try:
+                Path(audio_file).unlink()
+            except:
+                pass
+
+        print(f"✅ Batch processing dokončen: {output_path}")
+        return str(output_path)
 
     def get_status(self) -> dict:
         """Vrátí status modelu"""
