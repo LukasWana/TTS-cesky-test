@@ -70,7 +70,7 @@ MODEL_CACHE_DIR = str(MODELS_DIR)
 TARGET_SAMPLE_RATE = 44100  # CD kvalita (44.1 kHz)
 TARGET_CHANNELS = 1  # mono
 MIN_VOICE_DURATION = 6.0  # sekundy
-MAX_TEXT_LENGTH = 500  # znaků
+MAX_TEXT_LENGTH = 5000  # znaků
 
 # TTS generation parameters (výchozí hodnoty)
 TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))  # Rychlost řeči (0.5-2.0)
@@ -99,6 +99,7 @@ AUDIO_ENHANCEMENT_PRESET = os.getenv("AUDIO_ENHANCEMENT_PRESET", "natural")  # h
 OUTPUT_SAMPLE_RATE = int(os.getenv("OUTPUT_SAMPLE_RATE", "44100"))  # 22050, 24000, 44100 (výchozí: 44100 = CD kvalita)
 ENABLE_EQ_CORRECTION = os.getenv("ENABLE_EQ_CORRECTION", "True").lower() == "true"
 ENABLE_ADVANCED_NOISE_REDUCTION = os.getenv("ENABLE_ADVANCED_NOISE_REDUCTION", "False").lower() == "true"
+ENABLE_DEESSER = os.getenv("ENABLE_DEESSER", "True").lower() == "true"
 
 # Multi-pass generování
 ENABLE_MULTI_PASS = os.getenv("ENABLE_MULTI_PASS", "False").lower() == "true"
@@ -137,7 +138,8 @@ QUALITY_PRESETS = {
         "enhancement": {
             "enable_eq": True,
             "enable_noise_reduction": True,
-            "enable_compression": True
+            "enable_compression": True,
+            "enable_deesser": True
         }
     },
     "natural": {
@@ -150,7 +152,8 @@ QUALITY_PRESETS = {
         "enhancement": {
             "enable_eq": True,
             "enable_noise_reduction": False,
-            "enable_compression": True
+            "enable_compression": True,
+            "enable_deesser": True
         }
     },
     "fast": {
@@ -163,7 +166,8 @@ QUALITY_PRESETS = {
         "enhancement": {
             "enable_eq": False,
             "enable_noise_reduction": False,
-            "enable_compression": True
+            "enable_compression": True,
+            "enable_deesser": False
         }
     }
 }

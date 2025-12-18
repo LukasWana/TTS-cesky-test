@@ -5,7 +5,7 @@ import './History.css'
 
 const API_BASE_URL = 'http://localhost:8000'
 
-function History() {
+function History({ onRestoreText }) {
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -165,8 +165,18 @@ function History() {
               )}
 
               {selectedEntry?.id === entry.id && (
-                <div className="history-item-audio">
-                  <AudioPlayer audioUrl={`${API_BASE_URL}${entry.audio_url}`} />
+                <div className="history-item-details">
+                  <div className="history-item-audio">
+                    <AudioPlayer audioUrl={`${API_BASE_URL}${entry.audio_url}`} />
+                  </div>
+                  <div className="history-item-actions">
+                    <button
+                      className="btn-restore-text"
+                      onClick={() => onRestoreText && onRestoreText(entry.text)}
+                    >
+                      ✍️ Použít tento text
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

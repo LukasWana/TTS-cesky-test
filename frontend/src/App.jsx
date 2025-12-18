@@ -72,6 +72,8 @@ function App() {
   const [error, setError] = useState(null)
   const [demoVoices, setDemoVoices] = useState([])
   const [modelStatus, setModelStatus] = useState(null)
+  const [voiceQuality, setVoiceQuality] = useState(null)
+  const [textVersions, setTextVersions] = useState([])
 
   // Nastavení pro aktuální variantu (vázané na vybraný hlas)
   const [ttsSettings, setTtsSettings] = useState(DEFAULT_TTS_SETTINGS)
@@ -98,6 +100,47 @@ function App() {
       qualitySettings: { ...qualitySettings }
     }
   }, [ttsSettings, qualitySettings])
+
+  // Načtení rozpracovaného textu a historie verzí z localStorage při startu
+  useEffect(() => {
+    const savedText = localStorage.getItem('xtts_current_text')
+    if (savedText) setText(savedText)
+
+    const savedVersions = localStorage.getItem('xtts_text_versions')
+    if (savedVersions) {
+      try {
+        setTextVersions(JSON.parse(savedVersions))
+      } catch (e) {
+        console.error('Chyba při načítání historie verzí:', e)
+      }
+    }
+  }, [])
+
+  // Auto-save aktuálního textu
+  useEffect(() => {
+    localStorage.setItem('xtts_current_text', text)
+  }, [text])
+
+  // Funkce pro uložení verze textu
+  const saveTextVersion = (textToSave) => {
+    if (!textToSave || !textToSave.trim()) return
+
+    const newVersion = {
+      id: Date.now(),
+      text: textToSave,
+      timestamp: new Date().toISOString()
+    }
+
+    const updatedVersions = [newVersion, ...textVersions.slice(0, 19)] // Max 20 verzí
+    setTextVersions(updatedVersions)
+    localStorage.setItem('xtts_text_versions', JSON.stringify(updatedVersions))
+  }
+
+  const deleteTextVersion = (versionId) => {
+    const updatedVersions = textVersions.filter(v => v.id !== versionId)
+    setTextVersions(updatedVersions)
+    localStorage.setItem('xtts_text_versions', JSON.stringify(updatedVersions))
+  }
 
   // Debounce timer pro ukládání
   const saveTimeoutRef = useRef(null)
@@ -344,6 +387,9 @@ function App() {
       } else {
         setGeneratedAudio(result.audio_url)
       }
+
+      // Automaticky uložit text do historie verzí po úspěšném generování
+      saveTextVersion(text)
     } catch (err) {
       setError(err.message || 'Chyba při generování řeči')
       console.error('Generate error:', err)
@@ -352,10 +398,15 @@ function App() {
     }
   }
 
-  const handleVoiceUpload = (file) => {
+  const handleVoiceUpload = async (file) => {
     setUploadedVoice(file)
     setUploadedVoiceFileName(file.name)
     setVoiceType('upload')
+    setVoiceQuality(null) // Reset quality for new upload
+
+    // Poznámka: uploadVoice API zatím nevoláme přímo zde,
+    // ale až v handleGenerate pokud je voiceType 'upload'.
+    // Pro okamžitou analýzu bychom museli volat uploadVoice dříve.
   }
 
   const handleVoiceRecord = async (result) => {
@@ -367,6 +418,7 @@ function App() {
       setVoiceType('demo')
       setUploadedVoice(null)
       setUploadedVoiceFileName(null)
+      setVoiceQuality(result.quality || null)
 
       // Počkat na načtení demo hlasů a pak vybrat nový
       setTimeout(() => {
@@ -390,6 +442,7 @@ function App() {
       setVoiceType('demo')
       setUploadedVoice(null)
       setUploadedVoiceFileName(null)
+      setVoiceQuality(result.quality || null)
 
       // Počkat na načtení demo hlasů a pak vybrat nový
       setTimeout(() => {
@@ -440,45 +493,49 @@ function App() {
                 onVoiceUpload={handleVoiceUpload}
                 onVoiceRecord={handleVoiceRecord}
                 onYouTubeImport={handleYouTubeImport}
+                voiceQuality={voiceQuality}
               />
 
               <TextInput
                 value={text}
                 onChange={setText}
-                maxLength={500}
+                maxLength={5000}
+                versions={textVersions}
+                onSaveVersion={() => saveTextVersion(text)}
+                onDeleteVersion={deleteTextVersion}
               />
 
-          <TTSSettings
-            settings={ttsSettings}
-            onChange={setTtsSettings}
-            onReset={() => {
-              // Resetovat nastavení pro aktuální variantu
-              const resetTts = { ...DEFAULT_TTS_SETTINGS }
-              const resetQuality = { ...DEFAULT_QUALITY_SETTINGS }
+              <TTSSettings
+                settings={ttsSettings}
+                onChange={setTtsSettings}
+                onReset={() => {
+                  // Resetovat nastavení pro aktuální variantu
+                  const resetTts = { ...DEFAULT_TTS_SETTINGS }
+                  const resetQuality = { ...DEFAULT_QUALITY_SETTINGS }
 
-              setTtsSettings(resetTts)
-              setQualitySettings(resetQuality)
+                  setTtsSettings(resetTts)
+                  setQualitySettings(resetQuality)
 
-              // Aktualizovat ref okamžitě
-              currentSettingsRef.current = {
-                ttsSettings: { ...resetTts },
-                qualitySettings: { ...resetQuality }
-              }
+                  // Aktualizovat ref okamžitě
+                  currentSettingsRef.current = {
+                    ttsSettings: { ...resetTts },
+                    qualitySettings: { ...resetQuality }
+                  }
 
-              // Uložit resetované hodnoty do localStorage pro tuto variantu
-              if (selectedVoice && selectedVoice !== 'demo1' && voiceType === 'demo') {
-                const resetSettings = {
-                  ttsSettings: { ...resetTts },
-                  qualitySettings: { ...resetQuality }
-                }
-                saveVariantSettings(selectedVoice, activeVariant, resetSettings)
-              }
-            }}
-            qualitySettings={qualitySettings}
-            onQualityChange={setQualitySettings}
-            activeVariant={activeVariant}
-            onVariantChange={handleVariantChange}
-          />
+                  // Uložit resetované hodnoty do localStorage pro tuto variantu
+                  if (selectedVoice && selectedVoice !== 'demo1' && voiceType === 'demo') {
+                    const resetSettings = {
+                      ttsSettings: { ...resetTts },
+                      qualitySettings: { ...resetQuality }
+                    }
+                    saveVariantSettings(selectedVoice, activeVariant, resetSettings)
+                  }
+                }}
+                qualitySettings={qualitySettings}
+                onQualityChange={setQualitySettings}
+                activeVariant={activeVariant}
+                onVariantChange={handleVariantChange}
+              />
 
               <div className="generate-section">
                 <button
@@ -505,7 +562,12 @@ function App() {
           )}
 
           {activeTab === 'history' && (
-            <History />
+            <History onRestoreText={(restoredText) => {
+              setText(restoredText)
+              setActiveTab('generate')
+              // Scroll nahoru
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }} />
           )}
         </div>
       </main>
