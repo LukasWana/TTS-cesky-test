@@ -109,6 +109,8 @@ function App() {
 
   // Ref pro progress SSE connection - pro cleanup při novém spuštění nebo unmount
   const progressEventSourceRef = useRef(null)
+  // Fallback polling (když SSE selže kvůli CORS/proxy apod.)
+  const progressPollIntervalRef = useRef(null)
   const progressStoppedRef = useRef(false)
 
   // Aktualizovat ref při každé změně nastavení
@@ -374,6 +376,10 @@ function App() {
         progressEventSourceRef.current.close()
         progressEventSourceRef.current = null
       }
+      if (progressPollIntervalRef.current) {
+        clearInterval(progressPollIntervalRef.current)
+        progressPollIntervalRef.current = null
+      }
       progressStoppedRef.current = true
     }
   }, [])
@@ -466,6 +472,11 @@ function App() {
         progressEventSourceRef.current.close()
         progressEventSourceRef.current = null
       }
+      // Zrušit fallback polling, pokud běží
+      if (progressPollIntervalRef.current) {
+        clearInterval(progressPollIntervalRef.current)
+        progressPollIntervalRef.current = null
+      }
       progressStoppedRef.current = false
 
       // Pro progress během běžícího requestu: vytvoř job_id na klientovi a použij SSE pro real-time updates
@@ -486,18 +497,37 @@ function App() {
           // Pokud je progress dokončen nebo chybný, SSE se automaticky uzavře
           if (progressData.status === 'done' || progressData.status === 'error') {
             progressStoppedRef.current = true
+            if (progressPollIntervalRef.current) {
+              clearInterval(progressPollIntervalRef.current)
+              progressPollIntervalRef.current = null
+            }
           }
         },
         (error) => {
           console.error('SSE progress error:', error)
-          // Při chybě SSE můžeme fallback na jednorázový dotaz
-          if (!progressStoppedRef.current) {
-            getTtsProgress(jobId).then(p => {
+          // Při chybě SSE fallback na polling (průběžně, ne jen jednorázově)
+          if (progressStoppedRef.current) return
+          if (progressPollIntervalRef.current) return
+
+          const poll = async () => {
+            if (progressStoppedRef.current) return
+            try {
+              const p = await getTtsProgress(jobId)
               setTtsProgress(p)
-            }).catch(() => {
-              // Ignorovat chyby při fallbacku
-            })
+              if (p?.status === 'done' || p?.status === 'error' || (typeof p?.percent === 'number' && p.percent >= 100)) {
+                progressStoppedRef.current = true
+                if (progressPollIntervalRef.current) {
+                  clearInterval(progressPollIntervalRef.current)
+                  progressPollIntervalRef.current = null
+                }
+              }
+            } catch (_e) {
+              // ignore
+            }
           }
+
+          poll()
+          progressPollIntervalRef.current = setInterval(poll, 500)
         }
       )
 
@@ -510,6 +540,10 @@ function App() {
       if (progressEventSourceRef.current) {
         progressEventSourceRef.current.close()
         progressEventSourceRef.current = null
+      }
+      if (progressPollIntervalRef.current) {
+        clearInterval(progressPollIntervalRef.current)
+        progressPollIntervalRef.current = null
       }
 
       // Finální kontrola progressu (pro jistotu)
@@ -540,6 +574,10 @@ function App() {
       if (progressEventSourceRef.current) {
         progressEventSourceRef.current.close()
         progressEventSourceRef.current = null
+      }
+      if (progressPollIntervalRef.current) {
+        clearInterval(progressPollIntervalRef.current)
+        progressPollIntervalRef.current = null
       }
     } finally {
       setLoading(false)
