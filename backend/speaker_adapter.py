@@ -185,3 +185,4 @@ def get_speaker_adapter() -> SpeakerAdapter:
     return _speaker_adapter
 
 
+
