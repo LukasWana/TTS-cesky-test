@@ -1,8 +1,33 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './TTSSettings.css'
 
-function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityChange }) {
+function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityChange, activeVariant, onVariantChange }) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const wasExpandedRef = useRef(false)
+
+  // Zajistit, že se komponenta nezavře při změně varianty
+  // Pokud byla otevřená, zůstane otevřená
+  useEffect(() => {
+    if (wasExpandedRef.current && !isExpanded) {
+      // Pokud byla otevřená před změnou varianty, zůstane otevřená
+      setIsExpanded(true)
+    }
+  }, [activeVariant, isExpanded])
+
+  // Sledovat, zda byla komponenta otevřená
+  useEffect(() => {
+    if (isExpanded) {
+      wasExpandedRef.current = true
+    }
+  }, [isExpanded])
+
+  const variants = [
+    { id: 'variant1', label: 'Varianta 1' },
+    { id: 'variant2', label: 'Varianta 2' },
+    { id: 'variant3', label: 'Varianta 3' },
+    { id: 'variant4', label: 'Varianta 4' },
+    { id: 'variant5', label: 'Varianta 5' }
+  ]
 
   // Výchozí quality settings pokud nejsou zadány
   const defaultQualitySettings = {
@@ -14,9 +39,17 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
   const quality = qualitySettings || defaultQualitySettings
 
   const handleChange = (key, value) => {
-    const numValue = parseFloat(value)
-    if (!isNaN(numValue)) {
-      onChange({ ...settings, [key]: numValue })
+    // Pro seed použijeme integer, pro ostatní float
+    if (key === 'seed') {
+      const intValue = value === '' || value === null ? null : parseInt(value)
+      if (intValue === null || (!isNaN(intValue) && intValue >= 0)) {
+        onChange({ ...settings, [key]: intValue })
+      }
+    } else {
+      const numValue = parseFloat(value)
+      if (!isNaN(numValue)) {
+        onChange({ ...settings, [key]: numValue })
+      }
     }
   }
 
@@ -29,6 +62,22 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
 
       {isExpanded && (
         <div className="tts-settings-content">
+          {/* Záložky pro varianty */}
+          <div className="variants-section">
+            <h4>Varianty nastavení:</h4>
+            <div className="variants-tabs">
+              {variants.map((variant) => (
+                <button
+                  key={variant.id}
+                  className={`variant-tab ${activeVariant === variant.id ? 'active' : ''}`}
+                  onClick={() => onVariantChange && onVariantChange(variant.id)}
+                >
+                  {variant.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="settings-grid">
             {/* Rychlost řeči */}
             <div className="setting-item">
@@ -158,6 +207,29 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 <span>1.0</span>
               </div>
             </div>
+
+            {/* Seed */}
+            <div className="setting-item">
+              <label htmlFor="seed">
+                Seed (pro reprodukovatelnost)
+                <span className="setting-value">
+                  {settings.seed !== null && settings.seed !== undefined ? settings.seed : 'Auto (42)'}
+                </span>
+              </label>
+              <input
+                type="number"
+                id="seed"
+                min="0"
+                step="1"
+                value={settings.seed !== null && settings.seed !== undefined ? settings.seed : ''}
+                onChange={(e) => handleChange('seed', e.target.value)}
+                placeholder="Prázdné = Auto (42)"
+              />
+              <div className="setting-description">
+                Seed pro reprodukovatelnost generování. Stejný seed + stejné parametry = stejné audio.
+                Prázdné pole použije fixní seed 42.
+              </div>
+            </div>
           </div>
 
           {/* Sekce kvality výstupu */}
@@ -229,7 +301,7 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
 
           <div className="settings-actions">
             <button className="btn-reset" onClick={onReset}>
-              🔄 Obnovit výchozí hodnoty
+              🔄 Obnovit výchozí hodnoty pro {variants.find(v => v.id === activeVariant)?.label || 'tuto variantu'}
             </button>
           </div>
         </div>

@@ -7,29 +7,22 @@ function VoiceSelector({
   demoVoices,
   selectedVoice,
   voiceType,
+  uploadedVoiceFileName,
   onVoiceSelect,
   onVoiceTypeChange,
   onVoiceUpload,
   onVoiceRecord,
   onYouTubeImport
 }) {
-  const [uploadedFileName, setUploadedFileName] = useState(null)
-
   const handleFileChange = (e) => {
     const file = e.target.files[0]
     if (file) {
-      setUploadedFileName(file.name)
       onVoiceUpload(file)
     }
   }
 
   const handleRecordComplete = (result) => {
     onVoiceRecord(result)
-    if (result && result.filename) {
-      setUploadedFileName(`✓ Uloženo: ${result.filename}`)
-    } else {
-      setUploadedFileName('Nahráno z mikrofonu')
-    }
   }
 
   return (
@@ -120,8 +113,8 @@ function VoiceSelector({
             />
             📁 Vybrat audio soubor
           </label>
-          {uploadedFileName && (
-            <p className="upload-status">✓ {uploadedFileName}</p>
+          {uploadedVoiceFileName && (
+            <p className="upload-status">✓ {uploadedVoiceFileName}</p>
           )}
           <p className="upload-hint">
             Minimálně 6 sekund čistého audio (WAV, MP3)
@@ -132,8 +125,8 @@ function VoiceSelector({
       {voiceType === 'record' && (
         <div className="record-section">
           <AudioRecorder onRecordComplete={handleRecordComplete} />
-          {uploadedFileName && (
-            <p className="record-status">✓ {uploadedFileName}</p>
+          {uploadedVoiceFileName && (
+            <p className="record-status">✓ {uploadedVoiceFileName}</p>
           )}
         </div>
       )}

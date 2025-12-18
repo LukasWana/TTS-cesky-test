@@ -16,6 +16,7 @@ const API_BASE_URL = 'http://localhost:8000'
  * @param {number} ttsParams.repetitionPenalty - Repetition penalty
  * @param {number} ttsParams.topK - Top-k sampling
  * @param {number} ttsParams.topP - Top-p sampling
+ * @param {number|null} ttsParams.seed - Seed pro reprodukovatelnost (volitelné)
  * @param {string} ttsParams.qualityMode - Režim kvality (high_quality, natural, fast)
  * @param {string} ttsParams.enhancementPreset - Preset pro audio enhancement
  * @param {boolean} ttsParams.enableEnhancement - Zapnout/vypnout audio enhancement
@@ -48,6 +49,9 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
   }
   if (ttsParams.topP !== undefined && ttsParams.topP !== null) {
     formData.append('top_p', ttsParams.topP.toString())
+  }
+  if (ttsParams.seed !== undefined && ttsParams.seed !== null) {
+    formData.append('seed', ttsParams.seed.toString())
   }
   if (ttsParams.qualityMode !== undefined && ttsParams.qualityMode !== null) {
     formData.append('quality_mode', ttsParams.qualityMode)
