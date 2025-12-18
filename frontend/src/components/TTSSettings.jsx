@@ -303,25 +303,27 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
           <div className="quality-section">
             <h4>Pokročilé funkce</h4>
 
-            {/* Multi-pass generování */}
-            <div className="setting-item">
-              <label htmlFor="multiPass">
+            <div className="features-grid">
+              {/* Multi-pass generování */}
+              <div className="feature-checkbox-item">
                 <input
                   type="checkbox"
                   id="multiPass"
+                  className="large-checkbox"
                   checked={quality.multiPass || false}
                   onChange={(e) => onQualityChange && onQualityChange({
                     ...quality,
                     multiPass: e.target.checked
                   })}
                 />
-                Multi-pass generování (více variant)
-              </label>
-              <div className="setting-description">
-                Vygeneruje více variant a umožní výběr nejlepší
+                <label htmlFor="multiPass" className="feature-checkbox-text">
+                  <span className="feature-title">Multi-pass generování (více variant)</span>
+                  <span className="feature-description">Vygeneruje více variant a umožní výběr nejlepší</span>
+                </label>
               </div>
+
               {quality.multiPass && (
-                <div className="setting-item" style={{ marginTop: '10px', marginLeft: '20px' }}>
+                <div className="setting-item multi-pass-count" style={{ marginTop: '-10px', marginBottom: '20px', marginLeft: '54px' }}>
                   <label htmlFor="multiPassCount">
                     Počet variant
                     <span className="setting-value">{quality.multiPassCount || 3}</span>
@@ -345,62 +347,59 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Voice Activity Detection */}
-            <div className="setting-item">
-              <label htmlFor="enableVad">
+              {/* Voice Activity Detection */}
+              <div className="feature-checkbox-item">
                 <input
                   type="checkbox"
                   id="enableVad"
+                  className="large-checkbox"
                   checked={quality.enableVad !== false}
                   onChange={(e) => onQualityChange && onQualityChange({
                     ...quality,
                     enableVad: e.target.checked
                   })}
                 />
-                Voice Activity Detection (VAD)
-              </label>
-              <div className="setting-description">
-                Lepší detekce řeči vs. ticho pro přesnější ořez
+                <label htmlFor="enableVad" className="feature-checkbox-text">
+                  <span className="feature-title">Voice Activity Detection (VAD)</span>
+                  <span className="feature-description">Lepší detekce řeči vs. ticho pro přesnější ořez</span>
+                </label>
               </div>
-            </div>
 
-            {/* Batch processing */}
-            <div className="setting-item">
-              <label htmlFor="enableBatch">
+              {/* Batch processing */}
+              <div className="feature-checkbox-item">
                 <input
                   type="checkbox"
                   id="enableBatch"
+                  className="large-checkbox"
                   checked={quality.enableBatch !== false}
                   onChange={(e) => onQualityChange && onQualityChange({
                     ...quality,
                     enableBatch: e.target.checked
                   })}
                 />
-                Batch processing (pro dlouhé texty)
-              </label>
-              <div className="setting-description">
-                Automaticky rozdělí dlouhé texty na části a spojí je
+                <label htmlFor="enableBatch" className="feature-checkbox-text">
+                  <span className="feature-title">Batch processing (pro dlouhé texty)</span>
+                  <span className="feature-description">Automaticky rozdělí dlouhé texty na části a spojí je</span>
+                </label>
               </div>
-            </div>
 
-            {/* HiFi-GAN vocoder */}
-            <div className="setting-item">
-              <label htmlFor="useHifigan">
+              {/* HiFi-GAN vocoder */}
+              <div className="feature-checkbox-item">
                 <input
                   type="checkbox"
                   id="useHifigan"
+                  className="large-checkbox"
                   checked={quality.useHifigan || false}
                   onChange={(e) => onQualityChange && onQualityChange({
                     ...quality,
                     useHifigan: e.target.checked
                   })}
                 />
-                Použít HiFi-GAN vocoder (vyžaduje model)
-              </label>
-              <div className="setting-description">
-                Pokročilejší vocoder pro lepší kvalitu zvuku (volitelné)
+                <label htmlFor="useHifigan" className="feature-checkbox-text">
+                  <span className="feature-title">Použít HiFi-GAN vocoder (vyžaduje model)</span>
+                  <span className="feature-description">Pokročilejší vocoder pro lepší kvalitu zvuku (volitelné)</span>
+                </label>
               </div>
             </div>
           </div>
