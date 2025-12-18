@@ -80,15 +80,15 @@ function AudioPlayer({ audioUrl }) {
         </div>
       </div>
 
-      <div className="waveform-container" ref={waveformRef}></div>
-
-      <div className="audio-controls">
-        <button className="play-button" onClick={togglePlay}>
-          {isPlaying ? '⏸ Pozastavit' : '▶️ Přehrát'}
+      <div className="audio-player-main">
+        <button className="play-button-large" onClick={togglePlay}>
+          {isPlaying ? '⏸' : '▶️'}
         </button>
 
-        <button className="download-button" onClick={handleDownload}>
-          ⬇️ Stáhnout WAV
+        <div className="waveform-container" ref={waveformRef}></div>
+
+        <button className="download-button-large" onClick={handleDownload}>
+          💾
         </button>
       </div>
     </div>

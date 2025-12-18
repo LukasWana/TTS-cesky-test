@@ -1,8 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react'
 import './TTSSettings.css'
 
+// Komponenta pro rozbalovací sekci
+function CollapsibleSection({ title, icon, isExpanded, onToggle, children }) {
+  return (
+    <div className="collapsible-section">
+      <div className="collapsible-section-header" onClick={onToggle}>
+        <div className="collapsible-section-title">
+          <span className="section-icon">{icon}</span>
+          <h4>{title}</h4>
+        </div>
+        <span className="toggle-icon">{isExpanded ? '▼' : '▶'}</span>
+      </div>
+      {isExpanded && (
+        <div className="collapsible-section-content">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityChange, activeVariant, onVariantChange }) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true) // Hlavní panel otevřený
+  const [variantsExpanded, setVariantsExpanded] = useState(true)
+  const [ttsParamsExpanded, setTtsParamsExpanded] = useState(true)
+  const [qualityExpanded, setQualityExpanded] = useState(true)
+  const [advancedExpanded, setAdvancedExpanded] = useState(false)
   const wasExpandedRef = useRef(false)
 
   // Zajistit, že se komponenta nezavře při změně varianty
@@ -54,7 +78,13 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
     } else {
       const numValue = parseFloat(value)
       if (!isNaN(numValue)) {
-        onChange({ ...settings, [key]: numValue })
+        // Validace pro temperature - musí být kladné číslo
+        if (key === 'temperature' && numValue <= 0) {
+          // Pokud je hodnota 0 nebo menší, nastavíme minimální hodnotu 0.01
+          onChange({ ...settings, [key]: 0.01 })
+        } else {
+          onChange({ ...settings, [key]: numValue })
+        }
       }
     }
   }
@@ -69,8 +99,12 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
       {isExpanded && (
         <div className="tts-settings-content">
           {/* Záložky pro varianty */}
-          <div className="variants-section">
-            <h4>Varianty nastavení:</h4>
+          <CollapsibleSection
+            title="Varianty nastavení"
+            icon="📋"
+            isExpanded={variantsExpanded}
+            onToggle={() => setVariantsExpanded(!variantsExpanded)}
+          >
             <div className="variants-tabs">
               {variants.map((variant) => (
                 <button
@@ -82,11 +116,18 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 </button>
               ))}
             </div>
-          </div>
+          </CollapsibleSection>
 
-          <div className="settings-grid">
-            {/* Rychlost řeči */}
-            <div className="setting-item">
+          {/* TTS parametry */}
+          <CollapsibleSection
+            title="TTS parametry"
+            icon="🎛️"
+            isExpanded={ttsParamsExpanded}
+            onToggle={() => setTtsParamsExpanded(!ttsParamsExpanded)}
+          >
+            <div className="settings-grid">
+            {/* Rychlost řeči - skryto, protože degraduje kvalitu zvuku */}
+            {/* <div className="setting-item">
               <label htmlFor="speed">
                 Rychlost řeči (Speed)
                 <span className="setting-value">{settings.speed.toFixed(2)}</span>
@@ -105,7 +146,7 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 <span>1.0x</span>
                 <span>2.0x</span>
               </div>
-            </div>
+            </div> */}
 
             {/* Teplota */}
             <div className="setting-item">
@@ -116,14 +157,14 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
               <input
                 type="range"
                 id="temperature"
-                min="0.0"
+                min="0.01"
                 max="1.0"
                 step="0.05"
                 value={settings.temperature}
                 onChange={(e) => handleChange('temperature', e.target.value)}
               />
               <div className="setting-range">
-                <span>Konzistentní (0.0)</span>
+                <span>Konzistentní (0.01)</span>
                 <span>Variabilní (1.0)</span>
               </div>
             </div>
@@ -236,11 +277,17 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 Prázdné pole použije fixní seed 42.
               </div>
             </div>
-          </div>
+            </div>
+          </CollapsibleSection>
 
           {/* Sekce kvality výstupu */}
-          <div className="quality-section">
-            <h4>Kvalita výstupu</h4>
+          <CollapsibleSection
+            title="Kvalita výstupu"
+            icon="🎵"
+            isExpanded={qualityExpanded}
+            onToggle={() => setQualityExpanded(!qualityExpanded)}
+          >
+            <div className="quality-section-content">
 
             <div className="setting-item">
               <label htmlFor="qualityMode">
@@ -286,105 +333,136 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
               </select>
             </div>
 
-            <div className="setting-item">
-              <label htmlFor="enableEnhancement">
-                <input
-                  type="checkbox"
-                  id="enableEnhancement"
-                  checked={quality.enableEnhancement !== false}
-                  onChange={(e) => onQualityChange && onQualityChange({
-                    ...quality,
-                    enableEnhancement: e.target.checked
-                  })}
-                />
-                Zapnout audio enhancement
+            <div className="feature-checkbox-item">
+              <input
+                type="checkbox"
+                id="enableEnhancement"
+                className="large-checkbox"
+                checked={quality.enableEnhancement !== false}
+                onChange={(e) => onQualityChange && onQualityChange({
+                  ...quality,
+                  enableEnhancement: e.target.checked
+                })}
+              />
+              <label htmlFor="enableEnhancement" className="feature-checkbox-text">
+                <span className="feature-title">Zapnout audio enhancement</span>
+                <span className="feature-description">Post-processing pro vylepšení kvality zvuku</span>
               </label>
-              <div className="setting-description">
-                Post-processing pro vylepšení kvality zvuku
-              </div>
             </div>
 
             {quality.enableEnhancement && (
-              <div className="enhancement-features" style={{ marginTop: '15px', paddingLeft: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div className="feature-checkbox-item small">
-                  <input
-                    type="checkbox"
-                    id="enableNormalization"
-                    checked={quality.enableNormalization !== false}
-                    onChange={(e) => onQualityChange && onQualityChange({
-                      ...quality,
-                      enableNormalization: e.target.checked
-                    })}
-                  />
-                  <label htmlFor="enableNormalization">Normalizace</label>
-                </div>
-                <div className="feature-checkbox-item small">
-                  <input
-                    type="checkbox"
-                    id="enableDenoiser"
-                    checked={quality.enableDenoiser !== false}
-                    onChange={(e) => onQualityChange && onQualityChange({
-                      ...quality,
-                      enableDenoiser: e.target.checked
-                    })}
-                  />
-                  <label htmlFor="enableDenoiser">Denoiser</label>
-                </div>
-                <div className="feature-checkbox-item small">
-                  <input
-                    type="checkbox"
-                    id="enableCompressor"
-                    checked={quality.enableCompressor !== false}
-                    onChange={(e) => onQualityChange && onQualityChange({
-                      ...quality,
-                      enableCompressor: e.target.checked
-                    })}
-                  />
-                  <label htmlFor="enableCompressor">Compressor</label>
-                </div>
-                <div className="feature-checkbox-item small">
-                  <input
-                    type="checkbox"
-                    id="enableDeesser"
-                    checked={quality.enableDeesser !== false}
-                    onChange={(e) => onQualityChange && onQualityChange({
-                      ...quality,
-                      enableDeesser: e.target.checked
-                    })}
-                  />
-                  <label htmlFor="enableDeesser">De-esser</label>
-                </div>
-                <div className="feature-checkbox-item small">
-                  <input
-                    type="checkbox"
-                    id="enableEq"
-                    checked={quality.enableEq !== false}
-                    onChange={(e) => onQualityChange && onQualityChange({
-                      ...quality,
-                      enableEq: e.target.checked
-                    })}
-                  />
-                  <label htmlFor="enableEq">Equalizer</label>
-                </div>
-                <div className="feature-checkbox-item small">
-                  <input
-                    type="checkbox"
-                    id="enableTrim"
-                    checked={quality.enableTrim !== false}
-                    onChange={(e) => onQualityChange && onQualityChange({
-                      ...quality,
-                      enableTrim: e.target.checked
-                    })}
-                  />
-                  <label htmlFor="enableTrim">Ořez ticha</label>
+              <div className="enhancement-features" style={{ marginTop: '15px', marginLeft: '54px' }}>
+                <div className="features-grid">
+                  <div className="feature-checkbox-item">
+                    <input
+                      type="checkbox"
+                      id="enableNormalization"
+                      className="large-checkbox"
+                      checked={quality.enableNormalization !== false}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        enableNormalization: e.target.checked
+                      })}
+                    />
+                    <label htmlFor="enableNormalization" className="feature-checkbox-text">
+                      <span className="feature-title">Normalizace</span>
+                      <span className="feature-description">Automatická normalizace zvuku na optimální úroveň</span>
+                    </label>
+                  </div>
+                  <div className="feature-checkbox-item">
+                    <input
+                      type="checkbox"
+                      id="enableDenoiser"
+                      className="large-checkbox"
+                      checked={quality.enableDenoiser !== false}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        enableDenoiser: e.target.checked
+                      })}
+                    />
+                    <label htmlFor="enableDenoiser" className="feature-checkbox-text">
+                      <span className="feature-title">Denoiser</span>
+                      <span className="feature-description">Odstranění šumu z audio signálu</span>
+                    </label>
+                  </div>
+                  <div className="feature-checkbox-item">
+                    <input
+                      type="checkbox"
+                      id="enableCompressor"
+                      className="large-checkbox"
+                      checked={quality.enableCompressor !== false}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        enableCompressor: e.target.checked
+                      })}
+                    />
+                    <label htmlFor="enableCompressor" className="feature-checkbox-text">
+                      <span className="feature-title">Compressor</span>
+                      <span className="feature-description">Dynamická komprese pro vyrovnání hlasitosti</span>
+                    </label>
+                  </div>
+                  <div className="feature-checkbox-item">
+                    <input
+                      type="checkbox"
+                      id="enableDeesser"
+                      className="large-checkbox"
+                      checked={quality.enableDeesser !== false}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        enableDeesser: e.target.checked
+                      })}
+                    />
+                    <label htmlFor="enableDeesser" className="feature-checkbox-text">
+                      <span className="feature-title">De-esser</span>
+                      <span className="feature-description">Redukce sykavek a ostrých sykavých zvuků</span>
+                    </label>
+                  </div>
+                  <div className="feature-checkbox-item">
+                    <input
+                      type="checkbox"
+                      id="enableEq"
+                      className="large-checkbox"
+                      checked={quality.enableEq !== false}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        enableEq: e.target.checked
+                      })}
+                    />
+                    <label htmlFor="enableEq" className="feature-checkbox-text">
+                      <span className="feature-title">Equalizer</span>
+                      <span className="feature-description">Úprava frekvenčního spektra pro lepší zvuk</span>
+                    </label>
+                  </div>
+                  <div className="feature-checkbox-item">
+                    <input
+                      type="checkbox"
+                      id="enableTrim"
+                      className="large-checkbox"
+                      checked={quality.enableTrim !== false}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        enableTrim: e.target.checked
+                      })}
+                    />
+                    <label htmlFor="enableTrim" className="feature-checkbox-text">
+                      <span className="feature-title">Ořez ticha</span>
+                      <span className="feature-description">Automatické odstranění ticha na začátku a konci</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             )}
-          </div>
+            </div>
+          </CollapsibleSection>
 
           {/* Pokročilé funkce */}
-          <div className="quality-section">
-            <h4>Pokročilé funkce</h4>
+          <CollapsibleSection
+            title="Pokročilé funkce"
+            icon="⚙️"
+            isExpanded={advancedExpanded}
+            onToggle={() => setAdvancedExpanded(!advancedExpanded)}
+          >
+            <div className="quality-section-content">
 
             <div className="features-grid">
               {/* Multi-pass generování */}
@@ -484,8 +562,96 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                   <span className="feature-description">Pokročilejší vocoder pro lepší kvalitu zvuku (volitelné)</span>
                 </label>
               </div>
+
+              {/* HiFi-GAN pokročilá nastavení */}
+              {quality.useHifigan && (
+                <div className="hifigan-settings" style={{ marginTop: '15px', marginLeft: '54px', padding: '15px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.1)' }}>
+                  <h5 style={{ marginTop: '0', marginBottom: '15px', fontSize: '14px', fontWeight: '600' }}>⚙️ HiFi-GAN nastavení</h5>
+
+                  {/* Intenzita refinement */}
+                  <div className="setting-item" style={{ marginBottom: '15px' }}>
+                    <label htmlFor="hifiganRefinementIntensity">
+                      Intenzita refinement
+                      <span className="setting-value">{(quality.hifiganRefinementIntensity || 1.0).toFixed(2)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      id="hifiganRefinementIntensity"
+                      min="0.0"
+                      max="1.0"
+                      step="0.05"
+                      value={quality.hifiganRefinementIntensity || 1.0}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        hifiganRefinementIntensity: parseFloat(e.target.value)
+                      })}
+                    />
+                    <div className="setting-range">
+                      <span>0% (pouze originál)</span>
+                      <span>50%</span>
+                      <span>100% (plný refinement)</span>
+                    </div>
+                    <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
+                      {quality.hifiganRefinementIntensity === 1.0
+                        ? 'Použije se pouze HiFi-GAN výstup'
+                        : quality.hifiganRefinementIntensity === 0.0
+                        ? 'Použije se pouze originální audio'
+                        : `Blend: ${(quality.hifiganRefinementIntensity * 100).toFixed(0)}% HiFi-GAN + ${((1 - quality.hifiganRefinementIntensity) * 100).toFixed(0)}% originál`}
+                    </div>
+                  </div>
+
+                  {/* Normalizace výstupu */}
+                  <div className="feature-checkbox-item" style={{ marginBottom: '15px' }}>
+                    <input
+                      type="checkbox"
+                      id="hifiganNormalizeOutput"
+                      className="large-checkbox"
+                      checked={quality.hifiganNormalizeOutput !== false}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        hifiganNormalizeOutput: e.target.checked
+                      })}
+                    />
+                    <label htmlFor="hifiganNormalizeOutput" className="feature-checkbox-text">
+                      <span className="feature-title">Normalizovat výstup HiFi-GAN</span>
+                      <span className="feature-description">Automaticky normalizuje výstupní audio na optimální úroveň</span>
+                    </label>
+                  </div>
+
+                  {/* Normalize gain (pouze pokud je normalizace zapnutá) */}
+                  {quality.hifiganNormalizeOutput && (
+                    <div className="setting-item" style={{ marginBottom: '15px' }}>
+                      <label htmlFor="hifiganNormalizeGain">
+                        Normalizační gain
+                        <span className="setting-value">{(quality.hifiganNormalizeGain || 0.95).toFixed(2)}</span>
+                      </label>
+                      <input
+                        type="range"
+                        id="hifiganNormalizeGain"
+                        min="0.5"
+                        max="1.0"
+                        step="0.05"
+                        value={quality.hifiganNormalizeGain || 0.95}
+                        onChange={(e) => onQualityChange && onQualityChange({
+                          ...quality,
+                          hifiganNormalizeGain: parseFloat(e.target.value)
+                        })}
+                      />
+                      <div className="setting-range">
+                        <span>0.5</span>
+                        <span>0.95</span>
+                        <span>1.0</span>
+                      </div>
+                      <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
+                        Nižší hodnota = více headroom (bezpečnější), vyšší = hlasitější
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
+            </div>
+          </CollapsibleSection>
 
           <div className="settings-actions">
             <button className="btn-reset" onClick={onReset}>

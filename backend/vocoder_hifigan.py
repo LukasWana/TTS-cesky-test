@@ -5,12 +5,22 @@ import torch
 import numpy as np
 from pathlib import Path
 from typing import Optional
+import backend.config as config
 from backend.config import (
     ENABLE_HIFIGAN,
     HIFIGAN_MODEL_PATH,
     OUTPUT_SAMPLE_RATE,
     DEVICE,
-    MODELS_DIR
+    MODELS_DIR,
+    HIFIGAN_PREFERRED_TYPE,
+    HIFIGAN_N_MELS,
+    HIFIGAN_N_FFT,
+    HIFIGAN_HOP_LENGTH,
+    HIFIGAN_WIN_LENGTH,
+    HIFIGAN_FMIN,
+    HIFIGAN_FMAX,
+    HIFIGAN_ENABLE_BATCH,
+    HIFIGAN_BATCH_SIZE
 )
 
 try:
@@ -54,6 +64,22 @@ class HiFiGANVocoder:
         self.available = HIFIGAN_AVAILABLE and ENABLE_HIFIGAN
         self.model_path = HIFIGAN_MODEL_PATH
         self._model_loaded = False
+        self.preferred_type = HIFIGAN_PREFERRED_TYPE
+        # Pozn.: intensity/normalizace/gain se mohou měnit za běhu (UI → backend.config),
+        # proto je bereme dynamicky z modulu `backend.config` ve `vocode()`.
+        self.refinement_intensity = config.HIFIGAN_REFINEMENT_INTENSITY
+        self.normalize_output = config.HIFIGAN_NORMALIZE_OUTPUT
+        self.normalize_gain = config.HIFIGAN_NORMALIZE_GAIN
+        self.mel_params = {
+            "n_mels": HIFIGAN_N_MELS,
+            "n_fft": HIFIGAN_N_FFT,
+            "hop_length": HIFIGAN_HOP_LENGTH,
+            "win_length": HIFIGAN_WIN_LENGTH,
+            "fmin": HIFIGAN_FMIN,
+            "fmax": HIFIGAN_FMAX
+        }
+        self.enable_batch = HIFIGAN_ENABLE_BATCH
+        self.batch_size = HIFIGAN_BATCH_SIZE
 
     def load_model(self, model_path: Optional[str] = None):
         """
@@ -74,18 +100,55 @@ class HiFiGANVocoder:
 
         try:
             success = False
-            if PARALLEL_WAVEGAN_AVAILABLE:
-                success = self._load_parallel_wavegan(model_path)
-            elif HIFIGAN_DIRECT_AVAILABLE:
-                success = self._load_hifigan_direct(model_path)
-            elif VTUBER_PLAN_AVAILABLE:
-                success = self._load_vtuber_plan()
-            else:
-                print("Warning: Žádná HiFi-GAN implementace není dostupná")
+
+            # Pokud je nastaven preferred_type, zkus ho použít jako první
+            if self.preferred_type != "auto":
+                if self.preferred_type == "parallel-wavegan" and PARALLEL_WAVEGAN_AVAILABLE:
+                    success = self._load_parallel_wavegan(model_path)
+                    if success:
+                        self._model_loaded = True
+                        return True
+                elif self.preferred_type == "vtuber-plan" and VTUBER_PLAN_AVAILABLE:
+                    success = self._load_vtuber_plan()
+                    if success:
+                        self._model_loaded = True
+                        return True
+                elif self.preferred_type == "hifigan-direct" and HIFIGAN_DIRECT_AVAILABLE:
+                    success = self._load_hifigan_direct(model_path)
+                    if success:
+                        self._model_loaded = True
+                        return True
+
+            # Pokud preferred_type selhal nebo je "auto", zkus automaticky
+            if not success:
+                # Zkus různé metody v pořadí podle dostupnosti a spolehlivosti
+                if PARALLEL_WAVEGAN_AVAILABLE:
+                    success = self._load_parallel_wavegan(model_path)
+                    if success:
+                        self._model_loaded = True
+                        return True
+
+                # Fallback na vtuber-plan (dostupný přes torch.hub)
+                if not success and VTUBER_PLAN_AVAILABLE:
+                    print("⚠️ parallel-wavegan selhal, zkouším vtuber-plan model...")
+                    success = self._load_vtuber_plan()
+                    if success:
+                        self._model_loaded = True
+                        return True
+
+                # Fallback na přímou hifigan knihovnu
+                if not success and HIFIGAN_DIRECT_AVAILABLE:
+                    print("⚠️ vtuber-plan selhal, zkouším přímou hifigan knihovnu...")
+                    success = self._load_hifigan_direct(model_path)
+                    if success:
+                        self._model_loaded = True
+                        return True
+
+            if not success:
+                print("Warning: Žádná HiFi-GAN implementace se nepodařila načíst")
+                print("   HiFi-GAN refinement bude vypnutý")
                 return False
 
-            if success:
-                self._model_loaded = True
             return success
         except Exception as e:
             print(f"Error loading HiFi-GAN model: {e}")
@@ -104,10 +167,21 @@ class HiFiGANVocoder:
 
             # Pokud není cesta zadána, zkus stáhnout výchozí model
             if model_path is None:
-                model_path = self._download_default_model()
-                if model_path is None:
-                    print("Warning: Nepodařilo se stáhnout výchozí HiFi-GAN model")
-                    return False
+                # Zkus nejprve parallel-wavegan pretrained modely
+                try:
+                    from parallel_wavegan.utils import download_pretrained_model
+                    print("📥 Stahuji HiFi-GAN model pomocí parallel-wavegan pretrained...")
+                    # Použijeme univerzální model - ljspeech je kompatibilní s většinou TTS
+                    model_path = download_pretrained_model("ljspeech_parallel_wavegan.v1")
+                    print(f"✅ Model stažen: {model_path}")
+                except Exception as e:
+                    print(f"⚠️ parallel-wavegan download selhal: {e}")
+                    # Fallback na vlastní download metodu
+                    model_path = self._download_default_model()
+                    if model_path is None:
+                        print("Warning: Nepodařilo se stáhnout výchozí HiFi-GAN model")
+                        print("   Zkusím použít vtuber-plan model jako fallback...")
+                        return False
 
             # Pokud cesta existuje jako adresář, najdi checkpoint
             model_path_obj = Path(model_path)
@@ -149,103 +223,65 @@ class HiFiGANVocoder:
 
     def _download_default_model(self) -> Optional[str]:
         """
-        Stáhne výchozí HiFi-GAN model z Hugging Face
+        Stáhne výchozí HiFi-GAN model z různých zdrojů
 
         Returns:
             Cesta k modelu nebo None pokud selže
         """
+        # Poznámka: parallel-wavegan pretrained modely se stahují přímo v _load_parallel_wavegan
+        # Tato metoda je fallback pro případ, že parallel-wavegan není dostupný
+
+        # Fallback: Zkus Hugging Face modely (pokud jsou dostupné)
         try:
             from huggingface_hub import snapshot_download
 
-            # Výchozí HiFi-GAN model pro TTS (kompatibilní s XTTS)
-            # Použijeme model, který je kompatibilní s mel-spectrogramy z TTS
-            model_name = "kan-bayashi/jsut_hifigan.v1"
-
-            print(f"📥 Stahuji HiFi-GAN model z Hugging Face: {model_name}")
+            # Modely, které by mohly být dostupné (ale nejsou garantované)
+            # Poznámka: Většina HiFi-GAN modelů není přímo na Hugging Face
+            # Lepší je použít parallel-wavegan nebo vtuber-plan
+            model_names = []
 
             cache_dir = MODELS_DIR / "hifigan"
             cache_dir.mkdir(parents=True, exist_ok=True)
 
-            # Stáhni model
-            downloaded_path = snapshot_download(
-                repo_id=model_name,
-                cache_dir=str(cache_dir),
-                local_files_only=False
-            )
+            for model_name in model_names:
+                try:
+                    print(f"📥 Zkouším stáhnout HiFi-GAN model z Hugging Face: {model_name}")
+                    downloaded_path = snapshot_download(
+                        repo_id=model_name,
+                        cache_dir=str(cache_dir),
+                        local_files_only=False
+                    )
 
-            # Najdi checkpoint v staženém adresáři
-            model_dir = Path(downloaded_path)
-            checkpoints = list(model_dir.glob("*.pkl"))
-            if not checkpoints:
-                checkpoints = list(model_dir.glob("checkpoint*.pth"))
-            if not checkpoints:
-                checkpoints = list(model_dir.glob("*.pt"))
+                    # Najdi checkpoint v staženém adresáři
+                    model_dir = Path(downloaded_path)
+                    checkpoints = list(model_dir.glob("*.pkl"))
+                    if not checkpoints:
+                        checkpoints = list(model_dir.glob("checkpoint*.pth"))
+                    if not checkpoints:
+                        checkpoints = list(model_dir.glob("*.pt"))
+                    if not checkpoints:
+                        checkpoints = list(model_dir.glob("*.ckpt"))
 
-            if checkpoints:
-                print(f"✅ Model stažen: {checkpoints[0]}")
-                return str(checkpoints[0])
-            else:
-                # Pokud není checkpoint, vrať adresář (parallel-wavegan ho najde)
-                print(f"✅ Model stažen do adresáře: {downloaded_path}")
-                return downloaded_path
-
-        except ImportError:
-            print("Warning: huggingface_hub není dostupný pro automatické stahování")
-            print("   Nainstalujte: pip install huggingface_hub")
-            return None
-        except Exception as e:
-            print(f"Error downloading HiFi-GAN model: {e}")
-            return None
-
-    def _download_default_model(self) -> Optional[str]:
-        """
-        Stáhne výchozí HiFi-GAN model z Hugging Face
-
-        Returns:
-            Cesta k modelu nebo None pokud selže
-        """
-        try:
-            from huggingface_hub import snapshot_download
-
-            # Výchozí HiFi-GAN model pro TTS (kompatibilní s XTTS)
-            # Použijeme model, který je kompatibilní s mel-spectrogramy z TTS
-            model_name = "kan-bayashi/jsut_hifigan.v1"
-
-            print(f"📥 Stahuji HiFi-GAN model z Hugging Face: {model_name}")
-
-            cache_dir = MODELS_DIR / "hifigan"
-            cache_dir.mkdir(parents=True, exist_ok=True)
-
-            # Stáhni model
-            downloaded_path = snapshot_download(
-                repo_id=model_name,
-                cache_dir=str(cache_dir),
-                local_files_only=False
-            )
-
-            # Najdi checkpoint v staženém adresáři
-            model_dir = Path(downloaded_path)
-            checkpoints = list(model_dir.glob("*.pkl"))
-            if not checkpoints:
-                checkpoints = list(model_dir.glob("checkpoint*.pth"))
-            if not checkpoints:
-                checkpoints = list(model_dir.glob("*.pt"))
-
-            if checkpoints:
-                print(f"✅ Model stažen: {checkpoints[0]}")
-                return str(checkpoints[0])
-            else:
-                # Pokud není checkpoint, vrať adresář (parallel-wavegan ho najde)
-                print(f"✅ Model stažen do adresáře: {downloaded_path}")
-                return downloaded_path
+                    if checkpoints:
+                        print(f"✅ Model stažen: {checkpoints[0]}")
+                        return str(checkpoints[0])
+                    else:
+                        # Pokud není checkpoint, vrať adresář
+                        print(f"✅ Model stažen do adresáře: {downloaded_path}")
+                        return downloaded_path
+                except Exception as e:
+                    print(f"⚠️ Model {model_name} selhal: {e}")
+                    continue
 
         except ImportError:
             print("Warning: huggingface_hub není dostupný pro automatické stahování")
             print("   Nainstalujte: pip install huggingface_hub")
-            return None
         except Exception as e:
-            print(f"Error downloading HiFi-GAN model: {e}")
-            return None
+            print(f"⚠️ Warning: Stahování z Hugging Face selhalo: {e}")
+
+        # Pokud vše selže, vrať None
+        # Systém zkusí použít vtuber-plan jako automatický fallback
+        return None
 
     def _load_hifigan_direct(self, model_path: Optional[str] = None) -> bool:
         """Načte model pomocí přímé hifigan knihovny"""
@@ -270,18 +306,32 @@ class HiFiGANVocoder:
         """
         try:
             # vtuber-plan provides a torch.hub entry point
-            model = torch.hub.load('vtuber-plan/hifi-gan', 'hifigan_48k', force_reload=True)
-            self.model = model.to(DEVICE)
-            self.model.eval()
-            print("✅ HiFi-GAN model loaded from vtuber-plan via torch.hub")
-            return True
+            # Zkusíme různé varianty modelu
+            model_variants = ['hifigan_48k', 'hifigan', 'generator']
+
+            for variant in model_variants:
+                try:
+                    print(f"📥 Zkouším načíst vtuber-plan HiFi-GAN model: {variant}...")
+                    model = torch.hub.load('vtuber-plan/hifi-gan', variant, force_reload=False, trust_repo=True)
+                    self.model = model.to(DEVICE)
+                    self.model.eval()
+                    print(f"✅ HiFi-GAN model načten z vtuber-plan via torch.hub ({variant})")
+                    return True
+                except Exception as e:
+                    if variant != model_variants[-1]:  # Nezobrazuj error pro poslední variantu
+                        print(f"⚠️ Varianta {variant} selhala: {e}, zkouším další...")
+                        continue
+                    else:
+                        raise e
+            return False
         except Exception as e:
-            print(f"Error loading vtuber-plan HiFi-GAN model: {e}")
+            print(f"⚠️ Error loading vtuber-plan HiFi-GAN model: {e}")
             return False
     def vocode(
         self,
         mel_spectrogram: np.ndarray,
-        sample_rate: int = OUTPUT_SAMPLE_RATE
+        sample_rate: int = OUTPUT_SAMPLE_RATE,
+        original_audio: Optional[np.ndarray] = None
     ) -> Optional[np.ndarray]:
         """
         Převede mel-spectrogram na audio pomocí HiFi-GAN
@@ -289,6 +339,7 @@ class HiFiGANVocoder:
         Args:
             mel_spectrogram: Mel-spectrogram (shape: [n_mels, time] nebo [batch, n_mels, time])
             sample_rate: Sample rate výstupního audio
+            original_audio: Původní audio pro blending (pokud je refinement_intensity < 1.0)
 
         Returns:
             Audio data nebo None pokud selže
@@ -303,14 +354,40 @@ class HiFiGANVocoder:
             return None
 
         try:
-            if PARALLEL_WAVEGAN_AVAILABLE:
-                return self._vocode_parallel_wavegan(mel_spectrogram, sample_rate)
-            elif HIFIGAN_DIRECT_AVAILABLE:
-                return self._vocode_hifigan_direct(mel_spectrogram, sample_rate)
-            elif VTUBER_PLAN_AVAILABLE:
-                return self._vocode_hifigan_direct(mel_spectrogram, sample_rate)
+            # Použít aktuální hodnoty z configu (mohly být změněny z UI)
+            refinement_intensity = config.HIFIGAN_REFINEMENT_INTENSITY
+            normalize_output = config.HIFIGAN_NORMALIZE_OUTPUT
+            normalize_gain = config.HIFIGAN_NORMALIZE_GAIN
+
+            # Vocode pomocí HiFi-GAN
+            if PARALLEL_WAVEGAN_AVAILABLE and hasattr(self.model, 'inference'):
+                refined_audio = self._vocode_parallel_wavegan(mel_spectrogram, sample_rate)
+            elif HIFIGAN_DIRECT_AVAILABLE or VTUBER_PLAN_AVAILABLE:
+                refined_audio = self._vocode_hifigan_direct(mel_spectrogram, sample_rate)
             else:
                 return None
+
+            if refined_audio is None:
+                return None
+
+            # Normalizace výstupu (pokud je zapnuto)
+            if normalize_output:
+                if np.max(np.abs(refined_audio)) > 0:
+                    refined_audio = refined_audio / np.max(np.abs(refined_audio)) * normalize_gain
+
+            # Blending s původním audio (pokud je zadáno a intensity < 1.0)
+            if original_audio is not None and refinement_intensity < 1.0:
+                # Zajistit stejnou délku
+                min_len = min(len(refined_audio), len(original_audio))
+                refined_audio = refined_audio[:min_len]
+                original_audio = original_audio[:min_len]
+
+                # Blendování
+                blended = (refinement_intensity * refined_audio +
+                          (1.0 - refinement_intensity) * original_audio)
+                return blended
+
+            return refined_audio
         except Exception as e:
             print(f"Error during HiFi-GAN vocoding: {e}")
             return None

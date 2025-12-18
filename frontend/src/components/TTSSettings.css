@@ -7,6 +7,26 @@
   backdrop-filter: blur(10px);
 }
 
+/* V pravém panelu - integrace s pozadím */
+.settings-panel .tts-settings {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.settings-panel .tts-settings-header {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.settings-panel .tts-settings-content {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .tts-settings-header {
   display: flex;
   justify-content: space-between;
@@ -49,9 +69,9 @@
 }
 
 .variants-section {
-  margin-bottom: 32px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .variants-section h4 {
@@ -206,16 +226,90 @@
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+/* Rozbalovací sekce */
+.collapsible-section {
+  margin-bottom: 20px;
+}
+
+.collapsible-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  margin-bottom: 12px;
+}
+
+.collapsible-section-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.collapsible-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.collapsible-section-title h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.section-icon {
+  font-size: 1.1rem;
+}
+
+.collapsible-section-content {
+  padding: 0 4px;
+}
+
+.quality-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .quality-section {
-  margin-top: 32px;
-  padding-top: 32px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .quality-section h4 {
   margin: 0 0 20px 0;
   font-size: 1.1rem;
   font-weight: 600;
+  color: #fff;
+}
+
+.quality-section-content select {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.95rem;
+  cursor: pointer;
+  appearance: none;
+  transition: all 0.2s ease;
+}
+
+.quality-section-content select:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.quality-section-content select option {
+  background-color: #1a1c2c;
   color: #fff;
 }
 
@@ -259,8 +353,8 @@
 }
 
 .checkbox-item input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   accent-color: #6366f1;
   cursor: pointer;
 }
@@ -290,12 +384,20 @@
 }
 
 .large-checkbox {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   margin-top: 2px;
   accent-color: #6366f1;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+/* Sjednotit všechny checkboxy na velkou velikost */
+input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  accent-color: #6366f1;
+  cursor: pointer;
 }
 
 .feature-checkbox-text {
