@@ -27,21 +27,21 @@ FORCE_DEVICE = os.getenv("FORCE_DEVICE", "auto").lower()
 
 if FORCE_DEVICE == "cpu":
     DEVICE = "cpu"
-    print("⚠️  Device vynucen na CPU (FORCE_DEVICE=cpu)")
+    print("[WARN] Device vynucen na CPU (FORCE_DEVICE=cpu)")
 elif FORCE_DEVICE == "cuda":
     if torch.cuda.is_available():
         DEVICE = "cuda"
-        print("✅ Device vynucen na GPU (FORCE_DEVICE=cuda)")
+        print("[OK] Device vynucen na GPU (FORCE_DEVICE=cuda)")
     else:
         DEVICE = "cpu"
-        print("⚠️  GPU není dostupné, používá se CPU (FORCE_DEVICE=cuda byl ignorován)")
+        print("[WARN] GPU není dostupné, používá se CPU (FORCE_DEVICE=cuda byl ignorován)")
 else:
     # Automatická detekce (výchozí)
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     if DEVICE == "cuda":
-        print("✅ Automatická detekce: GPU dostupné, používá se CUDA")
+        print("[OK] Automatická detekce: GPU dostupné, používá se CUDA")
     else:
-        print("ℹ️  Automatická detekce: GPU nedostupné, používá se CPU")
+        print("[INFO] Automatická detekce: GPU nedostupné, používá se CPU")
 
 # GPU memory optimization for 6GB VRAM cards (RTX 3060, etc.)
 # Pokud máte GPU s 6GB VRAM, můžete použít tyto optimalizace:
@@ -121,14 +121,38 @@ ENABLE_SPEAKER_CACHE = os.getenv("ENABLE_SPEAKER_CACHE", "True").lower() == "tru
 SPEAKER_CACHE_DIR = BASE_DIR / "speaker_cache"
 SPEAKER_CACHE_DIR.mkdir(exist_ok=True)
 
-# Vocoder Upgrade
+# Vocoder Upgrade - HiFi-GAN
 ENABLE_HIFIGAN = os.getenv("ENABLE_HIFIGAN", "True").lower() == "true"
 HIFIGAN_MODEL_PATH = os.getenv("HIFIGAN_MODEL_PATH", None)
+
+# HiFi-GAN nastavení
+HIFIGAN_PREFERRED_TYPE = os.getenv("HIFIGAN_PREFERRED_TYPE", "auto").lower()  # auto, parallel-wavegan, vtuber-plan, hifigan-direct
+HIFIGAN_REFINEMENT_INTENSITY = float(os.getenv("HIFIGAN_REFINEMENT_INTENSITY", "1.0"))  # 0.0-1.0 (1.0 = plný refinement, 0.0 = žádný)
+HIFIGAN_NORMALIZE_OUTPUT = os.getenv("HIFIGAN_NORMALIZE_OUTPUT", "True").lower() == "true"
+HIFIGAN_NORMALIZE_GAIN = float(os.getenv("HIFIGAN_NORMALIZE_GAIN", "0.95"))  # 0.0-1.0 (gain pro normalizaci)
+
+# HiFi-GAN mel-spectrogram parametry
+HIFIGAN_N_MELS = int(os.getenv("HIFIGAN_N_MELS", "80"))  # Počet mel bins
+HIFIGAN_N_FFT = int(os.getenv("HIFIGAN_N_FFT", "1024"))  # FFT window size
+HIFIGAN_HOP_LENGTH = int(os.getenv("HIFIGAN_HOP_LENGTH", "256"))  # Hop length
+HIFIGAN_WIN_LENGTH = int(os.getenv("HIFIGAN_WIN_LENGTH", "1024"))  # Window length
+HIFIGAN_FMIN = float(os.getenv("HIFIGAN_FMIN", "0.0"))  # Minimální frekvence
+HIFIGAN_FMAX = float(os.getenv("HIFIGAN_FMAX", "8000.0"))  # Maximální frekvence
+
+# HiFi-GAN batch processing (pro dlouhé audio)
+HIFIGAN_ENABLE_BATCH = os.getenv("HIFIGAN_ENABLE_BATCH", "False").lower() == "true"
+HIFIGAN_BATCH_SIZE = int(os.getenv("HIFIGAN_BATCH_SIZE", "1"))  # Batch size pro inference
 
 # Batch Processing
 ENABLE_BATCH_PROCESSING = os.getenv("ENABLE_BATCH_PROCESSING", "True").lower() == "true"
 MAX_CHUNK_LENGTH = int(os.getenv("MAX_CHUNK_LENGTH", "200"))  # znaků
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "20"))  # znaků
+
+# XTTS token limit (XTTS má tvrdý limit ~400 tokenů na jeden vstup)
+# Pozn.: Používáme "cílový" limit o trochu menší kvůli prefixům / speciálním tokenům.
+XTTS_MAX_TOKENS = int(os.getenv("XTTS_MAX_TOKENS", "400"))
+XTTS_TOKEN_SAFETY_MARGIN = int(os.getenv("XTTS_TOKEN_SAFETY_MARGIN", "20"))
+XTTS_TARGET_MAX_TOKENS = int(os.getenv("XTTS_TARGET_MAX_TOKENS", str(max(50, XTTS_MAX_TOKENS - XTTS_TOKEN_SAFETY_MARGIN))))
 
 # Quality presets pro TTS generování
 QUALITY_PRESETS = {
