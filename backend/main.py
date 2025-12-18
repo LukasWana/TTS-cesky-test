@@ -109,7 +109,16 @@ app = FastAPI(title="XTTS-v2 Demo", version="1.0.0", lifespan=lifespan)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    # FE dev servery typicky běží na 5173 (Vite), 3000 apod.
+    # SSE (EventSource) je na CORS citlivé stejně jako fetch, takže povolíme lokální originy.
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    # Bezpečné povolení libovolného lokálního portu (např. Vite 5174 po kolizi).
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -130,6 +139,7 @@ async def root():
 @app.post("/api/tts/generate")
 async def generate_speech(
     text: str = Form(...),
+    job_id: str = Form(None),
     voice_file: UploadFile = File(None),
     demo_voice: str = Form(None),
     speed: str = Form(None),  # Přijímáme jako string, protože Form může poslat string
@@ -173,6 +183,15 @@ async def generate_speech(
         seed: Seed pro reprodukovatelnost generování (volitelné, pokud není zadán, použije se fixní seed 42)
     """
     try:
+        # Zaregistruj job_id HNED na začátku (před validacemi), aby frontend mohl pollovat
+        if job_id:
+            ProgressManager.start(
+                job_id,
+                meta={
+                    "text_length": len(text or ""),
+                    "endpoint": "/api/tts/generate",
+                },
+            )
         # Validace textu
         if not text or len(text.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text je prázdný")
@@ -300,6 +319,8 @@ async def generate_speech(
             config_module.AUDIO_ENHANCEMENT_PRESET = enhancement_preset_value
 
             # Generování řeči
+            if job_id:
+                ProgressManager.update(job_id, percent=1, stage="tts", message="Generuji řeč…")
             result = await tts_engine.generate(
                 text=text,
                 speaker_wav=speaker_wav,
@@ -323,7 +344,8 @@ async def generate_speech(
                 enable_compressor=use_compressor,
                 enable_deesser=use_deesser,
                 enable_eq=use_eq,
-                enable_trim=use_trim
+                enable_trim=use_trim,
+                job_id=job_id
             )
         finally:
             # Obnovit původní nastavení
@@ -371,17 +393,120 @@ async def generate_speech(
                 tts_params=tts_params_dict
             )
 
+            if job_id:
+                # 99% až úplně na konci requestu (po zápisu do historie / přípravě odpovědi)
+                ProgressManager.update(job_id, percent=99, stage="final", message="Ukládám do historie a odesílám…")
+                ProgressManager.done(job_id)
             return {
                 "audio_url": audio_url,
                 "filename": filename,
                 "success": True,
-                "history_id": history_entry["id"]
+                "history_id": history_entry["id"],
+                "job_id": job_id
             }
 
     except HTTPException:
+        if job_id:
+            ProgressManager.fail(job_id, "HTTPException")
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chyba při generování: {str(e)}")
+        msg = str(e)
+        if job_id:
+            ProgressManager.fail(job_id, msg)
+        raise HTTPException(status_code=500, detail=f"Chyba při generování: {msg}")
+
+
+@app.get("/api/tts/progress/{job_id}")
+async def get_tts_progress(job_id: str):
+    """Vrátí průběh generování pro daný job_id (pro polling z frontendu)."""
+    info = ProgressManager.get(job_id)
+    if not info:
+        # Pokud job ještě neexistuje, vrať "pending" stav místo 404
+        # (frontend může začít pollovat dřív, než backend stihne job zaregistrovat)
+        return {
+            "job_id": job_id,
+            "status": "pending",
+            "percent": 0,
+            "stage": "pending",
+            "message": "Čekám na zahájení…",
+            "eta_seconds": None,
+            "error": None,
+        }
+    return info
+
+
+@app.get("/api/tts/progress/{job_id}/stream")
+async def stream_tts_progress(job_id: str):
+    """
+    Server-Sent Events (SSE) stream pro real-time progress updates.
+    Frontend se připojí pomocí EventSource a dostane automatické aktualizace.
+    """
+    import json
+    import asyncio
+
+    async def event_generator():
+        last_percent = -1
+        last_updated = None
+
+        while True:
+            try:
+                info = ProgressManager.get(job_id)
+
+                if not info:
+                    # Job ještě neexistuje - pošli pending stav
+                    pending_data = {
+                        'job_id': job_id,
+                        'status': 'pending',
+                        'percent': 0,
+                        'stage': 'pending',
+                        'message': 'Čekám na zahájení…',
+                        'eta_seconds': None,
+                        'error': None,
+                    }
+                    yield f"data: {json.dumps(pending_data)}\n\n"
+                    await asyncio.sleep(0.5)  # Počkej 500ms před dalším pokusem
+                    continue
+
+                status = info.get("status", "running")
+                percent = info.get("percent", 0)
+                updated_at = info.get("updated_at")
+
+                # Poslat update pouze pokud se něco změnilo
+                if percent != last_percent or updated_at != last_updated:
+                    yield f"data: {json.dumps(info)}\n\n"
+                    last_percent = percent
+                    last_updated = updated_at
+
+                # Pokud je job hotový nebo chybný, ukončit stream
+                if status in ("done", "error"):
+                    # Pošli finální stav a ukonči
+                    yield f"data: {json.dumps(info)}\n\n"
+                    break
+
+                # Počkat 200ms před dalším checkem (rychlejší než polling)
+                await asyncio.sleep(0.2)
+            except asyncio.CancelledError:
+                # Klient se odpojil - ukončit stream
+                break
+            except Exception as e:
+                # Při chybě pošli error a ukonči
+                error_data = {
+                    'job_id': job_id,
+                    'status': 'error',
+                    'error': str(e),
+                }
+                yield f"data: {json.dumps(error_data)}\n\n"
+                break
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Vypnout buffering pro nginx
+        }
+    )
 
 
 @app.post("/api/voice/upload")
