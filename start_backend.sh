@@ -10,3 +10,5 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 cd backend
 python main.py
 
+
+

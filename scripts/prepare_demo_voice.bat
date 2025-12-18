@@ -42,3 +42,5 @@ REM Spust script s argumenty
 
 pause
 
+
+

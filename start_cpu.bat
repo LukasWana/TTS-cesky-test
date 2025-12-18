@@ -7,3 +7,5 @@ echo.
 set FORCE_DEVICE=cpu
 call start_all.bat
 
+
+

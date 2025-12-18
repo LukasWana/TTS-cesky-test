@@ -7,3 +7,5 @@ echo.
 set FORCE_DEVICE=cuda
 call start_all.bat
 
+
+
