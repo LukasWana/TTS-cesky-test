@@ -12,7 +12,8 @@ function VoiceSelector({
   onVoiceTypeChange,
   onVoiceUpload,
   onVoiceRecord,
-  onYouTubeImport
+  onYouTubeImport,
+  voiceQuality
 }) {
   const handleFileChange = (e) => {
     const file = e.target.files[0]
@@ -78,21 +79,18 @@ function VoiceSelector({
       {voiceType === 'demo' && (
         <div className="demo-voices">
           {demoVoices.length > 0 ? (
-            <div className="demo-voice-list">
-              {demoVoices.map((voice) => (
-                <label key={voice.id} className="demo-voice-item">
-                  <input
-                    type="radio"
-                    name="demoVoice"
-                    value={voice.id}
-                    checked={selectedVoice === voice.id}
-                    onChange={(e) => onVoiceSelect(e.target.value)}
-                  />
-                  <span>
+            <div className="demo-voice-select-wrapper">
+              <select
+                className="demo-voice-select"
+                value={selectedVoice}
+                onChange={(e) => onVoiceSelect(e.target.value)}
+              >
+                {demoVoices.map((voice) => (
+                  <option key={voice.id} value={voice.id}>
                     {voice.name} ({voice.gender === 'male' ? 'Muž' : voice.gender === 'female' ? 'Žena' : 'Neznámé'})
-                  </span>
-                </label>
-              ))}
+                  </option>
+                ))}
+              </select>
             </div>
           ) : (
             <p className="no-demo-voices">
@@ -137,6 +135,31 @@ function VoiceSelector({
             onImportComplete={onYouTubeImport}
             onError={(err) => console.error('YouTube import error:', err)}
           />
+        </div>
+      )}
+
+      {voiceQuality && (
+        <div className={`quality-feedback ${voiceQuality.score}`}>
+          <div className="quality-header">
+            <span className="quality-icon">
+              {voiceQuality.score === 'good' ? '✅' : voiceQuality.score === 'fair' ? '⚠️' : '❌'}
+            </span>
+            <span className="quality-label">
+              Kvalita vzorku: <strong>{
+                voiceQuality.score === 'good' ? 'Dobrá' :
+                  voiceQuality.score === 'fair' ? 'Průměrná' :
+                    voiceQuality.score === 'poor' ? 'Špatná' : 'Neznámá'
+              }</strong>
+            </span>
+            <span className="quality-snr">SNR: {voiceQuality.snr.toFixed(1)} dB</span>
+          </div>
+          {voiceQuality.warnings && voiceQuality.warnings.length > 0 && (
+            <ul className="quality-warnings">
+              {voiceQuality.warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>
