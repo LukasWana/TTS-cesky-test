@@ -25,7 +25,8 @@ class AudioEnhancer:
         preset: str = "natural",
         enable_eq: Optional[bool] = None,
         enable_noise_reduction: Optional[bool] = None,
-        enable_compression: Optional[bool] = None
+        enable_compression: Optional[bool] = None,
+        enable_deesser: Optional[bool] = None
     ) -> str:
         """
         Hlavní metoda pro post-processing audio
@@ -55,10 +56,10 @@ class AudioEnhancer:
             enhancement_config = preset_config.get("enhancement", {})
 
         # Použití preset hodnot nebo explicitních parametrů
-        # EQ a komprese jsou vypnuté pro eliminaci preboostu a zachování přirozené dynamiky
-        use_eq = False  # Vypnuto - eliminace preboostu
-        use_noise_reduction = enable_noise_reduction if enable_noise_reduction is not None else enhancement_config.get("enable_noise_reduction", False)
-        use_compression = False  # Vypnuto - zachování přirozené dynamiky
+        use_eq = enable_eq if enable_eq is not None else enhancement_config.get("enable_eq", True)
+        use_noise_reduction = enable_noise_reduction if enable_noise_reduction is not None else enhancement_config.get("enable_noise_reduction", True)
+        use_compression = enable_compression if enable_compression is not None else enhancement_config.get("enable_compression", True)
+        use_deesser = enable_deesser if enable_deesser is not None else enhancement_config.get("enable_deesser", True)
 
         # 1. Ořez ticha (s VAD pokud je dostupné)
         try:
@@ -85,11 +86,18 @@ class AudioEnhancer:
         if use_compression:
             audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
 
-        # 5. Fade in/out
+        # 5. De-esser (pokud zapnuto) - odstranění ostrých sykavek
+        if use_deesser:
+            audio = AudioEnhancer.apply_deesser(audio, sr)
+
+        # 6. Fade in/out
         audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=50)
 
-        # 6. Finální normalizace podle best practices pro hlas
-        # Peak: -3 dB, RMS: -16 až -20 dB (výchozí -18 dB)
+        # 7. Odstranění DC offsetu (stejnosměrné složky)
+        audio = AudioEnhancer.remove_dc_offset(audio)
+
+        # 8. Finální normalizace podle best practices pro hlas
+        # Peak: -3 dB, RMS: -18 dB
         audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
 
         # Uložení zpět do souboru
@@ -141,44 +149,57 @@ class AudioEnhancer:
         return audio
 
     @staticmethod
+    def remove_dc_offset(audio: np.ndarray) -> np.ndarray:
+        """
+        Odstraní DC offset (stejnosměrnou složku) ze signálu
+        """
+        if len(audio) == 0:
+            return audio
+        return audio - np.mean(audio)
+
+    @staticmethod
     def normalize_audio(audio: np.ndarray, peak_target_db: float = -3.0, rms_target_db: float = -18.0) -> np.ndarray:
         """
         Normalizace audio podle best practices pro hlas:
-        - Peak: -3 dB (ne 0 dB!)
-        - RMS: -16 až -20 dB (ne -6 dB!)
-
-        Args:
-            audio: Audio data
-            peak_target_db: Cílová peak úroveň v dB (výchozí: -3.0)
-            rms_target_db: Cílová RMS úroveň v dB (výchozí: -18.0, rozsah -20 až -16)
-
-        Returns:
-            Normalizované audio
+        - Peak: -3 dB
+        - RMS: -18 dB
+        - Ochrana proti extrémnímu zesílení (max +12 dB)
         """
         if len(audio) == 0:
             return audio
 
-        # 1. RMS normalizace - POUZE snižovat, neboostovat
+        # 1. RMS normalizace
         current_rms = np.sqrt(np.mean(audio ** 2))
         if current_rms > 0:
             rms_target_linear = 10 ** (rms_target_db / 20)
-            # Pouze snižovat pokud je RMS vyšší než cíl, neboostovat pokud je nižší
-            if current_rms > rms_target_linear:
-                rms_gain = rms_target_linear / current_rms
-                audio = audio * rms_gain
-            # Pokud je RMS nižší než cíl, necháme ho být (neboostujeme)
+            rms_gain = rms_target_linear / current_rms
 
-        # 2. Peak normalizace na -3 dB - POUZE snižovat, nezvětšovat
-        peak_target_linear = 10 ** (peak_target_db / 20)  # -3 dB = 0.7079
+            # Omezení maximálního zesílení na +12 dB (cca 4x)
+            max_gain = 10 ** (12 / 20)
+            rms_gain = min(rms_gain, max_gain)
+
+            audio = audio * rms_gain
+
+        # 2. Peak normalizace na -3 dB
+        peak_target_linear = 10 ** (peak_target_db / 20)
         current_peak = np.max(np.abs(audio))
-        if current_peak > peak_target_linear:
-            # Pokud je peak vyšší než cíl, snížíme
+        if current_peak > 0:
             peak_gain = peak_target_linear / current_peak
+            # Opět omezení gainu
+            max_gain = 10 ** (12 / 20)
+            peak_gain = min(peak_gain, max_gain)
             audio = audio * peak_gain
-        # Pokud je peak nižší než cíl, necháme ho být (neboostujeme)
 
-        # 3. Soft limiter na -0.1 dB jako ochrana proti popům
-        limiter_threshold = 10 ** (-0.1 / 20)  # -0.1 dB = 0.9886
+        # 3. Soft limiter (tanh) pro přirozenější ořez špiček
+        # Vše nad -1 dB začne být jemně komprimováno
+        threshold = 10 ** (-1.0 / 20)
+        mask = np.abs(audio) > threshold
+        if np.any(mask):
+            # Aplikujeme tanh pro hladký ořez
+            audio[mask] = np.sign(audio[mask]) * (threshold + (1.0 - threshold) * np.tanh((np.abs(audio[mask]) - threshold) / (1.0 - threshold)))
+
+        # Finální hard clip na -0.1 dB pro jistotu
+        limiter_threshold = 10 ** (-0.1 / 20)
         audio = np.clip(audio, -limiter_threshold, limiter_threshold)
 
         return audio
@@ -204,8 +225,8 @@ class AudioEnhancer:
             sos = signal.butter(4, [1000, 4000], btype='band', fs=sr, output='sos')
             boosted = signal.sosfiltfilt(sos, audio)
 
-            # Jemné zvýraznění (sníženo z 3% na 1.5% pro eliminaci preboostu)
-            audio = audio + 0.015 * boosted
+            # Jemné zvýraznění (sníženo na 1% pro eliminaci přebuzení)
+            audio = audio + 0.01 * boosted
 
             # NENORMALIZUJEME - normalizace bude až na konci řetězce
 
@@ -287,5 +308,60 @@ class AudioEnhancer:
 
         except Exception as e:
             print(f"Warning: Dynamic compression failed: {e}, continuing without compression")
+            return audio
+
+    @staticmethod
+    def apply_deesser(audio: np.ndarray, sr: int, freq_range: tuple = (4000, 10000), threshold: float = -18.0, ratio: float = 4.0) -> np.ndarray:
+        """
+        De-esser pro potlačení ostrých sykavek (s, š, c, č)
+
+        Args:
+            audio: Audio data
+            sr: Sample rate
+            freq_range: Rozsah frekvencí sykavek (výchozí 4-10 kHz)
+            threshold: Threshold v dB pro detekci sykavek
+            ratio: Kompresní poměr pro sykavky
+
+        Returns:
+            Audio s potlačenými sykavkami
+        """
+        if not SCIPY_AVAILABLE:
+            return audio
+
+        try:
+            # 1. Izolace frekvencí sykavek pomocí bandpass filtru
+            sos = signal.butter(4, freq_range, btype='band', fs=sr, output='sos')
+            sibilance = signal.sosfiltfilt(sos, audio)
+
+            # 2. Detekce obálky (envelope) sykavek
+            envelope = np.abs(signal.hilbert(sibilance))
+
+            # Vyhlazení obálky (lowpass)
+            sos_lp = signal.butter(2, 50, btype='low', fs=sr, output='sos')
+            envelope = signal.sosfiltfilt(sos_lp, envelope)
+
+            # 3. Výpočet gain redukce
+            threshold_linear = 10 ** (threshold / 20)
+
+            # Gain je 1.0 pokud je pod threshold, jinak se snižuje podle ratio
+            gain = np.ones_like(envelope)
+            mask = envelope > threshold_linear
+            if np.any(mask):
+                # Výpočet redukce v dB
+                envelope_db = 20 * np.log10(envelope[mask] + 1e-10)
+                reduction_db = (envelope_db - threshold) * (1 - 1/ratio)
+                gain[mask] = 10 ** (-reduction_db / 20)
+
+            # 4. Aplikace redukce na původní signál
+            # Redukci aplikujeme pouze na sibilantní část nebo na celé audio s váhou?
+            # Standardní de-esser (wideband) aplikuje gain na celé audio, když detekuje sykavku.
+            # Split-band de-esser aplikuje gain pouze na sibilantní pásmo.
+            # Zde zkusíme wideband pro přirozenější zvuk bez fázových problémů.
+            audio_deessed = audio * gain
+
+            return audio_deessed
+
+        except Exception as e:
+            print(f"Warning: De-esser failed: {e}, continuing without de-essing")
             return audio
 
