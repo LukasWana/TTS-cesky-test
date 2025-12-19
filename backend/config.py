@@ -70,7 +70,7 @@ MODEL_CACHE_DIR = str(MODELS_DIR)
 TARGET_SAMPLE_RATE = 44100  # CD kvalita (44.1 kHz)
 TARGET_CHANNELS = 1  # mono
 MIN_VOICE_DURATION = 6.0  # sekundy
-MAX_TEXT_LENGTH = 50000  # znaků - zvýšeno pro dlouhé články
+MAX_TEXT_LENGTH = 100000  # znaků
 
 # TTS generation parameters (výchozí hodnoty)
 TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))  # Rychlost řeči (0.5-2.0)

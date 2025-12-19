@@ -61,6 +61,17 @@ class HistoryManager:
         """
         history = HistoryManager._load_history()
 
+        # Kontrola, zda se text nezměnil - pokud je stejný jako poslední záznam, neukládat
+        if history and len(history) > 0:
+            last_entry = history[0]  # Nejnovější záznam je na začátku
+            if last_entry.get("text") == text:
+                # Text se nezměnil, neukládat nový záznam
+                return last_entry
+
+        # Omezit historii na max 1000 záznamů před přidáním nového
+        if len(history) >= 1000:
+            history = history[:999]  # Necháme místo pro nový záznam
+
         entry = {
             "id": filename.replace('.wav', ''),
             "audio_url": audio_url,
@@ -74,10 +85,6 @@ class HistoryManager:
 
         # Přidat na začátek (nejnovější první)
         history.insert(0, entry)
-
-        # Omezit na posledních 1000 záznamů
-        if len(history) > 1000:
-            history = history[:1000]
 
         HistoryManager._save_history(history)
         return entry
