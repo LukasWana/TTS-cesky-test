@@ -444,6 +444,85 @@ ENGLISH_PHONETIC = {
     'camping': 'kempink',
     'adventure': 'edvenčr',
 
+    # Zkratky států
+    'USA': 'ú es ej',
+    'US': 'ú es',
+    'UK': 'ú ká',
+    'EU': 'é ú',
+    'DE': 'dé é',
+    'FR': 'ef ár',
+    'IT': 'í té',
+    'ES': 'é es',
+    'NL': 'en el',
+    'BE': 'bé é',
+    'AT': 'á té',
+    'CH': 'cé há',
+    'PL': 'pé el',
+    'CZ': 'cé zet',
+    'SK': 'es ká',
+    'HU': 'há ú',
+    'RO': 'ár ou',
+    'BG': 'bé gé',
+    'HR': 'há ár',
+    'SI': 'es í',
+    'SE': 'es é',
+    'NO': 'en ou',
+    'DK': 'dé ká',
+    'FI': 'ef í',
+    'IE': 'í é',
+    'PT': 'pé té',
+    'GR': 'gé ár',
+    'CY': 'cé í',
+    'MT': 'em té',
+    'LU': 'el ú',
+    'EE': 'é é',
+    'LV': 'el vé',
+    'LT': 'el té',
+    'JP': 'džej pé',
+    'CN': 'cé en',
+    'KR': 'ká ár',
+    'IN': 'í en',
+    'BR': 'bé ár',
+    'MX': 'em iks',
+    'AR': 'á ár',
+    'CL': 'cé el',
+    'CO': 'cé ou',
+    'PE': 'pé é',
+    'VE': 'vé é',
+    'AU': 'á ú',
+    'NZ': 'en zet',
+    'ZA': 'zet á',
+    'EG': 'é gé',
+    'SA': 'es á',
+    'AE': 'á é',
+    'IL': 'í el',
+    'TR': 'té ár',
+    'RU': 'ár ú',
+    'UA': 'ú á',
+    'BY': 'bé í',
+    'MD': 'em dé',
+    'GE': 'gé é',
+    'AM': 'á em',
+    'AZ': 'á zet',
+    'KZ': 'ká zet',
+    'UZ': 'ú zet',
+    'TH': 'té há',
+    'VN': 'vé en',
+    'PH': 'pé há',
+    'ID': 'í dé',
+    'MY': 'em í',
+    'SG': 'es gé',
+    'HK': 'há ká',
+    'TW': 'té dablv',
+    'CA': 'cé á',
+    'GB': 'gé bé',
+    'IS': 'í es',
+    'LI': 'el í',
+    'MC': 'em cé',
+    'AD': 'á dé',
+    'SM': 'es em',
+    'VA': 'vé á',
+
     # Běžné fráze
     'okay': 'oukej',
     'ok': 'oukej',
@@ -565,10 +644,24 @@ class PhoneticTranslator:
         processed_text = text
 
         for foreign_word, phonetic in phonetic_dict.items():
-            # Case-insensitive nahrazení celých slov pomocí word boundaries
-            # \b zajišťuje, že nahrazujeme pouze celá slova, ne části slov
+            # Pro zkratky psané velkými písmeny (např. SE, ES, USA, UK, EU)
+            # použijeme case-sensitive matching, aby se nenašly česká slova
+            # jako "se", "es", "at", "uk", "eu" atd.
+            is_uppercase_abbreviation = (
+                len(foreign_word) >= 2 and
+                foreign_word.isupper() and
+                foreign_word.isalpha()
+            )
+
             pattern = r'\b' + re.escape(foreign_word) + r'\b'
-            processed_text = re.sub(pattern, phonetic, processed_text, flags=re.IGNORECASE)
+
+            if is_uppercase_abbreviation:
+                # Case-sensitive pro zkratky psané velkými písmeny
+                # nahradí pouze velká písmena (SE, ES, USA, atd.)
+                processed_text = re.sub(pattern, phonetic, processed_text)
+            else:
+                # Case-insensitive pro ostatní slova
+                processed_text = re.sub(pattern, phonetic, processed_text, flags=re.IGNORECASE)
 
         return processed_text
 
