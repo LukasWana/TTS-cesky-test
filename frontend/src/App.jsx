@@ -686,7 +686,7 @@ function App() {
                 <TextInput
                   value={text}
                   onChange={setText}
-                  maxLength={5000}
+                  maxLength={100000}
                   versions={textVersions}
                   onSaveVersion={() => saveTextVersion(text)}
                   onDeleteVersion={deleteTextVersion}

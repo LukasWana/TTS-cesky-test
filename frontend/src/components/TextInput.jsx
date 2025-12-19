@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import './TextInput.css'
 
-function TextInput({ value, onChange, maxLength = 5000, versions = [], onSaveVersion, onDeleteVersion }) {
+function TextInput({ value, onChange, maxLength = 100000, versions = [], onSaveVersion, onDeleteVersion }) {
   const [showHistory, setShowHistory] = useState(false)
   const dropdownRef = useRef(null)
   const remaining = maxLength - value.length
