@@ -48,7 +48,8 @@ try:
         TTS_TOP_K,
         TTS_TOP_P,
         ENABLE_AUDIO_ENHANCEMENT,
-        AUDIO_ENHANCEMENT_PRESET
+        AUDIO_ENHANCEMENT_PRESET,
+        ENABLE_BATCH_PROCESSING
     )
 except ImportError:
     # Fallback pro spuštění z backend/ adresáře
@@ -77,7 +78,8 @@ except ImportError:
         TTS_TOP_K,
         TTS_TOP_P,
         ENABLE_AUDIO_ENHANCEMENT,
-        AUDIO_ENHANCEMENT_PRESET
+        AUDIO_ENHANCEMENT_PRESET,
+        ENABLE_BATCH_PROCESSING
     )
 
 # Inicializace engine
@@ -196,11 +198,23 @@ async def generate_speech(
         if not text or len(text.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text je prázdný")
 
-        if len(text) > MAX_TEXT_LENGTH:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Text je příliš dlouhý (max {MAX_TEXT_LENGTH} znaků)"
-            )
+        # Automaticky zapnout batch processing pro dlouhé texty
+        text_length = len(text)
+        if text_length > MAX_TEXT_LENGTH:
+            print(f"⚠️ Text je delší než {MAX_TEXT_LENGTH} znaků ({text_length} znaků), automaticky zapínám batch processing")
+            # Automaticky zapnout batch pokud není explicitně zakázán
+            if enable_batch is None or (isinstance(enable_batch, str) and enable_batch.lower() != "false"):
+                use_batch = True
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Text je příliš dlouhý ({text_length} znaků, max {MAX_TEXT_LENGTH}). Pro delší texty zapněte batch processing (enable_batch=true)."
+                )
+        elif text_length > 2000:  # Pro středně dlouhé texty doporučit batch
+            print(f"ℹ️ Text je dlouhý ({text_length} znaků), doporučuji zapnout batch processing pro lepší kvalitu")
+            use_batch = (enable_batch.lower() == "true" if isinstance(enable_batch, str) else None) if enable_batch else ENABLE_BATCH_PROCESSING
+        else:
+            use_batch = (enable_batch.lower() == "true" if isinstance(enable_batch, str) else None) if enable_batch else None
 
         # Zpracování hlasu
         speaker_wav = None
@@ -299,7 +313,7 @@ async def generate_speech(
         use_multi_pass = multi_pass.lower() == "true" if multi_pass else False
         multi_pass_count_value = multi_pass_count if multi_pass_count is not None else 3
         use_vad = enable_vad.lower() == "true" if enable_vad else None
-        use_batch = enable_batch.lower() == "true" if enable_batch else None
+        # use_batch je už nastaveno výše podle délky textu - NEPŘEPISOVAT!
         use_hifigan_value = use_hifigan.lower() == "true" if use_hifigan else False
         use_normalization = enable_normalization.lower() == "true" if enable_normalization else True
         use_denoiser = enable_denoiser.lower() == "true" if enable_denoiser else True
