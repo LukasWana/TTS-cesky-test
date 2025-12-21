@@ -563,6 +563,82 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 </label>
               </div>
 
+              {/* Dialect Conversion */}
+              <div className="feature-checkbox-item">
+                <input
+                  type="checkbox"
+                  id="enableDialectConversion"
+                  className="large-checkbox"
+                  checked={quality.enableDialectConversion || false}
+                  onChange={(e) => onQualityChange && onQualityChange({
+                    ...quality,
+                    enableDialectConversion: e.target.checked,
+                    // Pokud se vypne, vymaž dialect_code
+                    dialectCode: e.target.checked ? (quality.dialectCode || 'moravske') : null
+                  })}
+                />
+                <label htmlFor="enableDialectConversion" className="feature-checkbox-text">
+                  <span className="feature-title">Převod na nářečí</span>
+                  <span className="feature-description">Převede text ze standardní češtiny na zvolené nářečí před syntézou</span>
+                </label>
+              </div>
+
+              {quality.enableDialectConversion && (
+                <div className="dialect-settings" style={{ marginTop: '15px', marginLeft: '54px', padding: '15px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.1)' }}>
+                  <h5 style={{ marginTop: '0', marginBottom: '15px', fontSize: '14px', fontWeight: '600' }}>🌍 Nastavení nářečí</h5>
+
+                  <div className="setting-item" style={{ marginBottom: '15px' }}>
+                    <label htmlFor="dialectCode">
+                      Vyberte nářečí
+                    </label>
+                    <select
+                      id="dialectCode"
+                      value={quality.dialectCode || 'moravske'}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        dialectCode: e.target.value
+                      })}
+                    >
+                      <option value="moravske">Moravské</option>
+                      <option value="hanacke">Hanácké</option>
+                      <option value="slezske">Slezské</option>
+                      <option value="chodske">Chodské</option>
+                      <option value="brnenske">Brněnské (hantec)</option>
+                    </select>
+                    <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
+                      Vyberte nářečí, na které se má text převést
+                    </div>
+                  </div>
+
+                  <div className="setting-item" style={{ marginBottom: '15px' }}>
+                    <label htmlFor="dialectIntensity">
+                      Intenzita převodu
+                      <span className="setting-value">{(quality.dialectIntensity || 1.0).toFixed(2)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      id="dialectIntensity"
+                      min="0.0"
+                      max="1.0"
+                      step="0.1"
+                      value={quality.dialectIntensity || 1.0}
+                      onChange={(e) => onQualityChange && onQualityChange({
+                        ...quality,
+                        dialectIntensity: parseFloat(e.target.value)
+                      })}
+                    />
+                    <div className="setting-range">
+                      <span>0% (žádný převod)</span>
+                      <span>50%</span>
+                      <span>100% (plný převod)</span>
+                    </div>
+                    <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
+                      Jak silně se má text převést na nářečí (1.0 = plný převod)
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* HiFi-GAN pokročilá nastavení */}
               {quality.useHifigan && (
                 <div className="hifigan-settings" style={{ marginTop: '15px', marginLeft: '54px', padding: '15px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.1)' }}>

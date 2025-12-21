@@ -43,7 +43,11 @@ const DEFAULT_QUALITY_SETTINGS = {
   enableDeesser: true,
   // EQ (zvýraznění řečového pásma) může působit "přebuzile"/ostře – necháme defaultně vypnuté
   enableEq: false,
-  enableTrim: true
+  enableTrim: true,
+  // Dialect conversion
+  enableDialectConversion: false,
+  dialectCode: null,
+  dialectIntensity: 1.0
 }
 
 // Klíče pro localStorage - varianty jsou vázané na konkrétní hlas (id)
@@ -333,7 +337,16 @@ function App() {
           : DEFAULT_QUALITY_SETTINGS.hifiganNormalizeOutput,
         hifiganNormalizeGain: typeof saved.qualitySettings.hifiganNormalizeGain === 'number'
           ? saved.qualitySettings.hifiganNormalizeGain
-          : DEFAULT_QUALITY_SETTINGS.hifiganNormalizeGain
+          : DEFAULT_QUALITY_SETTINGS.hifiganNormalizeGain,
+        enableDialectConversion: typeof saved.qualitySettings.enableDialectConversion === 'boolean'
+          ? saved.qualitySettings.enableDialectConversion
+          : DEFAULT_QUALITY_SETTINGS.enableDialectConversion,
+        dialectCode: saved.qualitySettings.dialectCode !== undefined
+          ? saved.qualitySettings.dialectCode
+          : DEFAULT_QUALITY_SETTINGS.dialectCode,
+        dialectIntensity: typeof saved.qualitySettings.dialectIntensity === 'number'
+          ? saved.qualitySettings.dialectIntensity
+          : DEFAULT_QUALITY_SETTINGS.dialectIntensity
       }
     } else {
       // Výchozí nastavení pro novou variantu
@@ -464,7 +477,10 @@ function App() {
         enableCompressor: qualitySettings.enableCompressor,
         enableDeesser: qualitySettings.enableDeesser,
         enableEq: qualitySettings.enableEq,
-        enableTrim: qualitySettings.enableTrim
+        enableTrim: qualitySettings.enableTrim,
+        enableDialectConversion: qualitySettings.enableDialectConversion,
+        dialectCode: qualitySettings.dialectCode,
+        dialectIntensity: qualitySettings.dialectIntensity
       }
 
       // Zrušit předchozí progress SSE spojení, pokud běží

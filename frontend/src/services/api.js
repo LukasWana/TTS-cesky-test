@@ -34,6 +34,9 @@ const API_BASE_URL = 'http://localhost:8000'
  * @param {boolean} ttsParams.enableDeesser - Zapnout de-esser
  * @param {boolean} ttsParams.enableEq - Zapnout EQ
  * @param {boolean} ttsParams.enableTrim - Zapnout ořez ticha
+ * @param {boolean} ttsParams.enableDialectConversion - Zapnout převod na nářečí
+ * @param {string} ttsParams.dialectCode - Kód nářečí (moravske, hanacke, slezske, chodske, brnenske)
+ * @param {number} ttsParams.dialectIntensity - Intenzita převodu (0.0-1.0)
  */
 export async function generateSpeech(text, voiceFile = null, demoVoice = null, ttsParams = {}, jobId = null) {
   const formData = new FormData()
@@ -120,6 +123,15 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
   }
   if (ttsParams.enableTrim !== undefined) {
     formData.append('enable_trim', ttsParams.enableTrim.toString())
+  }
+  if (ttsParams.enableDialectConversion !== undefined) {
+    formData.append('enable_dialect_conversion', ttsParams.enableDialectConversion.toString())
+  }
+  if (ttsParams.dialectCode !== undefined && ttsParams.dialectCode !== null) {
+    formData.append('dialect_code', ttsParams.dialectCode)
+  }
+  if (ttsParams.dialectIntensity !== undefined && ttsParams.dialectIntensity !== null) {
+    formData.append('dialect_intensity', ttsParams.dialectIntensity.toString())
   }
 
   const response = await fetch(`${API_BASE_URL}/api/tts/generate`, {
