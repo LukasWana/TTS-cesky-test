@@ -167,7 +167,10 @@ async def generate_speech(
     enable_trim: str = Form(None),
     enable_dialect_conversion: str = Form(None),
     dialect_code: str = Form(None),
-    dialect_intensity: str = Form(None)
+    dialect_intensity: str = Form(None),
+    # Reference voice quality gate / auto enhance
+    auto_enhance_voice: str = Form(None),
+    allow_poor_voice: str = Form(None),
 ):
     """
     Generuje řeč z textu
@@ -221,6 +224,7 @@ async def generate_speech(
 
         # Zpracování hlasu
         speaker_wav = None
+        reference_quality = None
 
         if voice_file:
             # Uložení nahraného souboru
@@ -264,6 +268,45 @@ async def generate_speech(
                 status_code=400,
                 detail="Musí být zadán buď voice_file nebo demo_voice"
             )
+
+        # Quality gate + auto-enhance pro referenční hlas
+        try:
+            from backend.config import (
+                ENABLE_REFERENCE_QUALITY_GATE,
+                ENABLE_REFERENCE_AUTO_ENHANCE,
+                REFERENCE_ALLOW_POOR_BY_DEFAULT,
+                UPLOADS_DIR,
+            )
+            reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav) if speaker_wav else None
+
+            if ENABLE_REFERENCE_QUALITY_GATE and reference_quality and reference_quality.get("score") == "poor":
+                request_auto = (auto_enhance_voice.lower() == "true") if isinstance(auto_enhance_voice, str) else None
+                request_allow = (allow_poor_voice.lower() == "true") if isinstance(allow_poor_voice, str) else None
+
+                do_auto = request_auto if request_auto is not None else ENABLE_REFERENCE_AUTO_ENHANCE
+                do_allow = request_allow if request_allow is not None else REFERENCE_ALLOW_POOR_BY_DEFAULT
+
+                if do_auto:
+                    enhanced_path = UPLOADS_DIR / f"enhanced_{uuid.uuid4().hex[:10]}.wav"
+                    ok, enh_err = AudioProcessor.enhance_voice_sample(speaker_wav, str(enhanced_path))
+                    if ok:
+                        speaker_wav = str(enhanced_path)
+                        reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav)
+                    else:
+                        print(f"⚠️ Auto-enhance referenčního hlasu selhal: {enh_err}")
+
+                if reference_quality and reference_quality.get("score") == "poor" and not do_allow:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "message": "Referenční audio má nízkou kvalitu pro klonování (šum/clipping/krátká délka). Nahrajte čistší vzorek (10–30s řeči bez hudby) nebo použijte allow_poor_voice=true.",
+                            "quality": reference_quality,
+                        },
+                    )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"⚠️ Quality gate selhal (ignorováno): {e}")
 
         # Nastavení TTS parametrů (použij výchozí hodnoty pokud nejsou zadány)
         # Parsování speed - může být string z Form, takže převedeme na float
@@ -386,7 +429,8 @@ async def generate_speech(
             return {
                 "variants": result,
                 "success": True,
-                "multi_pass": True
+                "multi_pass": True,
+                "reference_quality": reference_quality,
             }
         else:
             # Standardní: jeden výstup
@@ -430,7 +474,8 @@ async def generate_speech(
                 "filename": filename,
                 "success": True,
                 "history_id": history_entry["id"],
-                "job_id": job_id
+                "job_id": job_id,
+                "reference_quality": reference_quality,
             }
 
     except HTTPException:

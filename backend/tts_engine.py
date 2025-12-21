@@ -859,6 +859,55 @@ class XTTSEngine:
                 "top_p": top_p
             }
 
+            # Volitelné: použít caching conditioning latents (pokud to verze TTS podporuje)
+            # Cíl: rychlejší opakované generování + stabilnější conditioning u stejného referenčního hlasu.
+            try:
+                from backend.config import ENABLE_SPEAKER_CACHE
+                if ENABLE_SPEAKER_CACHE and self.model is not None:
+                    import inspect
+                    from backend.speaker_adapter import get_speaker_adapter
+
+                    sig = None
+                    try:
+                        sig = inspect.signature(self.model.tts_to_file)
+                    except Exception:
+                        sig = None
+
+                    if sig is not None:
+                        param_names = set(sig.parameters.keys())
+                        supports_embed = ("speaker_embeddings" in param_names) or ("speaker_embedding" in param_names)
+                        supports_gpt = ("gpt_cond_latent" in param_names) or ("gpt_cond_latents" in param_names)
+
+                        if supports_embed:
+                            adapter = get_speaker_adapter()
+                            latents = adapter.get_conditioning_latents(speaker_wav, self.model)
+                            if latents is not None:
+                                gpt_cond_latent, speaker_embedding = latents
+                                # Přesuň na správný device, pokud je potřeba
+                                try:
+                                    device = self.device
+                                    if hasattr(gpt_cond_latent, "to"):
+                                        gpt_cond_latent = gpt_cond_latent.to(device)
+                                    if hasattr(speaker_embedding, "to"):
+                                        speaker_embedding = speaker_embedding.to(device)
+                                except Exception:
+                                    pass
+
+                                # Preferuj embeddingy místo speaker_wav (aby se conditioning znovu nepočítal)
+                                tts_params.pop("speaker_wav", None)
+                                if "speaker_embeddings" in param_names:
+                                    tts_params["speaker_embeddings"] = speaker_embedding
+                                elif "speaker_embedding" in param_names:
+                                    tts_params["speaker_embedding"] = speaker_embedding
+
+                                if supports_gpt:
+                                    if "gpt_cond_latent" in param_names:
+                                        tts_params["gpt_cond_latent"] = gpt_cond_latent
+                                    elif "gpt_cond_latents" in param_names:
+                                        tts_params["gpt_cond_latents"] = gpt_cond_latent
+            except Exception as e:
+                print(f"⚠️ Conditioning cache nepoužit (ignorováno): {e}")
+
             # Logování parametrů pro debug
             print(f"🔊 TTS Generation Parameters:")
             print(f"   Speed: {speed}")

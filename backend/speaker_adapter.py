@@ -88,7 +88,8 @@ class SpeakerAdapter:
                 # Ulož do cache
                 try:
                     with open(cache_path, 'wb') as f:
-                        pickle.dump(embedding, f)
+                        # Ukládej na CPU (bez vazby na konkrétní device)
+                        pickle.dump(embedding.detach().cpu(), f)
                     print(f"💾 Speaker embedding uložen do cache: {cache_key[:8]}...")
                 except Exception as e:
                     print(f"Warning: Failed to save speaker cache: {e}")
@@ -96,6 +97,54 @@ class SpeakerAdapter:
             return embedding
         except Exception as e:
             print(f"Warning: Failed to extract speaker embedding: {e}")
+            return None
+
+    def get_conditioning_latents(
+        self,
+        speaker_wav_path: str,
+        tts_model
+    ) -> Optional[Tuple[torch.Tensor, torch.Tensor]]:
+        """
+        Vrátí (gpt_cond_latent, speaker_embedding) z cache nebo je spočítá.
+        Pokud verze TTS neumožňuje extrakci, vrátí None.
+        """
+        if not self.enabled:
+            return None
+
+        cache_key = self._get_cache_key(speaker_wav_path)
+        cache_path = self._get_cache_path(f"cond_{cache_key}")
+
+        if cache_path.exists():
+            try:
+                with open(cache_path, "rb") as f:
+                    data = pickle.load(f)
+                gpt = data.get("gpt_cond_latent")
+                emb = data.get("speaker_embedding")
+                if gpt is not None and emb is not None:
+                    print(f"✅ Conditioning latents načteny z cache: {cache_key[:8]}...")
+                    return gpt, emb
+            except Exception as e:
+                print(f"Warning: Failed to load conditioning cache: {e}")
+
+        try:
+            gpt, emb = self._extract_conditioning_latents(speaker_wav_path, tts_model)
+            if gpt is None or emb is None:
+                return None
+            try:
+                with open(cache_path, "wb") as f:
+                    pickle.dump(
+                        {
+                            "gpt_cond_latent": gpt.detach().cpu(),
+                            "speaker_embedding": emb.detach().cpu(),
+                        },
+                        f,
+                    )
+                print(f"💾 Conditioning latents uloženy do cache: {cache_key[:8]}...")
+            except Exception as e:
+                print(f"Warning: Failed to save conditioning cache: {e}")
+            return gpt, emb
+        except Exception as e:
+            print(f"Warning: Failed to extract conditioning latents: {e}")
             return None
 
     def _extract_embedding(
@@ -137,6 +186,27 @@ class SpeakerAdapter:
         except Exception as e:
             print(f"Error extracting speaker embedding: {e}")
             return None
+
+    def _extract_conditioning_latents(
+        self,
+        speaker_wav_path: str,
+        tts_model
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """
+        Pokusí se vytáhnout conditioning latents ze synthesizeru (XTTS-v2).
+        """
+        try:
+            if hasattr(tts_model, "synthesizer"):
+                synthesizer = tts_model.synthesizer
+                if hasattr(synthesizer, "get_conditioning_latents"):
+                    gpt_cond_latent, speaker_embedding, _ = synthesizer.get_conditioning_latents(
+                        audio_path=speaker_wav_path
+                    )
+                    return gpt_cond_latent, speaker_embedding
+            return None, None
+        except Exception as e:
+            print(f"Error extracting conditioning latents: {e}")
+            return None, None
 
     def clear_cache(self, speaker_wav_path: Optional[str] = None) -> int:
         """

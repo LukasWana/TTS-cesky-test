@@ -132,6 +132,28 @@ ENABLE_SPEAKER_CACHE = os.getenv("ENABLE_SPEAKER_CACHE", "True").lower() == "tru
 SPEAKER_CACHE_DIR = BASE_DIR / "speaker_cache"
 SPEAKER_CACHE_DIR.mkdir(exist_ok=True)
 
+# Reference voice (voice cloning) – příprava a quality gate
+# Cíl: stabilnější klon hlasu (méně ticha/hudby, konzistentní loudness, lepší segmenty řeči)
+ENABLE_REFERENCE_VOICE_PREP = os.getenv("ENABLE_REFERENCE_VOICE_PREP", "True").lower() == "true"
+ENABLE_REFERENCE_VAD_SEGMENTATION = os.getenv("ENABLE_REFERENCE_VAD_SEGMENTATION", "True").lower() == "true"
+REFERENCE_TARGET_DURATION_SEC = float(os.getenv("REFERENCE_TARGET_DURATION_SEC", "15.0"))  # doporučeno 10–30s
+REFERENCE_SEGMENT_MIN_SEC = float(os.getenv("REFERENCE_SEGMENT_MIN_SEC", "0.7"))
+REFERENCE_SEGMENT_MAX_SEC = float(os.getenv("REFERENCE_SEGMENT_MAX_SEC", "4.0"))
+REFERENCE_MAX_SEGMENTS = int(os.getenv("REFERENCE_MAX_SEGMENTS", "10"))
+REFERENCE_PAUSE_MS = int(os.getenv("REFERENCE_PAUSE_MS", "80"))
+REFERENCE_CROSSFADE_MS = int(os.getenv("REFERENCE_CROSSFADE_MS", "30"))
+
+# Loudness normalizace referenčního audia (FFmpeg loudnorm pokud je k dispozici)
+ENABLE_REFERENCE_LOUDNORM = os.getenv("ENABLE_REFERENCE_LOUDNORM", "True").lower() == "true"
+REFERENCE_LOUDNORM_I = float(os.getenv("REFERENCE_LOUDNORM_I", "-16.0"))     # Integrated loudness (LUFS)
+REFERENCE_LOUDNORM_TP = float(os.getenv("REFERENCE_LOUDNORM_TP", "-1.5"))    # True peak (dBTP)
+REFERENCE_LOUDNORM_LRA = float(os.getenv("REFERENCE_LOUDNORM_LRA", "11.0"))  # Loudness range
+
+# Quality gate pro referenční audio
+ENABLE_REFERENCE_QUALITY_GATE = os.getenv("ENABLE_REFERENCE_QUALITY_GATE", "True").lower() == "true"
+ENABLE_REFERENCE_AUTO_ENHANCE = os.getenv("ENABLE_REFERENCE_AUTO_ENHANCE", "True").lower() == "true"
+REFERENCE_ALLOW_POOR_BY_DEFAULT = os.getenv("REFERENCE_ALLOW_POOR_BY_DEFAULT", "False").lower() == "true"
+
 # Vocoder Upgrade - HiFi-GAN
 ENABLE_HIFIGAN = os.getenv("ENABLE_HIFIGAN", "True").lower() == "true"
 HIFIGAN_MODEL_PATH = os.getenv("HIFIGAN_MODEL_PATH", None)

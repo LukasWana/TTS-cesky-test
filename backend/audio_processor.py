@@ -13,7 +13,20 @@ from backend.config import (
     TARGET_CHANNELS,
     MIN_VOICE_DURATION,
     SUPPORTED_AUDIO_FORMATS,
-    UPLOADS_DIR
+    UPLOADS_DIR,
+    SPEAKER_CACHE_DIR,
+    ENABLE_REFERENCE_VOICE_PREP,
+    ENABLE_REFERENCE_VAD_SEGMENTATION,
+    ENABLE_REFERENCE_LOUDNORM,
+    REFERENCE_TARGET_DURATION_SEC,
+    REFERENCE_SEGMENT_MIN_SEC,
+    REFERENCE_SEGMENT_MAX_SEC,
+    REFERENCE_MAX_SEGMENTS,
+    REFERENCE_PAUSE_MS,
+    REFERENCE_CROSSFADE_MS,
+    REFERENCE_LOUDNORM_I,
+    REFERENCE_LOUDNORM_TP,
+    REFERENCE_LOUDNORM_LRA,
 )
 
 
@@ -39,7 +52,8 @@ class AudioProcessor:
         input_path: str,
         output_path: str,
         target_sr: int = TARGET_SAMPLE_RATE,
-        target_channels: int = TARGET_CHANNELS
+        target_channels: int = TARGET_CHANNELS,
+        apply_loudnorm: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """
         Konvertuje audio pomocí FFmpeg (fallback pokud librosa selže)
@@ -58,12 +72,18 @@ class AudioProcessor:
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
             # FFmpeg příkaz
+            loudnorm_filter = None
+            if apply_loudnorm:
+                # EBU R128 loudness normalization (typicky pomůže na „kolísající hlasitost“ a artefakty)
+                loudnorm_filter = f"loudnorm=I={REFERENCE_LOUDNORM_I}:TP={REFERENCE_LOUDNORM_TP}:LRA={REFERENCE_LOUDNORM_LRA}"
+
             cmd = [
                 "ffmpeg",
                 "-i", str(input_path),
                 "-ar", str(target_sr),
                 "-ac", str(target_channels),
-                # DOČASNĚ VYPNUTO: "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",  # Loudness normalization
+                # Loudness normalization (volitelné)
+                *([] if loudnorm_filter is None else ["-af", loudnorm_filter]),
                 "-y",  # Přepsat výstupní soubor
                 str(output_path)
             ]
@@ -192,7 +212,8 @@ class AudioProcessor:
         output_path: str,
         target_sr: int = TARGET_SAMPLE_RATE,
         target_channels: int = TARGET_CHANNELS,
-        apply_advanced_processing: bool = False
+        apply_advanced_processing: bool = False,
+        apply_loudnorm: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """
         Konvertuje audio na požadovaný formát s pokročilým zpracováním
@@ -237,8 +258,16 @@ class AudioProcessor:
                 # stft_clean = stft * mask
                 # audio = librosa.istft(stft_clean)
 
-            # DOČASNĚ VYPNUTO: Normalizace hlasitosti
-            # audio = librosa.util.normalize(audio)
+            # Lehká normalizace (librosa cesta) – podobný efekt jako loudnorm, ale bez LUFS metriky
+            if apply_loudnorm:
+                try:
+                    from backend.audio_enhancer import AudioEnhancer
+                    audio = AudioEnhancer.remove_dc_offset(audio)
+                    audio = AudioEnhancer.apply_fade(audio, target_sr, fade_ms=30)
+                    audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
+                except Exception:
+                    # Fallback: jednoduchá peak normalizace
+                    audio = librosa.util.normalize(audio)
 
             # Uložení
             sf.write(output_path, audio, target_sr)
@@ -253,10 +282,136 @@ class AudioProcessor:
                     input_path,
                     output_path,
                     target_sr,
-                    target_channels
+                    target_channels,
+                    apply_loudnorm=apply_loudnorm
                 )
             else:
                 return False, f"Chyba při konverzi audio: {str(e)} (FFmpeg není dostupný)"
+
+    @staticmethod
+    def _prepare_reference_voice_from_wav(
+        input_wav_path: str,
+        output_wav_path: str,
+        target_duration_sec: float = REFERENCE_TARGET_DURATION_SEC,
+        use_vad: bool = True,
+        min_seg_sec: float = REFERENCE_SEGMENT_MIN_SEC,
+        max_seg_sec: float = REFERENCE_SEGMENT_MAX_SEC,
+        max_segments: int = REFERENCE_MAX_SEGMENTS,
+        pause_ms: int = REFERENCE_PAUSE_MS,
+        crossfade_ms: int = REFERENCE_CROSSFADE_MS,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Z připraveného WAV udělá „referenční hlas“ pro klonování:
+        - vybere segmenty s řečí (VAD)
+        - odstraní dlouhé ticho/hudbu
+        - znormalizuje a spojí do cílové délky (např. ~15s)
+        """
+        try:
+            import librosa
+            import soundfile as sf
+            from backend.audio_enhancer import AudioEnhancer
+
+            audio, sr = librosa.load(input_wav_path, sr=TARGET_SAMPLE_RATE, mono=True)
+            if len(audio) == 0:
+                return False, "Referenční audio je prázdné"
+
+            # VAD segmentace (pokud zapnuto)
+            segments = []
+            if use_vad and ENABLE_REFERENCE_VAD_SEGMENTATION:
+                try:
+                    from backend.vad_processor import get_vad_processor
+                    vad = get_vad_processor()
+                    segments = vad.detect_voice_segments(audio, sr)
+                except Exception:
+                    segments = []
+
+            # Pokud VAD nic nenašel, fallback na trim
+            if not segments:
+                audio, _ = librosa.effects.trim(audio, top_db=25)
+                segments = [(0.0, len(audio) / sr)]
+
+            # Kandidáti: segmenty v rozumné délce + RMS skóre
+            candidates = []
+            for (s, e) in segments:
+                dur = max(0.0, e - s)
+                if dur < min_seg_sec:
+                    continue
+                # omezíme extrémně dlouhé segmenty
+                if dur > max_seg_sec:
+                    mid = (s + e) / 2.0
+                    half = max_seg_sec / 2.0
+                    s2 = max(0.0, mid - half)
+                    e2 = min(len(audio) / sr, mid + half)
+                    s, e = s2, e2
+                    dur = max(0.0, e - s)
+                if dur < min_seg_sec:
+                    continue
+                a = audio[int(s * sr):int(e * sr)]
+                if len(a) == 0:
+                    continue
+                rms = float(np.sqrt(np.mean(a ** 2)) + 1e-12)
+                candidates.append((rms, s, e))
+
+            if not candidates:
+                # poslední fallback: celé audio, ale oříznout ticho
+                audio, _ = librosa.effects.trim(audio, top_db=25)
+                candidates = [(1.0, 0.0, len(audio) / sr)]
+
+            # Seřadit podle RMS (často koreluje s čistou řečí) a vzít top N
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            candidates = candidates[:max(1, max_segments * 3)]  # trochu víc pro případ krátkých segmentů
+
+            chosen = []
+            total = 0.0
+            for _rms, s, e in candidates:
+                if len(chosen) >= max_segments:
+                    break
+                dur = max(0.0, e - s)
+                if dur <= 0:
+                    continue
+                chosen.append((s, e))
+                total += dur
+                if total >= target_duration_sec:
+                    break
+
+            # Pokud stále krátké, vezmi i zbytek v pořadí času (aby byl vzorek „přirozený“)
+            if total < min(target_duration_sec, 6.0):
+                # spoj sousední segmenty „jak jdou“
+                chosen = sorted([(s, e) for _rms, s, e in candidates[:max_segments]], key=lambda x: x[0])
+                total = sum(max(0.0, e - s) for s, e in chosen)
+
+            # Sestavení výstupu
+            pause_samples = int(pause_ms * sr / 1000.0)
+            parts = []
+            for i, (s, e) in enumerate(chosen):
+                part = audio[int(s * sr):int(e * sr)]
+                if len(part) == 0:
+                    continue
+                parts.append(part)
+                if i != len(chosen) - 1 and pause_samples > 0:
+                    parts.append(np.zeros(pause_samples, dtype=np.float32))
+
+            if not parts:
+                return False, "Nepodařilo se vybrat žádné segmenty řeči pro referenci"
+
+            ref = np.concatenate(parts).astype(np.float32)
+
+            # Finální úpravy: fade + DC + normalizace
+            ref = AudioEnhancer.apply_fade(ref, sr, fade_ms=50)
+            ref = AudioEnhancer.remove_dc_offset(ref)
+            ref = AudioEnhancer.normalize_audio(ref, peak_target_db=-3.0, rms_target_db=-18.0)
+
+            # Uřízni na cílovou délku (když jsme nabrali víc)
+            max_len = int(target_duration_sec * sr)
+            if len(ref) > max_len:
+                ref = ref[:max_len]
+
+            Path(output_wav_path).parent.mkdir(parents=True, exist_ok=True)
+            sf.write(output_wav_path, ref, sr)
+            return True, None
+
+        except Exception as e:
+            return False, f"Chyba při tvorbě referenčního hlasu: {str(e)}"
 
     @staticmethod
     def process_uploaded_file(
@@ -288,11 +443,32 @@ class AudioProcessor:
         success, error = AudioProcessor.convert_audio(
             uploaded_file_path,
             str(output_path),
-            apply_advanced_processing=True  # Použij pokročilé zpracování pro uploady
+            apply_advanced_processing=True,  # Použij pokročilé zpracování pro uploady
+            apply_loudnorm=bool(ENABLE_REFERENCE_LOUDNORM),  # normalizace hlasitosti pro konzistenci
         )
 
         if not success:
             return None, error
+
+        # Volitelně: vytvoř „reference voice“ vhodnější pro klonování (VAD segmenty + normalizace)
+        if ENABLE_REFERENCE_VOICE_PREP:
+            try:
+                ref_dir = SPEAKER_CACHE_DIR / "reference_wavs"
+                ref_dir.mkdir(parents=True, exist_ok=True)
+                ref_path = ref_dir / f"ref_{Path(output_path).stem}.wav"
+                ok, prep_err = AudioProcessor._prepare_reference_voice_from_wav(
+                    str(output_path),
+                    str(ref_path),
+                    target_duration_sec=REFERENCE_TARGET_DURATION_SEC,
+                    use_vad=ENABLE_REFERENCE_VAD_SEGMENTATION,
+                )
+                if ok:
+                    return str(ref_path), None
+                else:
+                    # fallback: vrať aspoň konvertovaný WAV
+                    print(f"⚠️ Reference voice prep selhal: {prep_err}")
+            except Exception as e:
+                print(f"⚠️ Reference voice prep exception: {e}")
 
         return str(output_path), None
 
