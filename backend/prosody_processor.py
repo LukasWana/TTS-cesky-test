@@ -101,6 +101,13 @@ class ProsodyProcessor:
         processed, pause_meta = processor._process_pauses(processed)
         metadata['pauses'].extend(pause_meta)
 
+        # Detekce a úprava intonace otázek (na konci věty s ?)
+        if processed.endswith('?'):
+            # Pro XTTS někdy pomůže přidat více otazníků nebo specifickou strukturu
+            # ale většinou stačí zajistit, aby tam otazník byl.
+            # Zde můžeme přidat logiku pro "stoupavou" intonaci pokud je potřeba.
+            pass
+
         return processed, metadata
 
     def _process_emphasis(self, text: str) -> Tuple[str, List[Dict]]:
@@ -137,11 +144,13 @@ class ProsodyProcessor:
         for pattern, rate in ProsodyProcessor.PROSODY_RATE_PATTERNS:
             def replace_rate(match):
                 content = match.group(1)
-                # Pro změnu rychlosti přidáme mezery (zpomalí) nebo je odstraníme (zrychlí)
+                # Pro změnu rychlosti použijeme interpunkci nebo mikro-pauzy
                 if rate == 'SLOW' or rate == 'X_SLOW':
-                    modified = ' '.join(list(content))  # Přidá mezery mezi znaky
+                    # Pro zpomalení vložíme tečku za každé slovo (mikropauzy)
+                    modified = content.replace(' ', '. ') + '.'
                 elif rate == 'FAST' or rate == 'X_FAST':
-                    modified = content.replace(' ', '')  # Odstraní mezery
+                    # Pro zrychlení odstraníme přebytečné mezery a interpunkci
+                    modified = content.replace(' ', '')
                 else:
                     modified = content
 

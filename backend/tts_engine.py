@@ -6,7 +6,7 @@ import asyncio
 import threading
 import warnings
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 import re
 import time
 from TTS.api import TTS
@@ -846,17 +846,39 @@ class XTTSEngine:
             # Vždy předáváme všechny parametry, ne jen když se liší od výchozích hodnot
             # POZNÁMKA: XTTS-v2 nemusí podporovat parametr "speed" přímo v tts_to_file,
             # takže změnu rychlosti provádíme pomocí post-processing (viz níže)
+
+            # Validace a korekce extrémních parametrů, které mohou způsobovat problémy
+            # Extrémně nízká temperature (< 0.2) může způsobovat chrčení a dlouhé ticho
+            safe_temperature = max(0.3, min(1.0, temperature)) if temperature < 0.3 else temperature
+            if safe_temperature != temperature:
+                print(f"⚠️ Temperature {temperature} je příliš nízká, upravuji na {safe_temperature} (min: 0.3)")
+
+            # Extrémně vysoká length_penalty (> 1.5) může způsobovat velmi dlouhé generování
+            safe_length_penalty = min(1.3, max(0.5, length_penalty)) if length_penalty > 1.3 else length_penalty
+            if safe_length_penalty != length_penalty:
+                print(f"⚠️ Length penalty {length_penalty} je příliš vysoká, upravuji na {safe_length_penalty} (max: 1.3)")
+
+            # Extrémně nízká repetition_penalty (< 1.3) může způsobovat opakování
+            safe_repetition_penalty = max(1.5, min(3.0, repetition_penalty)) if repetition_penalty < 1.5 else repetition_penalty
+            if safe_repetition_penalty != repetition_penalty:
+                print(f"⚠️ Repetition penalty {repetition_penalty} je příliš nízká, upravuji na {safe_repetition_penalty} (min: 1.5)")
+
+            # Extrémně nízká top_p (< 0.3) může způsobovat problémy
+            safe_top_p = max(0.5, min(0.95, top_p)) if top_p < 0.5 else top_p
+            if safe_top_p != top_p:
+                print(f"⚠️ Top-p {top_p} je příliš nízká, upravuji na {safe_top_p} (min: 0.5)")
+
             tts_params = {
                 "text": processed_text,
                 "speaker_wav": speaker_wav,
                 "language": language,
                 "file_path": output_path,
                 # speed se nepředává - použijeme post-processing místo toho
-                "temperature": temperature,
-                "length_penalty": length_penalty,
-                "repetition_penalty": repetition_penalty,
+                "temperature": safe_temperature,
+                "length_penalty": safe_length_penalty,
+                "repetition_penalty": safe_repetition_penalty,
                 "top_k": top_k,
-                "top_p": top_p
+                "top_p": safe_top_p
             }
 
             # Volitelné: použít caching conditioning latents (pokud to verze TTS podporuje)
@@ -988,14 +1010,54 @@ class XTTSEngine:
             _progress(55, "tts", "XTTS inference dokončeno")
 
             _progress(58, "upsample", "Načítám audio…")
-            # Post-processing: upsampling
-            # XTTS-v2 generuje na 22050 Hz, ale chceme CD kvalitu (44100 Hz)
+            # Post-processing: trimování PŘED upsamplingem (odstraní ticho a artefakty dříve)
+            # XTTS-v2 generuje na 22050-24000 Hz, ale chceme CD kvalitu (44100 Hz)
             try:
                 import librosa
                 import soundfile as sf
 
                 # Načtení audio s původní sample rate
                 audio, sr = librosa.load(output_path, sr=None)
+                original_length = len(audio) / sr
+
+                # TRIMOVÁNÍ PŘED UPSAMPLINGEM - důležité pro odstranění ticha a artefaktů
+                # Pro krátké texty použij agresivnější trim
+                word_count = len(text.split())
+                is_short_text = word_count <= 3
+
+                if is_short_text or original_length > 10.0:
+                    try:
+                        from backend.vad_processor import get_vad_processor
+                        from backend.config import ENABLE_VAD
+
+                        if ENABLE_VAD:
+                            vad_processor = get_vad_processor()
+                            padding = 20.0 if is_short_text else 50.0
+                            audio_trimmed = vad_processor.trim_silence_vad(
+                                audio,
+                                sample_rate=sr,
+                                padding_ms=padding
+                            )
+                            if audio_trimmed is not None and len(audio_trimmed) > 0:
+                                audio = audio_trimmed
+                                print(f"✂️ VAD trim (před upsamplingem): {original_length:.1f}s → {len(audio)/sr:.1f}s")
+                        else:
+                            # Fallback: agresivnější librosa trim
+                            top_db = 40 if is_short_text else 30
+                            audio, _ = librosa.effects.trim(audio, top_db=top_db, frame_length=2048, hop_length=512)
+                            print(f"✂️ Librosa trim (před upsamplingem): {original_length:.1f}s → {len(audio)/sr:.1f}s")
+                    except Exception as e:
+                        # Fallback: agresivnější librosa trim
+                        top_db = 40 if is_short_text else 30
+                        audio, _ = librosa.effects.trim(audio, top_db=top_db, frame_length=2048, hop_length=512)
+                        print(f"✂️ Fallback trim (před upsamplingem): {original_length:.1f}s → {len(audio)/sr:.1f}s")
+
+                # Maximální délka pro krátké texty (před upsamplingem)
+                if is_short_text:
+                    max_duration_samples = int(5.0 * sr)
+                    if len(audio) > max_duration_samples:
+                        print(f"⚠️ Krátký text ({word_count} slova) je příliš dlouhý ({len(audio)/sr:.1f}s), ořezávám na 5s")
+                        audio = audio[:max_duration_samples]
 
                 # Upsampling na cílovou sample rate (pokud je jiná)
                 if sr != OUTPUT_SAMPLE_RATE:
@@ -1264,12 +1326,13 @@ class XTTSEngine:
                 czech_processor = get_czech_text_processor()
                 text = czech_processor.process_text(
                     text,
-                    apply_voicing=False,  # Spodoba znělosti je fonetický jev, XTTS by měl zvládnout automaticky
-                    apply_glottal_stop=False,  # Ráz se generuje automaticky
-                    apply_consonant_groups=False  # XTTS by měl správně vyslovit "mě" jako "mňe"
+                    apply_voicing=True,  # Aktivováno pro lepší výslovnost
+                    apply_glottal_stop=True, # Aktivováno pro lepší srozumitelnost
+                    apply_consonant_groups=True,
+                    expand_abbreviations=True,
+                    expand_numbers=True
                 )
-                # Normalizace textu
-                text = czech_processor.normalize_text(text)
+                return text # CzechTextProcessor už udělal všechnu práci
             except Exception as e:
                 print(f"[WARN] Varovani: Czech text processing selhal: {e}")
 
@@ -1295,100 +1358,8 @@ class XTTSEngine:
             except Exception as e:
                 print(f"[WARN] Varovani: Dialect conversion selhal: {e}")
 
-        # 1. Normalizace interpunkce
-        text = text.replace("...", "…")
-        text = text.replace("--", "—")
-        text = text.replace("''", '"')
-        text = text.replace("``", '"')
+        return text
 
-        # 2. Převod zkratek na plné formy
-        abbreviations = {
-            "např.": "například",
-            "atd.": "a tak dále",
-            "tj.": "to jest",
-            "tzn.": "to znamená",
-            "apod.": "a podobně",
-            "př.": "příklad",
-            "č.": "číslo",
-            "str.": "strana",
-            "s.": "strana",
-            "r.": "rok",
-            "m.": "měsíc",
-            "min.": "minuta",
-            "sek.": "sekunda",
-            "km/h": "kilometrů za hodinu",
-            "m/s": "metrů za sekundu",
-            "cca": "přibližně",
-            "atp.": "a tak podobně",
-            "tzv.": "takzvaný",
-            "vč.": "včetně",
-            "vč": "včetně",
-            "čes.": "český",
-            "angl.": "anglický",
-            "tel.": "telefon",
-            "č.p.": "číslo popisné",
-            "č.j.": "číslo jednací",
-            "Kč": "korun českých",
-            "mil.": "milionů",
-            "mld.": "miliard",
-            "tis.": "tisíc"
-        }
-        for abbr, full in abbreviations.items():
-            # Nahradit pouze celá slova (s mezerami nebo interpunkcí)
-            # Použijeme regex, který bere v úvahu i tečku na konci zkratky
-            if abbr.endswith('.'):
-                pattern = r'\b' + re.escape(abbr)
-            else:
-                pattern = r'\b' + re.escape(abbr) + r'\b'
-            text = re.sub(pattern, full, text, flags=re.IGNORECASE)
-
-        # 3. Normalizace mezer
-        text = re.sub(r'\s+', ' ', text)  # Více mezer na jednu
-        text = re.sub(r'\s+([.,!?;:])', r'\1', text)  # Mezera před interpunkcí
-        text = text.strip()
-
-        # 4. Rozšířený převod čísel na slova
-        # Slovník pro základní čísla (0-100)
-        number_words = {
-            0: "nula", 1: "jedna", 2: "dva", 3: "tři", 4: "čtyři", 5: "pět",
-            6: "šest", 7: "sedm", 8: "osm", 9: "devět", 10: "deset",
-            11: "jedenáct", 12: "dvanáct", 13: "třináct", 14: "čtrnáct", 15: "patnáct",
-            16: "šestnáct", 17: "sedmnáct", 18: "osmnáct", 19: "devatenáct", 20: "dvacet",
-            30: "třicet", 40: "čtyřicet", 50: "padesát", 60: "šedesát",
-            70: "sedmdesát", 80: "osmdesát", 90: "devadesát", 100: "sto"
-        }
-
-        def number_to_words(num_str: str) -> str:
-            """Převede číslo na slovo (jednoduchá verze)"""
-            try:
-                num = int(num_str)
-                if num in number_words:
-                    return number_words[num]
-                elif num < 100:
-                    tens = (num // 10) * 10
-                    ones = num % 10
-                    if tens in number_words and ones in number_words:
-                        return f"{number_words[tens]} {number_words[ones]}"
-                # Pro větší čísla použijeme jednoduchý převod
-                # nebo necháme číslo jako text
-                return num_str
-            except:
-                return num_str
-
-        # Najdi čísla v textu a převeď je
-        # Pattern pro celá čísla (1-3 cifry, aby se nechytly roky, telefony atd.)
-        pattern = r'\b([0-9]{1,3})\b'
-
-        def replace_number(match):
-            num_str = match.group(1)
-            # Přeskoč pokud je to součást většího čísla nebo data
-            if len(num_str) > 3:
-                return num_str
-            return number_to_words(num_str)
-
-        processed_text = re.sub(pattern, replace_number, text)
-
-        return processed_text
 
     async def warmup(self, demo_voice_path: Optional[str] = None):
         """
@@ -1770,6 +1741,378 @@ class XTTSEngine:
                 ProgressManager.update(job_id, percent=95, stage="post", message="Dokončuji…")
             except Exception:
                 pass
+        return str(output_path)
+
+    async def generate_multi_lang_speaker(
+        self,
+        text: str,
+        default_speaker_wav: str,
+        default_language: str = "cs",
+        speaker_map: Optional[Dict[str, str]] = None,
+        job_id: Optional[str] = None,
+        **kwargs
+    ) -> str:
+        """
+        Generuje řeč pro text s více jazyky a mluvčími
+
+        Podporuje syntaxi: [lang:speaker]text[/lang] nebo [lang]text[/lang]
+
+        Args:
+            text: Text s anotacemi [lang:speaker]text[/lang]
+            default_speaker_wav: Výchozí mluvčí pro neanotované části
+            default_language: Výchozí jazyk
+            speaker_map: Mapování speaker_id -> speaker_wav_path
+            job_id: ID jobu pro progress tracking
+            **kwargs: Ostatní parametry (speed, temperature, atd.)
+
+        Returns:
+            Cesta k finálnímu audio souboru
+        """
+        from backend.multi_lang_speaker_processor import MultiLangSpeakerProcessor
+        import re
+
+        # Nejdříve zpracuj pauzy - rozsekej text podle [pause:ms] a pak parsuj každý kus
+        # Podporované formy: [pause], [pause:200], [pause=200], [pause:200ms]
+        pause_re = re.compile(r"\[pause(?:\s*[:=]\s*(\d+)\s*(?:ms)?)?\]", re.IGNORECASE)
+        pause_matches = list(pause_re.finditer(text))
+
+        # Pokud jsou v textu pauzy, rozsekej text a zpracuj každý kus zvlášť
+        if pause_matches:
+            print(f"⏸️  Detekovány pauzy v multi-lang textu: {len(pause_matches)} pauz")
+            text_parts = []
+            pauses_between = []
+            last_pos = 0
+
+            for m in pause_matches:
+                # Text před pauzou
+                part_before = text[last_pos:m.start()].strip()
+                if part_before:
+                    text_parts.append(part_before)
+
+                # Délka pauzy
+                dur_raw = m.group(1)
+                try:
+                    dur = int(dur_raw) if dur_raw is not None else 500
+                except Exception:
+                    dur = 500
+                dur = max(0, min(dur, 10000))  # 0–10s safety
+                pauses_between.append(dur)
+
+                last_pos = m.end()
+
+            # Zbytek textu po poslední pauze
+            tail = text[last_pos:].strip()
+            if tail:
+                text_parts.append(tail)
+
+            # Pokud máme části s pauzami, zpracuj každou část zvlášť a spoj s pauzami
+            if len(text_parts) > 1:
+                print(f"   Rozděleno na {len(text_parts)} částí s {len(pauses_between)} pauzami")
+                audio_files = []
+
+                # Vytvoř processor
+                default_lang = default_language if default_language else "cs"
+                processor = MultiLangSpeakerProcessor(
+                    default_language=default_lang,
+                    default_speaker=default_speaker_wav
+                )
+
+                # Registruj mluvčí
+                if speaker_map:
+                    for speaker_id, speaker_wav in speaker_map.items():
+                        processor.register_speaker(speaker_id, speaker_wav)
+
+                # Zpracuj každou část zvlášť
+                for i, part_text in enumerate(text_parts):
+                    part_segments = processor.parse_text(part_text)
+
+                    # Pokud má část jen jeden segment, použij standardní generování
+                    if len(part_segments) == 1:
+                        seg = part_segments[0]
+                        part_audio = await self.generate(
+                            text=seg.text,
+                            speaker_wav=seg.speaker_wav or default_speaker_wav,
+                            language=seg.language,
+                            enable_batch=False,
+                            handle_pauses=False,  # Pauzy už jsme zpracovali
+                            job_id=None,
+                            **kwargs
+                        )
+                        audio_files.append(part_audio)
+                    else:
+                        # Více segmentů v části - generuj každý segment zvlášť a spoj
+                        part_audio_files = []
+                        for seg in part_segments:
+                            seg_audio = await self.generate(
+                                text=seg.text,
+                                speaker_wav=seg.speaker_wav or default_speaker_wav,
+                                language=seg.language,
+                                enable_batch=False,
+                                handle_pauses=False,
+                                enable_trim=False,
+                                job_id=None,
+                                **kwargs
+                            )
+                            part_audio_files.append(seg_audio)
+
+                        # Spoj segmenty části
+                        from backend.audio_concatenator import AudioConcatenator
+                        temp_output = OUTPUTS_DIR / f"{uuid.uuid4()}.wav"
+                        AudioConcatenator.concatenate_audio(
+                            part_audio_files,
+                            str(temp_output),
+                            crossfade_ms=100
+                        )
+                        # Uklidit dočasné segmenty
+                        for af in part_audio_files:
+                            try:
+                                Path(af).unlink()
+                            except Exception:
+                                pass
+                        part_audio = str(temp_output)
+                        audio_files.append(part_audio)
+
+                    # Přidej pauzu po části (kromě poslední)
+                    if i < len(pauses_between):
+                        pause_ms = pauses_between[i]
+                        # Pauza se přidá při spojování
+
+                # Spoj všechny části s pauzami
+                from backend.audio_concatenator import AudioConcatenator
+                output_filename = f"{uuid.uuid4()}.wav"
+                output_path = OUTPUTS_DIR / output_filename
+
+                # Spoj s pauzami
+                concatenated_audio = []
+                import librosa
+                import soundfile as sf
+                import numpy as np
+                sr = OUTPUT_SAMPLE_RATE
+
+                for i, audio_file in enumerate(audio_files):
+                    audio, _ = librosa.load(audio_file, sr=sr)
+                    concatenated_audio.append(audio)
+
+                    # Přidej pauzu po části (kromě poslední)
+                    if i < len(pauses_between):
+                        pause_ms = pauses_between[i]
+                        pause_samples = int(pause_ms * sr / 1000)
+                        if pause_samples > 0:
+                            print(f"⏱️  Pause[{i}]: {pause_ms} ms => {pause_samples} samples")
+                            concatenated_audio.append(np.zeros(pause_samples, dtype=np.float32))
+
+                final_audio = np.concatenate(concatenated_audio) if concatenated_audio else np.array([], dtype=np.float32)
+                sf.write(str(output_path), final_audio, sr)
+
+                # Uklidit dočasné soubory
+                for audio_file in audio_files:
+                    try:
+                        Path(audio_file).unlink()
+                    except Exception:
+                        pass
+
+                print(f"✅ Multi-lang/speaker generování s pauzami dokončeno: {output_path}")
+                return str(output_path)
+
+        # Pokud nejsou pauzy, pokračuj normálně
+        # Vytvoř processor
+        # Výchozí jazyk je čeština, pokud není zadán
+        default_lang = default_language if default_language else "cs"
+        processor = MultiLangSpeakerProcessor(
+            default_language=default_lang,
+            default_speaker=default_speaker_wav
+        )
+
+        # Registruj mluvčí
+        if speaker_map:
+            for speaker_id, speaker_wav in speaker_map.items():
+                processor.register_speaker(speaker_id, speaker_wav)
+
+        # Parsuj text na segmenty
+        segments = processor.parse_text(text)
+
+        if job_id:
+            try:
+                from backend.progress_manager import ProgressManager
+                ProgressManager.update(
+                    job_id,
+                    percent=2,
+                    stage="parse",
+                    message=f"Parsováno {len(segments)} segmentů…",
+                    meta_update={"segments_total": len(segments)}
+                )
+            except Exception:
+                pass
+
+        print(f"📝 Multi-lang/speaker: parsováno {len(segments)} segmentů")
+        if len(segments) > 1:
+            print(processor.get_segments_summary(segments))
+
+        if len(segments) == 1:
+            # Jen jeden segment - použij standardní generování
+            segment = segments[0]
+
+            # Pro cross-language generování uprav parametry
+            segment_kwargs = kwargs.copy()
+            speaker_wav_path = segment.speaker_wav or default_speaker_wav
+            is_cross_language = False
+
+            # Detekce cross-language: pokud je jazyk jiný než cs a hlas je pravděpodobně český
+            if segment.language != "cs" and speaker_wav_path:
+                speaker_name = Path(speaker_wav_path).stem.lower()
+                czech_indicators = ['buchty', 'klepl', 'bohumil', 'werich', 'pohadka', 'brodsky', 'speakato']
+                if any(indicator in speaker_name for indicator in czech_indicators):
+                    is_cross_language = True
+                    print(f"⚠️ Cross-language detekce: používá se český hlas ({speaker_name}) pro jazyk {segment.language}")
+                    print(f"   Pro lepší kvalitu doporučujeme použít hlas v jazyce {segment.language}")
+                    # Uprav parametry pro cross-language
+                    if 'temperature' not in segment_kwargs or segment_kwargs.get('temperature', 0.7) < 0.5:
+                        segment_kwargs['temperature'] = 0.7
+                    if 'length_penalty' not in segment_kwargs or segment_kwargs.get('length_penalty', 1.0) > 1.2:
+                        segment_kwargs['length_penalty'] = 1.0
+                    if 'repetition_penalty' not in segment_kwargs or segment_kwargs.get('repetition_penalty', 2.0) < 1.5:
+                        segment_kwargs['repetition_penalty'] = 2.0
+                    print(f"   Upravené parametry pro cross-language: temp={segment_kwargs.get('temperature', 0.7)}, length_penalty={segment_kwargs.get('length_penalty', 1.0)}")
+
+            result = await self.generate(
+                text=segment.text,
+                speaker_wav=speaker_wav_path,
+                language=segment.language,
+                enable_batch=False,  # Batch už řešíme na úrovni segmentů
+                job_id=job_id,
+                **segment_kwargs
+            )
+
+            # Pro krátké texty (1-3 slova) použij agresivnější trimování
+            # XTTS často generuje dlouhé ticho pro velmi krátké texty
+            # POZNÁMKA: Trimování se provádí v _generate_sync PŘED upsamplingem,
+            # takže tady jen kontrolujeme délku a případně omezíme
+            word_count = len(segment.text.split())
+            if word_count <= 3:
+                try:
+                    import librosa
+                    import soundfile as sf
+                    audio, sr = librosa.load(result, sr=None)
+                    original_length = len(audio) / sr
+
+                    # Maximální délka pro krátké texty (5 sekund)
+                    max_duration_samples = int(5.0 * sr)
+                    if len(audio) > max_duration_samples:
+                        print(f"⚠️ Krátký segment ({word_count} slova) je příliš dlouhý ({len(audio)/sr:.1f}s), ořezávám na 5s")
+                        audio = audio[:max_duration_samples]
+                        sf.write(result, audio, sr)
+                        print(f"✂️ Finální ořez krátkého segmentu: {original_length:.1f}s → {len(audio)/sr:.1f}s")
+                except Exception as e:
+                    print(f"⚠️ Warning: Finální ořez krátkého segmentu selhal: {e}")
+
+            return result
+
+        # Generuj každý segment zvlášť
+        audio_files = []
+        for i, segment in enumerate(segments):
+            if job_id:
+                try:
+                    from backend.progress_manager import ProgressManager
+                    ProgressManager.update(
+                        job_id,
+                        percent=5 + (85.0 * i / max(1, len(segments))),
+                        stage="multi_segment",
+                        message=f"Generuji segment {i+1}/{len(segments)} ({segment.language})…",
+                        meta_update={"segment": i + 1, "segments_total": len(segments), "language": segment.language}
+                    )
+                except Exception:
+                    pass
+
+            print(f"🎤 Generuji segment {i+1}/{len(segments)}: lang={segment.language}, speaker={segment.speaker_id or 'default'}")
+
+            # Odstraň enable_trim z kwargs, protože ho explicitně nastavujeme
+            segment_kwargs = {k: v for k, v in kwargs.items() if k != 'enable_trim'}
+
+            # Pro cross-language generování (např. český hlas pro anglický text) použij lepší parametry
+            # XTTS může mít problémy s cross-language cloning, takže upravíme parametry
+            speaker_wav_path = segment.speaker_wav or default_speaker_wav
+            is_cross_language = False
+
+            # Detekce cross-language: pokud je jazyk jiný než cs a hlas je pravděpodobně český
+            if segment.language != "cs" and speaker_wav_path:
+                # Zkontroluj název souboru - pokud obsahuje české názvy, je to cross-language
+                speaker_name = Path(speaker_wav_path).stem.lower()
+                czech_indicators = ['buchty', 'klepl', 'bohumil', 'werich', 'pohadka', 'brodsky', 'speakato']
+                if any(indicator in speaker_name for indicator in czech_indicators):
+                    is_cross_language = True
+                    print(f"⚠️ Cross-language detekce: používá se český hlas ({speaker_name}) pro jazyk {segment.language}")
+                    print(f"   Pro lepší kvalitu doporučujeme použít hlas v jazyce {segment.language}")
+                    # Uprav parametry pro cross-language - vyšší temperature, nižší length_penalty
+                    if 'temperature' not in segment_kwargs or segment_kwargs.get('temperature', 0.7) < 0.5:
+                        segment_kwargs['temperature'] = 0.7  # Vyšší temperature pro lepší cross-language
+                    if 'length_penalty' not in segment_kwargs or segment_kwargs.get('length_penalty', 1.0) > 1.2:
+                        segment_kwargs['length_penalty'] = 1.0  # Nižší length_penalty pro kratší generování
+                    if 'repetition_penalty' not in segment_kwargs or segment_kwargs.get('repetition_penalty', 2.0) < 1.5:
+                        segment_kwargs['repetition_penalty'] = 2.0  # Vyšší repetition_penalty pro lepší kvalitu
+                    print(f"   Upravené parametry pro cross-language: temp={segment_kwargs.get('temperature', 0.7)}, length_penalty={segment_kwargs.get('length_penalty', 1.0)}")
+
+            segment_audio = await self.generate(
+                text=segment.text,
+                speaker_wav=speaker_wav_path,
+                language=segment.language,
+                enable_batch=False,  # Batch už řešíme na úrovni segmentů
+                handle_pauses=False,  # Pauzy řešíme na úrovni spojování
+                enable_trim=False,  # Vypneme trim pro jednotlivé segmenty - trimneme až při spojování
+                job_id=None,  # Nepředáváme job_id do jednotlivých segmentů
+                **segment_kwargs
+            )
+
+            # Pro krátké texty (1-3 slova) použij kontrolu délky před spojením
+            # POZNÁMKA: Trimování se provádí v _generate_sync PŘED upsamplingem,
+            # takže tady jen kontrolujeme délku a případně omezíme
+            word_count = len(segment.text.split())
+            if word_count <= 3:
+                try:
+                    import librosa
+                    import soundfile as sf
+                    audio, sr = librosa.load(segment_audio, sr=None)
+                    original_length = len(audio) / sr
+
+                    # Maximální délka pro krátké texty (5 sekund)
+                    max_duration_samples = int(5.0 * sr)
+                    if len(audio) > max_duration_samples:
+                        print(f"⚠️ Krátký segment {i+1} ({word_count} slova) je příliš dlouhý ({len(audio)/sr:.1f}s), ořezávám na 5s")
+                        audio = audio[:max_duration_samples]
+                        sf.write(segment_audio, audio, sr)
+                        print(f"✂️ Finální ořez segmentu {i+1}: {original_length:.1f}s → {len(audio)/sr:.1f}s")
+                except Exception as e:
+                    print(f"⚠️ Warning: Finální ořez krátkého segmentu selhal: {e}")
+
+            audio_files.append(segment_audio)
+
+        # Spoj všechny segmenty
+        from backend.audio_concatenator import AudioConcatenator
+
+        output_filename = f"{uuid.uuid4()}.wav"
+        output_path = OUTPUTS_DIR / output_filename
+
+        if job_id:
+            try:
+                from backend.progress_manager import ProgressManager
+                ProgressManager.update(job_id, percent=92, stage="concat", message="Spojuji segmenty…")
+            except Exception:
+                pass
+
+        print(f"🔗 Spojuji {len(audio_files)} audio segmentů...")
+        AudioConcatenator.concatenate_audio(
+            audio_files,
+            str(output_path),
+            crossfade_ms=100  # Zvýšený crossfade pro plynulejší přechody (100ms místo 50ms)
+        )
+
+        # Uklidit dočasné soubory
+        for audio_file in audio_files:
+            try:
+                Path(audio_file).unlink()
+            except Exception:
+                pass
+
+        print(f"✅ Multi-lang/speaker generování dokončeno: {output_path}")
         return str(output_path)
 
     def get_status(self) -> dict:
