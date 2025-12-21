@@ -204,6 +204,135 @@ async def generate_speech(
         if not text or len(text.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text je prázdný")
 
+        # Automatická detekce multi-lang/speaker anotací
+        # Pokud text obsahuje syntaxi [lang:speaker] nebo [lang], použij multi-lang endpoint
+        import re
+        multi_lang_pattern = re.compile(r'\[(\w+)(?::([^\]]+))?\]')
+        has_multi_lang_annotations = bool(multi_lang_pattern.search(text))
+
+        if has_multi_lang_annotations:
+            # Přesměruj na multi-lang zpracování
+            print(f"🔍 Detekovány multi-lang/speaker anotace v textu, používám multi-lang generování")
+            # Zpracuj výchozího mluvčího (stejný kód jako níže)
+            default_speaker_wav = None
+            if voice_file:
+                file_ext = Path(voice_file.filename).suffix
+                temp_filename = f"{uuid.uuid4()}{file_ext}"
+                temp_path = UPLOADS_DIR / temp_filename
+                async with aiofiles.open(temp_path, 'wb') as f:
+                    content = await voice_file.read()
+                    await f.write(content)
+                processed_path, error = AudioProcessor.process_uploaded_file(str(temp_path))
+                if error:
+                    raise HTTPException(status_code=400, detail=error)
+                default_speaker_wav = processed_path
+            elif demo_voice:
+                demo_path = DEMO_VOICES_DIR / f"{demo_voice}.wav"
+                if demo_path.exists():
+                    default_speaker_wav = str(demo_path)
+                else:
+                    available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+                    if available_voices:
+                        default_speaker_wav = str(available_voices[0])
+                    else:
+                        raise HTTPException(status_code=404, detail="Žádné demo hlasy nejsou k dispozici")
+            else:
+                available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+                if available_voices:
+                    default_speaker_wav = str(available_voices[0])
+                else:
+                    raise HTTPException(status_code=400, detail="Musí být zadán voice_file nebo demo_voice")
+
+            # Parsuj speaker mapping z textu (extrahuj všechny speaker_id)
+            # Automaticky mapuj demo hlasy podle jejich názvů
+            speaker_ids = set()
+            for match in multi_lang_pattern.finditer(text):
+                speaker_id = match.group(2)
+                if speaker_id:
+                    speaker_ids.add(speaker_id)
+
+            # Vytvoř speaker mapping - automaticky zkus najít demo hlasy podle názvu
+            speaker_map = {}
+            if speaker_ids:
+                for sid in speaker_ids:
+                    # Zkus najít demo hlas podle názvu
+                    demo_path = get_demo_voice_path(sid)
+                    if demo_path:
+                        speaker_map[sid] = demo_path
+                        print(f"🎤 Speaker '{sid}' mapován na demo hlas: {demo_path}")
+                    elif Path(sid).exists():
+                        # Je to cesta k souboru
+                        speaker_map[sid] = sid
+                        print(f"🎤 Speaker '{sid}' mapován na soubor: {sid}")
+                    else:
+                        # Použij výchozího mluvčího
+                        speaker_map[sid] = default_speaker_wav
+                        print(f"🎤 Speaker '{sid}' mapován na výchozí hlas (demo hlas '{sid}' neexistuje)")
+
+            # Nastavení parametrů
+            if speed is not None:
+                try:
+                    tts_speed = float(speed) if isinstance(speed, str) else float(speed)
+                except (ValueError, TypeError):
+                    tts_speed = TTS_SPEED
+            else:
+                tts_speed = TTS_SPEED
+
+            tts_temperature = temperature if temperature is not None else TTS_TEMPERATURE
+            tts_length_penalty = length_penalty if length_penalty is not None else TTS_LENGTH_PENALTY
+            tts_repetition_penalty = repetition_penalty if repetition_penalty is not None else TTS_REPETITION_PENALTY
+            tts_top_k = top_k if top_k is not None else TTS_TOP_K
+            tts_top_p = top_p if top_p is not None else TTS_TOP_P
+
+            enable_enh = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
+            enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
+            enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
+            enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
+            enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
+            enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
+            enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
+            enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+
+            # Generuj pomocí multi-lang metody
+            # Výchozí jazyk je čeština (cs)
+            output_path = await tts_engine.generate_multi_lang_speaker(
+                text=text,
+                default_speaker_wav=default_speaker_wav,
+                default_language="cs",  # Výchozí jazyk je čeština
+                speaker_map=speaker_map if speaker_map else None,
+                speed=tts_speed,
+                temperature=tts_temperature,
+                length_penalty=tts_length_penalty,
+                repetition_penalty=tts_repetition_penalty,
+                top_k=tts_top_k,
+                top_p=tts_top_p,
+                quality_mode=quality_mode,
+                enhancement_preset=enhancement_preset,
+                seed=seed,
+                enable_vad=enable_vad_flag,
+                enable_normalization=enable_norm,
+                enable_denoiser=enable_den,
+                enable_compressor=enable_comp,
+                enable_deesser=enable_deess,
+                enable_eq=enable_eq_flag,
+                enable_trim=enable_trim_flag,
+                job_id=job_id
+            )
+
+            filename = Path(output_path).name
+            audio_url = f"/api/audio/{filename}"
+
+            if job_id:
+                ProgressManager.done(job_id)
+
+            return {
+                "audio_url": audio_url,
+                "filename": filename,
+                "success": True,
+                "job_id": job_id,
+                "multi_lang": True,
+            }
+
         # Automaticky zapnout batch processing pro dlouhé texty
         text_length = len(text)
         if text_length > MAX_TEXT_LENGTH:
@@ -477,6 +606,259 @@ async def generate_speech(
                 "job_id": job_id,
                 "reference_quality": reference_quality,
             }
+
+    except HTTPException:
+        if job_id:
+            ProgressManager.fail(job_id, "HTTPException")
+        raise
+    except Exception as e:
+        msg = str(e)
+        if job_id:
+            ProgressManager.fail(job_id, msg)
+        raise HTTPException(status_code=500, detail=f"Chyba při generování: {msg}")
+
+
+def get_demo_voice_path(demo_voice_name: str) -> Optional[str]:
+    """
+    Vrátí cestu k demo hlasu nebo None pokud neexistuje
+
+    Podporuje názvy s podtržítky, pomlčkami, velkými písmeny a mezerami.
+    Vyhledávání je case-insensitive a ignoruje mezery na začátku/konci.
+
+    Args:
+        demo_voice_name: Název demo hlasu (např. "buchty01", "Pohadka_muz", "Klepl-Bolzakov-rusky")
+
+    Returns:
+        Cesta k WAV souboru nebo None
+    """
+    if not demo_voice_name:
+        return None
+
+    # Odstraň mezery na začátku/konci
+    demo_voice_name = demo_voice_name.strip()
+
+    # Nejdříve zkus přesný název (case-sensitive)
+    demo_path = DEMO_VOICES_DIR / f"{demo_voice_name}.wav"
+    if demo_path.exists():
+        return str(demo_path)
+
+    # Pak zkus case-insensitive vyhledávání
+    # Projdeme všechny WAV soubory a porovnáme názvy (bez přípony)
+    for wav_file in DEMO_VOICES_DIR.glob("*.wav"):
+        file_stem = wav_file.stem.strip()  # Název bez přípony, bez mezer
+        # Porovnej case-insensitive
+        if file_stem.lower() == demo_voice_name.lower():
+            return str(wav_file)
+
+    # Pokud nic nenašlo, vrať None
+    return None
+
+
+@app.post("/api/tts/generate-multi")
+async def generate_speech_multi(
+    text: str = Form(...),
+    job_id: str = Form(None),
+    default_voice_file: UploadFile = File(None),
+    default_demo_voice: str = Form(None),
+    default_language: str = Form("cs"),
+    speaker_mapping: str = Form(None),  # JSON: {"speaker1": "demo_voice_name", "speaker2": "path/to/file.wav"}
+    speed: str = Form(None),
+    temperature: float = Form(None),
+    length_penalty: float = Form(None),
+    repetition_penalty: float = Form(None),
+    top_k: int = Form(None),
+    top_p: float = Form(None),
+    quality_mode: str = Form(None),
+    enhancement_preset: str = Form(None),
+    enable_enhancement: str = Form(None),
+    seed: int = Form(None),
+    enable_vad: str = Form(None),
+    enable_normalization: str = Form(None),
+    enable_denoiser: str = Form(None),
+    enable_compressor: str = Form(None),
+    enable_deesser: str = Form(None),
+    enable_eq: str = Form(None),
+    enable_trim: str = Form(None),
+):
+    """
+    Generuje řeč pro text s více jazyky a mluvčími
+
+    Podporuje syntaxi: [lang:speaker]text[/lang] nebo [lang]text[/lang]
+
+    Body:
+        text: Text s anotacemi [lang:speaker]text[/lang] (např. "[cs:voice1]Ahoj[/cs] [en:voice2]Hello[/en]")
+        default_voice_file: Výchozí hlas pro neanotované části
+        default_demo_voice: Výchozí demo hlas
+        default_language: Výchozí jazyk (cs, en, de, ...)
+        speaker_mapping: JSON mapování speaker_id -> demo_voice_name nebo path (např. {"voice1": "demo1", "voice2": "/path/to/voice.wav"})
+        speed: Rychlost řeči (0.5-2.0)
+        temperature: Teplota pro sampling (0.0-1.0)
+        ... (ostatní parametry jako v /api/tts/generate)
+    """
+    import json
+
+    try:
+        # Zaregistruj job_id
+        if job_id:
+            ProgressManager.start(
+                job_id,
+                meta={
+                    "text_length": len(text or ""),
+                    "endpoint": "/api/tts/generate-multi",
+                },
+            )
+
+        # Validace textu
+        if not text or len(text.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Text je prázdný")
+
+        # Zpracuj výchozího mluvčího
+        default_speaker_wav = None
+
+        if default_voice_file:
+            # Uložení nahraného souboru
+            file_ext = Path(default_voice_file.filename).suffix
+            temp_filename = f"{uuid.uuid4()}{file_ext}"
+            temp_path = UPLOADS_DIR / temp_filename
+
+            async with aiofiles.open(temp_path, 'wb') as f:
+                content = await default_voice_file.read()
+                await f.write(content)
+
+            # Zpracování audio
+            processed_path, error = AudioProcessor.process_uploaded_file(str(temp_path))
+            if error:
+                raise HTTPException(status_code=400, detail=error)
+            default_speaker_wav = processed_path
+
+        elif default_demo_voice:
+            demo_path = get_demo_voice_path(default_demo_voice)
+            if demo_path:
+                default_speaker_wav = demo_path
+            else:
+                # Zkus najít jakýkoliv WAV soubor v demo-voices
+                available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+                if available_voices:
+                    default_speaker_wav = str(available_voices[0])
+                    print(f"Demo voice '{default_demo_voice}' not found, using: {default_speaker_wav}")
+                else:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Demo hlas '{default_demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici."
+                    )
+        else:
+            # Zkus použít první dostupný demo hlas
+            available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+            if available_voices:
+                default_speaker_wav = str(available_voices[0])
+                print(f"Žádný výchozí hlas zadán, používám: {default_speaker_wav}")
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Musí být zadán buď default_voice_file nebo default_demo_voice, nebo musí existovat demo hlasy"
+                )
+
+        # Parsuj speaker mapping
+        # Nejdříve automaticky zkus najít demo hlasy podle názvů v textu
+        speaker_map = {}
+        import re
+        multi_lang_pattern = re.compile(r'\[(\w+)(?::([^\]]+))?\]')
+        speaker_ids_from_text = set()
+        for match in multi_lang_pattern.finditer(text):
+            speaker_id = match.group(2)
+            if speaker_id:
+                speaker_ids_from_text.add(speaker_id)
+
+        # Automaticky mapuj demo hlasy podle jejich názvů
+        for sid in speaker_ids_from_text:
+            demo_path = get_demo_voice_path(sid)
+            if demo_path:
+                speaker_map[sid] = demo_path
+                print(f"🎤 Auto-mapování: Speaker '{sid}' -> demo hlas: {demo_path}")
+            elif Path(sid).exists():
+                speaker_map[sid] = sid
+                print(f"🎤 Auto-mapování: Speaker '{sid}' -> soubor: {sid}")
+
+        # Pak aplikuj explicitní speaker_mapping (přepíše automatické mapování)
+        if speaker_mapping:
+            try:
+                mapping_data = json.loads(speaker_mapping)
+                for speaker_id, voice_ref in mapping_data.items():
+                    # voice_ref může být cesta k souboru nebo název demo hlasu
+                    if Path(voice_ref).exists():
+                        speaker_map[speaker_id] = voice_ref
+                    else:
+                        # Zkus demo hlas
+                        demo_path = get_demo_voice_path(voice_ref)
+                        if demo_path:
+                            speaker_map[speaker_id] = demo_path
+                        else:
+                            print(f"[WARN] Speaker '{speaker_id}': voice '{voice_ref}' neexistuje, použije se výchozí hlas")
+            except json.JSONDecodeError as e:
+                raise HTTPException(status_code=400, detail=f"Neplatný speaker_mapping JSON: {str(e)}")
+
+        # Nastavení TTS parametrů
+        if speed is not None:
+            try:
+                tts_speed = float(speed) if isinstance(speed, str) else float(speed)
+            except (ValueError, TypeError):
+                tts_speed = TTS_SPEED
+        else:
+            tts_speed = TTS_SPEED
+
+        tts_temperature = temperature if temperature is not None else TTS_TEMPERATURE
+        tts_length_penalty = length_penalty if length_penalty is not None else TTS_LENGTH_PENALTY
+        tts_repetition_penalty = repetition_penalty if repetition_penalty is not None else TTS_REPETITION_PENALTY
+        tts_top_k = top_k if top_k is not None else TTS_TOP_K
+        tts_top_p = top_p if top_p is not None else TTS_TOP_P
+
+        # Enhancement parametry
+        enable_enh = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
+        enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
+        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
+        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
+        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
+        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
+        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
+        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+
+        # Generuj řeč
+        output_path = await tts_engine.generate_multi_lang_speaker(
+            text=text,
+            default_speaker_wav=default_speaker_wav,
+            default_language=default_language if default_language else "cs",  # Výchozí jazyk je čeština
+            speaker_map=speaker_map if speaker_map else None,
+            speed=tts_speed,
+            temperature=tts_temperature,
+            length_penalty=tts_length_penalty,
+            repetition_penalty=tts_repetition_penalty,
+            top_k=tts_top_k,
+            top_p=tts_top_p,
+            quality_mode=quality_mode,
+            enhancement_preset=enhancement_preset,
+            seed=seed,
+            enable_vad=enable_vad_flag,
+            enable_normalization=enable_norm,
+            enable_denoiser=enable_den,
+            enable_compressor=enable_comp,
+            enable_deesser=enable_deess,
+            enable_eq=enable_eq_flag,
+            enable_trim=enable_trim_flag,
+            job_id=job_id
+        )
+
+        filename = Path(output_path).name
+        audio_url = f"/api/audio/{filename}"
+
+        if job_id:
+            ProgressManager.done(job_id)
+
+        return {
+            "audio_url": audio_url,
+            "filename": filename,
+            "success": True,
+            "job_id": job_id,
+        }
 
     except HTTPException:
         if job_id:
