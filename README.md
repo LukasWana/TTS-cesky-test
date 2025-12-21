@@ -415,4 +415,3 @@ Version: 1.0
 
 - [Coqui TTS](https://github.com/coqui-ai/TTS) za XTTS-v2 model
 - Komunita za podporu a feedback
-
