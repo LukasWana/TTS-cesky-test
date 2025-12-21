@@ -201,3 +201,4 @@ for dialect in converter.get_available_dialects():
 - Pravidla lze snadno rozšířit úpravou JSON souboru
 - Některé převody mohou být nepřesné - vždy testujte výsledky
 
+
