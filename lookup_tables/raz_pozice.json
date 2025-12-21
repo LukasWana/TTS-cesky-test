@@ -1,0 +1,53 @@
+{
+  "description": "Lookup tabulka pro pozice vkládání rázu (glottální okluze [ʔ])",
+  "source": "RÁZ.html, Výslovnostní pravidla – ráz (id=913)",
+  "version": "1.0",
+  "pravidla": {
+    "na_zacatku_slova": {
+      "description": "Ráz se objevuje spontánně na začátku fonace (po pauze)",
+      "priklady": [
+        "['ʔasi dnes 'nehraje]",
+        "['počkám / 'ʔaš to 'dočteš]",
+        "['ʔau̯torem této 'skladbi je / 'ʔoskar 'nedbal]"
+      ],
+      "kdy": "Po pauze, na začátku promluvy nebo po intonační pauze"
+    },
+    "mezi_dvema_samohlaskami": {
+      "description": "Fakultativně mezi dvěma heterosylabickými vokály uvnitř souvislé řeči",
+      "priklady": [
+        "nad očima – [nat ʔočima]/[nadočima]",
+        "předurčená – [př̭etʔurčená]/[př̭edurčená]"
+      ],
+      "kdy": "Mezi dvěma samohláskami, které patří do různých slabik",
+      "fakultativni": true
+    },
+    "po_predponach": {
+      "description": "Po předponách před samohláskou",
+      "priklady": [
+        "předurčená – [př̭etʔurčená]",
+        "nad očima – [nat ʔočima]"
+      ]
+    },
+    "zpusobuje_asimilaci": {
+      "description": "Ráz jako neznělá souhláska způsobuje regresivní znělostní asimilaci",
+      "priklady": {
+        "nad očima": "[nat ʔočima] - d -> t před ʔ",
+        "předurčená": "[př̭etʔurčená] - d -> t před ʔ"
+      },
+      "transformace": "Znělé souhlásky před rázem se mění na neznělé"
+    }
+  },
+  "implementacni_poznamky": {
+    "kdy_vkladat": [
+      "Po pauze (nová promluva nebo intonační pauza)",
+      "Po předponách před samohláskou (fakultativně)",
+      "Mezi heterosylabickými vokály uvnitř souvislé řeči (fakultativně)"
+    ],
+    "kdy_nevkladat": [
+      "Uvnitř slova mezi samohláskami stejné slabiky",
+      "Po souhláskách (není potřeba)"
+    ],
+    "dopad_na_asimilaci": "Ráz způsobuje regresivní asimilaci znělosti (znělé -> neznělé před ʔ)"
+  }
+}
+

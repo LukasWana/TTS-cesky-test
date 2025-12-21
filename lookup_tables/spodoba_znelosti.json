@@ -1,0 +1,125 @@
+{
+  "description": "Lookup tabulka pro pravidla spodoby znělosti - párové souhlásky",
+  "source": "ASIMILACE.html, Výslovnostní pravidla – spodoba znělosti (id=908)",
+  "version": "1.0",
+  "znele_neznele_pary": {
+    "p": "b",
+    "t": "d",
+    "ť": "ď",
+    "k": "g",
+    "f": "v",
+    "s": "z",
+    "š": "ž",
+    "ch": "h",
+    "ř̥": "ř",
+    "c": "dz",
+    "č": "dž"
+  },
+  "pravidla": {
+    "konec_slova": {
+      "description": "Znělé souhlásky se na konci slova vyslovují nezněle",
+      "priklady": {
+        "led": "l e t",
+        "sbor": "z b o r",
+        "les": "l e s",
+        "hrad": "h r a t"
+      }
+    },
+    "pred_neznelou": {
+      "description": "Znělá souhláska před neznělou se mění na neznělou (regresivní asimilace)",
+      "priklady": {
+        "hloubka": "h l o u p k a",
+        "hladký": "h l a t k í",
+        "loďka": "l o ť k a",
+        "gangster": "g a N k s t e r",
+        "lehký": "l e X k í",
+        "Žižka": "ž i š k a",
+        "dívka": "ď í f k a",
+        "hezký": "h e s k í"
+      },
+      "transformace": [
+        {"z": "před neznělými", "->": "s"},
+        {"b": "před k", "->": "p"},
+        {"d": "před k", "->": "t"},
+        {"ď": "před k", "->": "ť"},
+        {"g": "před neznělými", "->": "k"},
+        {"h": "před k", "->": "X"},
+        {"ž": "před k", "->": "š"},
+        {"v": "před neznělými", "->": "f"},
+        {"z": "před neznělými", "->": "s"}
+      ]
+    },
+    "pred_znele": {
+      "description": "Neznělá souhláska před znělou se může měnit na znělou (progresivní asimilace)",
+      "priklady": {
+        "léčba": "l é Č b a",
+        "šéf dirigent": "š é v d i r i g e n t",
+        "Innsbruck": "i n z b r u k",
+        "Hushbauer": "h u ž b a u e r"
+      },
+      "transformace": [
+        {"č": "před b", "->": "Č"},
+        {"f": "před znělými", "->": "v"},
+        {"s": "před znělými", "->": "z"},
+        {"š": "před znělými", "->": "ž"}
+      ]
+    },
+    "skupiny": {
+      "description": "Asimilace ve skupinách souhlásek",
+      "priklady": {
+        "leckdo": "l e C g d o",
+        "vztáhl": "f s t á h l"
+      },
+      "transformace": [
+        {"ck": "před znělými", "->": "Cg"},
+        {"vz": "před neznělými", "->": "fs"}
+      ]
+    },
+    "vyjimky": {
+      "description": "Souhlásky, které nezpůsobují asimilaci (jedinečné)",
+      "souhlasky": ["j", "l", "r", "m", "n", "ň"],
+      "priklady": {
+        "svolit": "s v o l i t",
+        "zvolit": "z v o l i t",
+        "svatba": "s v a t b a",
+        "kotva": "k o t v a"
+      }
+    },
+    "zvlastni_pripady": {
+      "v": {
+        "description": "Hláska v podléhá asimilaci, ale nezpůsobuje ji (jedinečná)",
+        "priklady": {
+          "lov": "l o f",
+          "lávka": "l á f k a",
+          "svolit": "s v o l i t",
+          "zvolit": "z v o l i t"
+        }
+      },
+      "ř": {
+        "description": "Hláska ř má znělé i neznělé varianty",
+        "znele_pozice": ["mezi samohláskami", "mezi znělými souhláskami", "na začátku slova před samohláskou"],
+        "neznele_pozice": ["na konci slova", "před neznělými souhláskami"],
+        "priklady": {
+          "koření": "k o ř e ň í",
+          "věř": "v j e ř̥",
+          "tři": "t ř̥ i",
+          "křtít": "k ř̥ ť í t"
+        }
+      },
+      "sh": {
+        "description": "Skupina sh má regionální varianty",
+        "varianty": {
+          "cechy": "[sch]",
+          "morava_slezsko": "[zh]"
+        },
+        "priklady": {
+          "shánět": ["scháňet", "zháňet"],
+          "shoda": ["schoda", "zhoda"],
+          "shora": ["zhora"],
+          "shůry": ["zhůry"]
+        }
+      }
+    }
+  }
+}
+

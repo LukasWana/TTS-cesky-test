@@ -1,0 +1,272 @@
+{
+  "description": "Pravidla pro převod standardní češtiny na různá česká nářečí",
+  "source": "Česká nářečí - lingvistické zdroje, brněnský hantec: https://www.prygl.net/php/hantec.php",
+  "version": "1.1",
+  "nareci": {
+    "moravske": {
+      "nazev": "Moravské nářečí",
+      "popis": "Východomoravské nářečí s charakteristickými znaky",
+      "pravidla": {
+        "samohlasky": {
+          "e_na_konci": {
+            "popis": "E na konci slov se často mění na 'y'",
+            "priklady": {
+              "dobre": "dobry",
+              "krasne": "krasny",
+              "rychle": "rychly"
+            },
+            "vzory": [
+              {
+                "pattern": "([a-záéíóúůýě])e\\b",
+                "replacement": "$1y",
+                "poznamka": "E na konci slova -> y (s výjimkami)"
+              }
+            ]
+          },
+          "y_i": {
+            "popis": "V některých případech se 'i' mění na 'y'",
+            "priklady": {
+              "vidim": "vidym",
+              "delam": "delam"
+            }
+          }
+        },
+        "souhlasky": {
+          "h_ch": {
+            "popis": "V některých oblastech se 'h' vyslovuje jako 'ch'",
+            "priklady": {
+              "hora": "chora",
+              "hledat": "chledat"
+            }
+          },
+          "g_h": {
+            "popis": "V některých případech se 'g' mění na 'h'",
+            "priklady": {}
+          }
+        },
+        "slovni_zaklad": {
+          "priklady": {
+            "jsem": "sem",
+            "jsme": "sme",
+            "jste": "ste",
+            "jsou": "su",
+            "mam": "mam",
+            "mas": "mas",
+            "ma": "ma",
+            "mate": "mate",
+            "maji": "maji"
+          }
+        },
+        "koncovky": {
+          "priklady": {
+            "delam": "delam",
+            "delas": "delas",
+            "dela": "dela",
+            "delame": "delame",
+            "delate": "delate",
+            "delaji": "delaji"
+          }
+        }
+      }
+    },
+    "hanacke": {
+      "nazev": "Hanácké nářečí",
+      "popis": "Středomoravské hanácké nářečí",
+      "pravidla": {
+        "samohlasky": {
+          "e_na_konci": {
+            "popis": "E na konci slov se často mění na 'y'",
+            "priklady": {
+              "dobre": "dobry",
+              "krasne": "krasny"
+            }
+          },
+          "ou_uo": {
+            "popis": "V některých případech se 'ou' mění na 'uo'",
+            "priklady": {
+              "mouka": "muoka",
+              "koukat": "kuokat"
+            }
+          }
+        },
+        "slovni_zaklad": {
+          "priklady": {
+            "jsem": "sem",
+            "jsme": "sme",
+            "jste": "ste",
+            "jsou": "su"
+          }
+        }
+      }
+    },
+    "slezske": {
+      "nazev": "Slezské nářečí",
+      "popis": "Slezské nářečí s polskými vlivy",
+      "pravidla": {
+        "samohlasky": {
+          "e_na_konci": {
+            "popis": "E na konci slov se často mění na 'y'",
+            "priklady": {
+              "dobre": "dobry",
+              "krasne": "krasny"
+            }
+          }
+        },
+        "souhlasky": {
+          "h_ch": {
+            "popis": "V některých oblastech se 'h' vyslovuje jako 'ch'",
+            "priklady": {
+              "hora": "chora"
+            }
+          }
+        },
+        "slovni_zaklad": {
+          "priklady": {
+            "jsem": "sem",
+            "jsme": "sme",
+            "jste": "ste",
+            "jsou": "su"
+          }
+        }
+      }
+    },
+    "chodské": {
+      "nazev": "Chodské nářečí",
+      "popis": "Západní české nářečí z Chodska",
+      "pravidla": {
+        "samohlasky": {
+          "e_na_konci": {
+            "popis": "E na konci slov se často mění na 'y'",
+            "priklady": {
+              "dobre": "dobry",
+              "krasne": "krasny"
+            }
+          }
+        },
+        "slovni_zaklad": {
+          "priklady": {
+            "jsem": "sem",
+            "jsme": "sme",
+            "jste": "ste",
+            "jsou": "su"
+          }
+        }
+      }
+    },
+    "brnenske": {
+      "nazev": "Brněnské nářečí",
+      "popis": "Městské brněnské nářečí (hantec) - zdroj: https://www.prygl.net/php/hantec.php",
+      "pravidla": {
+        "slovni_zaklad": {
+          "priklady": {
+            "jsem": "sem",
+            "jsme": "sme",
+            "jste": "ste",
+            "jsou": "su",
+            "dobre": "dobry",
+            "krasne": "krasny",
+            "rychle": "rychly"
+          }
+        },
+        "mistopisny_slovnik": {
+          "popis": "Názvy míst v brněnském hantecu",
+          "priklady": {
+            "bílý potok": "vajtec",
+            "brněnská přehrada": "prýgl",
+            "přehrada": "prýgl",
+            "brno": "brnisko",
+            "brně": "brnise",
+            "bystrc": "býstr",
+            "bystrci": "býstru",
+            "červený kopec": "rotec",
+            "divišova čtvrť": "divíjka",
+            "hrad veveří": "gracna nad prýglem",
+            "veveří": "ajchhorn gracna",
+            "hvozdec": "hozdeček",
+            "jinačovice": "jinačky",
+            "jundrov": "jábsko",
+            "jundrované": "jáblí",
+            "kamenný vrch": "kameček",
+            "kohoutovice": "kohótky",
+            "komín": "raučec",
+            "kozí horka": "monte cap",
+            "královo pole": "kénik",
+            "králově pole": "kéniku",
+            "lažánky": "l.a.žánky",
+            "masarykův okruh": "masec",
+            "medlánecký kopec": "medlaček",
+            "mniší hora": "mnichálové bergl",
+            "mokrá hora": "mokec",
+            "moravské knínice": "emkačko",
+            "ostopovice": "ostopky",
+            "pisárky": "šrajbec",
+            "ponávka": "ponadrata",
+            "přístaviště bystrc": "port",
+            "riviéra": "rivec",
+            "rosnička": "rošá",
+            "rozdrojovice": "rozdrojky",
+            "řečkovice": "řečky",
+            "soběšice": "sobélky",
+            "sokolské koupaliště": "sokolec",
+            "svratka": "švarcava",
+            "tišnov": "tigél",
+            "veverská bítýška": "betlém",
+            "wilsonův les": "vilzoček",
+            "zamilovaný hájek": "zamilec",
+            "žabovřesky": "žabiny",
+            "žebětín": "žebél",
+            "žebětínský rybník": "žebél"
+          }
+        },
+        "slovnik_cinnosti_veci": {
+          "popis": "Slovník činností, věcí a obecná mluva v hantecu",
+          "priklady": {
+            "areál lodní dopravy": "šýftechna",
+            "brusle": "rygy",
+            "dopravní podnik": "glajzovací podnik",
+            "elektrárna": "šalintechna",
+            "fotograf": "bléskář",
+            "fotit": "kropit",
+            "hrad": "gracna",
+            "hory": "bergle",
+            "kamenolom": "úutrotechna",
+            "kapitán lodi": "šýfóra",
+            "kopec": "bergl",
+            "koupat se": "cachtat se",
+            "lano": "štranek",
+            "loď": "šýf",
+            "loď s elektrickým pohonem": "šýf na baterky",
+            "loď nafukovací": "šýf nafůlovaný luftem",
+            "město": "štatl",
+            "nahý": "na šdoňa",
+            "nudistická pláž": "nuda",
+            "opalovat se": "lapat bronz",
+            "příkazka mhd": "šalinkarta",
+            "přístaviště": "port",
+            "přimachlovat loď": "uvázat loď",
+            "voda": "vasr",
+            "vodní plocha": "vasrplac",
+            "vložka": "bitýžka",
+            "plavat": "švimičit",
+            "trávit čas": "vylepený"
+          }
+        },
+        "specificka_slova": {
+          "priklady": {
+            "dobre": "dobry",
+            "krasne": "krasny",
+            "rychle": "rychly",
+            "vidim": "vidym",
+            "delam": "delam"
+          }
+        }
+      }
+    }
+  },
+  "poznamky": {
+    "důležité": "Převod na nářečí je přibližný a zjednodušený. Skutečná nářečí mají mnohem složitější pravidla a regionální varianty.",
+    "pouziti": "Tato tabulka slouží jako základ pro automatický převod textu. Pro přesnější výsledky je potřeba rozšířit pravidla a přidat více příkladů.",
+    "varovani": "Některé převody mohou být nepřesné nebo mohou změnit význam slova. Používejte opatrně."
+  }
+}
+

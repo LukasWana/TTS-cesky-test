@@ -1,0 +1,106 @@
+{
+  "description": "Lookup tabulka pro problematické souhláskové skupiny",
+  "source": "VYSLOVNOST_SOUHLASKOVYCH_SKUPIN.md (id=912), TVORENI_SOUHLASEK.md, MENE_ZNAME_SOUHLASKY.md",
+  "version": "1.0",
+  "skupiny": {
+    "mě": {
+      "spravne": "[mňe]",
+      "nespravne": "[mje]",
+      "priklady": {
+        "město": "mňesto",
+        "měď": "mňeť",
+        "náměstí": "námňesťí"
+      }
+    },
+    "šťk": {
+      "varianty": ["šťk", "štk"],
+      "priklady": {
+        "štěstí": "štěstí",
+        "šťk": "šťk/štk"
+      }
+    },
+    "cts": {
+      "redukce": "V rychlejší řeči se redukuje na [c]",
+      "priklady": {
+        "faktský": "facký"
+      }
+    },
+    "nk_ng": {
+      "zmena_mista_tvoreni": "n -> ŋ před k, g",
+      "zavazne": true,
+      "priklady": {
+        "panenka": "paneŋka",
+        "maminka": "mamiŋka",
+        "Hanka": "haŋka",
+        "bunkr": "buŋkr",
+        "cinkat": "ciŋkat",
+        "angína": "aŋgína",
+        "Ganga": "gaŋga",
+        "Ankara": "aŋkara",
+        "orangutan": "oraŋgutan",
+        "Anglie": "aŋglije"
+      },
+      "vyjimka_rozhranici_slov": {
+        "pan kníže": "pan kňíže",
+        "poznamka": "Na rozhraní slov se [ŋ] nepoužívá"
+      }
+    },
+    "mv_mf": {
+      "fakultativni": "m -> ɱ před v, f",
+      "priklady": {
+        "tramvaj": ["tramvaj", "traɱvaj"],
+        "amfora": ["amfora", "aɱfora"]
+      }
+    },
+    "tň_dň": {
+      "fakultativni": "t, d -> ť, ď před ň",
+      "priklady": {
+        "Letňany": ["letňany", "leťňany"],
+        "ústně": ["ústňe", "úsťňe"],
+        "Vodňany": ["vodňany", "voďňany"],
+        "lední": ["ledňí", "leďňí"]
+      }
+    },
+    "nť_nď": {
+      "fakultativni": "n -> ň před ť, ď",
+      "priklady": {
+        "agenti": ["agenťi", "ageňťi"],
+        "blonďatý": ["blonďatý", "bloňďatý"],
+        "fandit": ["fanďit", "faňďit"]
+      }
+    },
+    "ts_ds": {
+      "asimilace_zpusobu": "t, d + s, š -> c, č, dz, dž",
+      "spisovne": "Na rozhraní kořene a přípony",
+      "priklady": {
+        "studentský": ["studentskí", "studenckí"],
+        "brdský": ["brtskí", "brckí"],
+        "většina": ["vjetšina", "vječina"],
+        "švédština": ["švétšťina", "švéčťina"],
+        "podzim": ["podzim", "pod͡zim"],
+        "Bydžov": ["bidžof", "bid͡žof"]
+      },
+      "pouze_nezjednodusene": {
+        "odstavec": "otstavec",
+        "odškodné": "otškodné",
+        "devětsil": "devjetsil",
+        "pět švestek": "pjet švestek"
+      }
+    },
+    "nsk": {
+      "asimilace": "n + s -> c (běžná i u profesionálních mluvčích)",
+      "priklady": {
+        "slovenský": ["slovenskí", "slovenckí"],
+        "poznamka": "Asimilovaná výslovnost [slovenckí] je běžná a akceptovatelná"
+      }
+    }
+  },
+  "presmykovani": {
+    "description": "Neortoepické varianty s přesmykováním hlásek",
+    "priklady": {
+      "permanentní": "*[pernamentňí] -> [permanentňí]",
+      "peloton": "*[peleton] -> [peloton]"
+    }
+  }
+}
+

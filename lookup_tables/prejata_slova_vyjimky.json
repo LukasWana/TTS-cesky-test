@@ -1,0 +1,170 @@
+{
+  "description": "Slovník problematických přejatých slov s jejich správnou výslovností",
+  "source": "VYSLOVNOST_PREJATYCH_SLOV.md (id=914)",
+  "version": "1.0",
+  "kategorie": {
+    "samohlaskova_delka": {
+      "kolise": {
+        "in/in": {
+          "priklady": {
+            "benzín": ["benzín", "benzin"],
+            "archíf": ["archíf", "archif"]
+          }
+        },
+        "on/ón": {
+          "priklady": {
+            "balón": ["balón", "balon"],
+            "salón": ["salón", "salon"],
+            "baron": ["baron"],
+            "elektron": ["elektron"]
+          }
+        },
+        "or/ór": {
+          "priklady": {
+            "folklór": ["folklór", "folklor"]
+          }
+        },
+        "ura/úra": {
+          "priklady": {
+            "literatúra": ["literatúra", "literatura"],
+            "procedúra": ["procedúra", "procedura"]
+          }
+        }
+      },
+      "stabilni_kratke": ["baron", "elektron"],
+      "stabilni_dlouhe": ["nóta"]
+    },
+    "souhlsakova_znelost": {
+      "s_z": {
+        "dublety": {
+          "diskuse": ["diskuse", "diskuze"],
+          "disertace": ["disertace", "dizertace"],
+          "renesance": ["renesance", "renezance"],
+          "resort": ["resort", "rezort"],
+          "režisér": ["režisér", "režizér"]
+        },
+        "pouze_z": {
+          "filozofie": ["filozofije"],
+          "pulzace": ["pulzace"],
+          "purismus": ["purizmus"]
+        },
+        "pouze_s": {
+          "kompresor": ["kompresor"],
+          "dresu": ["dresu"],
+          "servisu": ["servisu"],
+          "chaosu": ["chaosu"]
+        },
+        "vlastni_jmena": {
+          "Mars": {
+            "1p": "mars",
+            "2p": "marzu",
+            "poznamka": "V jiných pádech znělá výslovnost [z]"
+          },
+          "Alfons": {
+            "1p": "alfons",
+            "2p": "alfonze"
+          }
+        }
+      },
+      "k_g": {
+        "dublety": {
+          "plakát": ["plakát", "plagát"],
+          "inkoust": ["inkoust", "ingoust"]
+        },
+        "nespisovne_s_g": [
+          "demokracie *[demogracije] -> [demokracije]",
+          "frekvence *[fregvence] -> [frekvence]",
+          "motocykl *[motocigl] -> [motocikl]"
+        ],
+        "koncove_ing_burgh": {
+          "Edinburgh": {
+            "1p": "edynburk",
+            "2p": ["edynburgu", "edynburku"],
+            "poznamka": "Na konci ztráta znělosti"
+          },
+          "doping": ["doping", "dopink"],
+          "marketing": ["marketing", "marketink"],
+          "Hamburg": ["hamburg", "hamburk"]
+        }
+      }
+    },
+    "di_ti_ni": {
+      "pouze_neznele": {
+        "diktát": "dyktát",
+        "tip": "typ",
+        "nikl": "nykl"
+      },
+      "kolise": {
+        "segedínský": ["segedýnskí", "segeďínskí"],
+        "bonboniéra": ["bombonyjéra", "bomboňijéra"],
+        "derniéra": ["dernyjéra", "derňijéra"],
+        "moskytiéra": ["moskityjéra", "moskiťijéra"]
+      },
+      "domaci_mekce": {
+        "tis": "ťis",
+        "divizně": "ďivizna",
+        "dikobraz": "dykobras"
+      },
+      "vlastni_jmena": {
+        "Štefánik": ["šťefáňik", "štefáňik", "štefányk"],
+        "Tisa": {
+          "prijmeni": ["ťiso", "tyso"],
+          "reka": "ťisa"
+        },
+        "Botič": "boťič",
+        "Nisa": "ňisa",
+        "Apeniny": ["apenyny", "apeňiny"],
+        "Niva": "ňiva"
+      }
+    },
+    "vlastni_jmena": {
+      "rizeni_rodinnou_tradici": {
+        "Wagner": ["vagner", "vágner"],
+        "Klaus": "klauze",
+        "Kraus": "krauze"
+      },
+      "puvod_jazyka": {
+        "Paul": {
+          "nemecky": "paul",
+          "anglicky": "pól",
+          "francouzsky": "pol"
+        },
+        "John": {
+          "cesky_spisovatel": "jón",
+          "anglicky": "džon"
+        },
+        "Jordan": {
+          "francouzsky": "žordan",
+          "nemecky": "jordán",
+          "anglicky": "džórdn"
+        },
+        "Bernstein": ["bernštajn", "bernstejn", "bérnstajn", "bérnstýn", "bernsten"]
+      },
+      "francouzska_jmena": {
+        "Dumas": {
+          "1p": "dyma",
+          "2p": "dymase"
+        },
+        "Degas": {
+          "1p": "dega",
+          "2p": "degase"
+        },
+        "Camus": {
+          "1p": "kami",
+          "2p": "kamise"
+        }
+      },
+      "uzite_vyslovnosti": {
+        "Legerovy": "legerova",
+        "Eiffelovu": "ajfelova",
+        "Mozart": ["mócart", "mozart", "mózart"],
+        "van Gogh": ["van gok", "fan gok"],
+        "Bosch": "boš",
+        "Sevilla": ["sevilja", "sevila", "sevija"],
+        "Mallorca": ["maljorka", "malorka", "majorka"],
+        "Gent": ["chent", "gent"]
+      }
+    }
+  }
+}
+

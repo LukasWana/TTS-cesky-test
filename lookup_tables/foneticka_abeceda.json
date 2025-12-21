@@ -1,0 +1,89 @@
+{
+  "description": "Kompletní fonetická abeceda pro český TTS systém",
+  "source": "FONÉMY ČEŠTINY.html, G2P_pravidla_cesky_TTS.md, TVORENI_SAMOHLASEK.md, TVORENI_SOUHLASEK.md",
+  "version": "1.0",
+  "samohlasky": {
+    "krátké": {
+      "a": {"ipa": "a", "popis": "otevřená, nezaokrouhlená"},
+      "e": {"ipa": "e", "popis": "polootevřená, nezaokrouhlená"},
+      "i": {"ipa": "i", "popis": "zavřená, nezaokrouhlená"},
+      "o": {"ipa": "o", "popis": "polootevřená, zaokrouhlená"},
+      "u": {"ipa": "u", "popis": "zavřená, zaokrouhlená"}
+    },
+    "dlouhé": {
+      "á": {"ipa": "aː", "popis": "dlouhá otevřená, nezaokrouhlená"},
+      "é": {"ipa": "eː", "popis": "dlouhá polootevřená, nezaokrouhlená"},
+      "í": {"ipa": "iː", "popis": "dlouhá zavřená, nezaokrouhlená"},
+      "ó": {"ipa": "oː", "popis": "dlouhá polootevřená, zaokrouhlená"},
+      "ú": {"ipa": "uː", "popis": "dlouhá zavřená, zaokrouhlená"},
+      "ů": {"ipa": "uː", "popis": "dlouhá zavřená, zaokrouhlená (stejná jako ú)"}
+    },
+    "diftongy": {
+      "ou": {"ipa": "o͡u", "transkripce": "ou", "popis": "klesavý diftong"}
+    },
+    "poznamky": {
+      "i_y": "Výslovnostně shodné (i, í = y, ý)",
+      "ú_ů": "Výslovnostně shodné (ú = ů)",
+      "celkem": "13 vokalických fonémů (5 krátkých + 5 dlouhých + 2 diftongy + 1 ů=ú)"
+    }
+  },
+  "souhlasky": {
+    "zavěrové_ustni": {
+      "p": {"ipa": "p", "znele": "b", "misto": "obouretné", "zpusob": "závěrové"},
+      "b": {"ipa": "b", "neznele": "p", "misto": "obouretné", "zpusob": "závěrové"},
+      "t": {"ipa": "t", "znele": "d", "misto": "přední dásňové", "zpusob": "závěrové"},
+      "d": {"ipa": "d", "neznele": "t", "misto": "přední dásňové", "zpusob": "závěrové"},
+      "ť": {"ipa": "c", "znele": "ď", "misto": "tvrdopatrové", "zpusob": "závěrové"},
+      "ď": {"ipa": "ɟ", "neznele": "ť", "misto": "tvrdopatrové", "zpusob": "závěrové"},
+      "k": {"ipa": "k", "znele": "g", "misto": "měkkopatrové", "zpusob": "závěrové"},
+      "g": {"ipa": "g", "neznele": "k", "misto": "měkkopatrové", "zpusob": "závěrové"}
+    },
+    "zavěrové_nosni": {
+      "m": {"ipa": "m", "misto": "obouretné", "zpusob": "závěrové nosní", "varianty": {"retozubne": "ɱ", "kontext": "před v, f"}},
+      "n": {"ipa": "n", "misto": "přední dásňové", "zpusob": "závěrové nosní", "varianty": {"mekkopatrove": "ŋ", "kontext": "před k, g (závazné)"}},
+      "ň": {"ipa": "ɲ", "misto": "tvrdopatrové", "zpusob": "závěrové nosní"}
+    },
+    "uzinove": {
+      "f": {"ipa": "f", "znele": "v", "misto": "retozubné", "zpusob": "úžinové"},
+      "v": {"ipa": "v", "neznele": "f", "misto": "retozubné", "zpusob": "úžinové", "poznamka": "Nezpůsobuje asimilaci"},
+      "s": {"ipa": "s", "znele": "z", "misto": "přední dásňové", "zpusob": "úžinové"},
+      "z": {"ipa": "z", "neznele": "s", "misto": "přední dásňové", "zpusob": "úžinové"},
+      "š": {"ipa": "ʃ", "znele": "ž", "misto": "zadní dásňové", "zpusob": "úžinové"},
+      "ž": {"ipa": "ʒ", "neznele": "š", "misto": "zadní dásňové", "zpusob": "úžinové"},
+      "ch": {"ipa": "x", "znele": "h", "misto": "měkkopatrové", "zpusob": "úžinové", "varianty": {"znele_mekkopatrove": "ɣ", "kontext": "fakultativně při spodobě"}},
+      "h": {"ipa": "ɦ", "misto": "hrtanové", "zpusob": "úžinové"}
+    },
+    "polozavěrové": {
+      "c": {"ipa": "t͡s", "znele": "dz", "misto": "přední dásňové", "zpusob": "polozávěrové"},
+      "dz": {"ipa": "d͡z", "neznele": "c", "misto": "přední dásňové", "zpusob": "polozávěrové"},
+      "č": {"ipa": "t͡ʃ", "znele": "dž", "misto": "zadní dásňové", "zpusob": "polozávěrové"},
+      "dž": {"ipa": "d͡ʒ", "neznele": "č", "misto": "zadní dásňové", "zpusob": "polozávěrové"}
+    },
+    "kmitavé": {
+      "r": {"ipa": "r", "misto": "přední dásňové", "zpusob": "kmitavé", "jedinecna": true},
+      "ř": {"ipa": "r̝", "misto": "zadní dásňové", "zpusob": "kmitavé", "varianty": {"neznele": "r̝̊", "kontext": "před neznělými, na konci slova"}}
+    },
+    "bokové": {
+      "l": {"ipa": "l", "misto": "přední dásňové", "zpusob": "bokové", "jedinecna": true}
+    },
+    "klouzavé": {
+      "j": {"ipa": "j", "misto": "tvrdopatrové", "zpusob": "klouzavé", "jedinecna": true}
+    },
+    "specialni": {
+      "ʔ": {"nazev": "ráz", "ipa": "ʔ", "zpusob": "glottální okluze", "kontext": "na začátku slova po pauze, po předponách"}
+    }
+  },
+  "celkem": {
+    "samohlasky": 13,
+    "souhlasky": 31,
+    "celkem_fonemu": 44
+  },
+  "jedinecne_souhlasky": ["j", "l", "r", "m", "n", "ň", "h"],
+  "poznamky": {
+    "retozubne_m": "Variant [ɱ] před v, f je fakultativní",
+    "mekkopatrove_n": "Variant [ŋ] před k, g je závazný",
+    "neznele_ř": "Variant [r̝̊] před neznělými a na konci slova",
+    "znele_ch": "Variant [ɣ] fakultativně při spodobě znělosti"
+  }
+}
+
