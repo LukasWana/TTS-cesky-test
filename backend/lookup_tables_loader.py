@@ -24,6 +24,7 @@ class LookupTablesLoader:
         self.raz_pozice: Optional[Dict] = None
         self.souhlsakove_skupiny: Optional[Dict] = None
         self.ceska_nareci: Optional[Dict] = None
+        self.english_phonetic: Optional[Dict] = None
         self._load_all_tables()
 
     def _load_all_tables(self):
@@ -49,6 +50,9 @@ class LookupTablesLoader:
 
             # Načtení pravidel pro česká nářečí
             self.ceska_nareci = self._load_json("ceska_nareci.json")
+
+            # Načtení anglické fonetiky
+            self.english_phonetic = self._load_json("english_phonetic.json")
 
             print("[OK] Lookup tabulky uspesne nacteny")
         except Exception as e:
@@ -181,6 +185,15 @@ class LookupTablesLoader:
             return {}
 
         return self.ceska_nareci
+
+    def get_english_phonetic(self) -> Dict[str, str]:
+        """
+        Vrátí slovník anglické fonetiky
+
+        Returns:
+            Slovník mapující anglická slova na českou výslovnost
+        """
+        return self.english_phonetic or {}
 
 
 # Globální instance pro jednoduché použití

@@ -104,3 +104,4 @@ Prejata slova: 36
 - Lookup tabulky primárně zlepšují výslovnost přejatých slov, která model nemusí znát
 - Prosodická pravidla jsou připravena pro budoucí rozšíření prosody control funkcionality
 
+
