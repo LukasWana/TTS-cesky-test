@@ -164,7 +164,10 @@ async def generate_speech(
     enable_compressor: str = Form(None),
     enable_deesser: str = Form(None),
     enable_eq: str = Form(None),
-    enable_trim: str = Form(None)
+    enable_trim: str = Form(None),
+    enable_dialect_conversion: str = Form(None),
+    dialect_code: str = Form(None),
+    dialect_intensity: str = Form(None)
 ):
     """
     Generuje řeč z textu
@@ -322,6 +325,14 @@ async def generate_speech(
         use_eq = enable_eq.lower() == "true" if enable_eq else True
         use_trim = enable_trim.lower() == "true" if enable_trim else True
 
+        # Dialect conversion parametry
+        use_dialect = enable_dialect_conversion.lower() == "true" if enable_dialect_conversion else False
+        dialect_code_value = dialect_code if dialect_code and dialect_code != "standardni" else None
+        try:
+            dialect_intensity_value = float(dialect_intensity) if dialect_intensity else 1.0
+        except (ValueError, TypeError):
+            dialect_intensity_value = 1.0
+
         # Dočasně změnit ENABLE_AUDIO_ENHANCEMENT pokud je zadáno v requestu
         original_enhancement = ENABLE_AUDIO_ENHANCEMENT
         original_preset = AUDIO_ENHANCEMENT_PRESET
@@ -359,6 +370,9 @@ async def generate_speech(
                 enable_deesser=use_deesser,
                 enable_eq=use_eq,
                 enable_trim=use_trim,
+                enable_dialect_conversion=use_dialect,
+                dialect_code=dialect_code_value,
+                dialect_intensity=dialect_intensity_value,
                 job_id=job_id
             )
         finally:

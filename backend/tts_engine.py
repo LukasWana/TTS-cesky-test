@@ -38,7 +38,11 @@ from backend.config import (
     ENABLE_BATCH_PROCESSING,
     MAX_CHUNK_LENGTH,
     ENABLE_PROSODY_CONTROL,
-    ENABLE_PHONETIC_TRANSLATION
+    ENABLE_PHONETIC_TRANSLATION,
+    ENABLE_CZECH_TEXT_PROCESSING,
+    ENABLE_DIALECT_CONVERSION,
+    DIALECT_CODE,
+    DIALECT_INTENSITY
 )
 from backend.audio_enhancer import AudioEnhancer
 from backend.vocoder_hifigan import get_hifigan_vocoder
@@ -403,6 +407,9 @@ class XTTSEngine:
         enable_eq: bool = True,
         enable_trim: bool = True,
         handle_pauses: bool = True,
+        enable_dialect_conversion: Optional[bool] = None,
+        dialect_code: Optional[str] = None,
+        dialect_intensity: float = 1.0,
         job_id: Optional[str] = None
     ):
         """
@@ -703,6 +710,9 @@ class XTTSEngine:
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
                 enable_trim=enable_trim,
+                enable_dialect_conversion=enable_dialect_conversion,
+                dialect_code=dialect_code,
+                dialect_intensity=dialect_intensity,
                 job_id=job_id
             )
 
@@ -750,6 +760,9 @@ class XTTSEngine:
             enable_deesser,
             enable_eq,
             enable_trim,
+            enable_dialect_conversion,
+            dialect_code,
+            dialect_intensity,
             job_id
         )
 
@@ -779,6 +792,9 @@ class XTTSEngine:
         enable_deesser: bool = True,
         enable_eq: bool = True,
         enable_trim: bool = True,
+        enable_dialect_conversion: Optional[bool] = None,
+        dialect_code: Optional[str] = None,
+        dialect_intensity: float = 1.0,
         job_id: Optional[str] = None
     ):
         # DEBUG: Ověření, že speed parametr skutečně přichází
@@ -817,7 +833,13 @@ class XTTSEngine:
 
             # Předzpracování textu pro češtinu - převod čísel na slova
             # TTS knihovna má problém s num2words pro češtinu, takže převedeme čísla ručně
-            processed_text = self._preprocess_text_for_czech(text, language)
+            processed_text = self._preprocess_text_for_czech(
+                text,
+                language,
+                enable_dialect_conversion=enable_dialect_conversion,
+                dialect_code=dialect_code,
+                dialect_intensity=dialect_intensity
+            )
             _progress(15, "tts", "Generuji řeč (XTTS)…")
 
             # Příprava parametrů pro tts_to_file
@@ -1164,7 +1186,14 @@ class XTTSEngine:
             print(f"Generate error details:\n{error_details}")
             raise Exception(f"Chyba při generování řeči: {str(e)}")
 
-    def _preprocess_text_for_czech(self, text: str, language: str) -> str:
+    def _preprocess_text_for_czech(
+        self,
+        text: str,
+        language: str,
+        enable_dialect_conversion: Optional[bool] = None,
+        dialect_code: Optional[str] = None,
+        dialect_intensity: float = 1.0
+    ) -> str:
         """
         Předzpracuje text pro češtinu - převede čísla na slova, normalizuje interpunkci,
         převede zkratky a opraví formátování
@@ -1178,6 +1207,44 @@ class XTTSEngine:
         if ENABLE_PHONETIC_TRANSLATION:
             translator = get_phonetic_translator()
             text = translator.translate_foreign_words(text, target_language="cs")
+
+        # 0.5. Pokročilé české text processing pomocí lookup tabulek
+        if ENABLE_CZECH_TEXT_PROCESSING:
+            try:
+                from backend.czech_text_processor import get_czech_text_processor
+                czech_processor = get_czech_text_processor()
+                text = czech_processor.process_text(
+                    text,
+                    apply_voicing=False,  # Spodoba znělosti je fonetický jev, XTTS by měl zvládnout automaticky
+                    apply_glottal_stop=False,  # Ráz se generuje automaticky
+                    apply_consonant_groups=False  # XTTS by měl správně vyslovit "mě" jako "mňe"
+                )
+                # Normalizace textu
+                text = czech_processor.normalize_text(text)
+            except Exception as e:
+                print(f"[WARN] Varovani: Czech text processing selhal: {e}")
+
+        # 0.6. Převod na nářečí (pokud je zapnuto)
+        # Použij parametry z API pokud jsou zadány, jinak použij config hodnoty
+        use_dialect = enable_dialect_conversion if enable_dialect_conversion is not None else ENABLE_DIALECT_CONVERSION
+        dialect_to_use = dialect_code if dialect_code else (DIALECT_CODE if DIALECT_CODE != "standardni" else None)
+        dialect_intensity_to_use = dialect_intensity if dialect_code else DIALECT_INTENSITY
+
+        if use_dialect and dialect_to_use:
+            try:
+                from backend.dialect_converter import get_dialect_converter
+                dialect_converter = get_dialect_converter()
+                if dialect_to_use in dialect_converter.get_available_dialects():
+                    text = dialect_converter.convert_to_dialect(
+                        text,
+                        dialect_to_use,
+                        intensity=dialect_intensity_to_use
+                    )
+                    print(f"[INFO] Text preveden na nareci: {dialect_to_use} (intenzita: {dialect_intensity_to_use})")
+                else:
+                    print(f"[WARN] Neznamy kod nareci: {dialect_to_use}")
+            except Exception as e:
+                print(f"[WARN] Varovani: Dialect conversion selhal: {e}")
 
         # 1. Normalizace interpunkce
         text = text.replace("...", "…")
@@ -1342,6 +1409,9 @@ class XTTSEngine:
         enable_deesser: bool = True,
         enable_eq: bool = True,
         enable_trim: bool = True,
+        enable_dialect_conversion: Optional[bool] = None,
+        dialect_code: Optional[str] = None,
+        dialect_intensity: float = 1.0,
         job_id: Optional[str] = None
     ) -> List[dict]:
         """
@@ -1417,6 +1487,9 @@ class XTTSEngine:
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
                 enable_trim=enable_trim,
+                enable_dialect_conversion=enable_dialect_conversion,
+                dialect_code=dialect_code,
+                dialect_intensity=dialect_intensity,
                 job_id=job_id
             )
 
@@ -1455,6 +1528,9 @@ class XTTSEngine:
         enable_deesser: bool = True,
         enable_eq: bool = True,
         enable_trim: bool = True,
+        enable_dialect_conversion: Optional[bool] = None,
+        dialect_code: Optional[str] = None,
+        dialect_intensity: float = 1.0,
         job_id: Optional[str] = None
     ) -> str:
         """
@@ -1527,6 +1603,9 @@ class XTTSEngine:
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
                 enable_trim=enable_trim,
+                enable_dialect_conversion=enable_dialect_conversion,
+                dialect_code=dialect_code,
+                dialect_intensity=dialect_intensity,
                 job_id=job_id
             )
 
@@ -1581,6 +1660,9 @@ class XTTSEngine:
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
                 enable_trim=enable_trim,
+                enable_dialect_conversion=enable_dialect_conversion,
+                dialect_code=dialect_code,
+                dialect_intensity=dialect_intensity,
                 job_id=job_id
             )
             audio_files.append(chunk_output)
