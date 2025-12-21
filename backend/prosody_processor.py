@@ -9,6 +9,16 @@ from backend.config import ENABLE_PROSODY_CONTROL
 class ProsodyProcessor:
     """Třída pro zpracování prosody značek v textu"""
 
+    def __init__(self):
+        """Inicializace procesoru s prosodickými pravidly z lookup tabulek"""
+        try:
+            from backend.lookup_tables_loader import get_lookup_loader
+            self.lookup_loader = get_lookup_loader()
+            self.prosodicke_pravidla = self.lookup_loader.get_prosodicke_pravidla()
+        except Exception as e:
+            print(f"[WARN] Varovani: Nepodarilo se nacist prosodicka pravidla: {e}")
+            self.prosodicke_pravidla = None
+
     # SSML-like značky pro prosody
     EMPHASIS_PATTERNS = [
         (r'<emphasis\s+level=["\']strong["\']>(.*?)</emphasis>', 'STRONG'),
@@ -60,6 +70,9 @@ class ProsodyProcessor:
         if not ENABLE_PROSODY_CONTROL:
             return text, {}
 
+        # Použijeme instanci pro přístup k lookup tabulkám
+        processor = ProsodyProcessor()
+
         metadata = {
             'emphasis': [],
             'rate_changes': [],
@@ -70,28 +83,27 @@ class ProsodyProcessor:
         processed = text
 
         # Zpracuj SSML-like značky
-        processed, emphasis_meta = ProsodyProcessor._process_emphasis(processed)
+        processed, emphasis_meta = processor._process_emphasis(processed)
         metadata['emphasis'].extend(emphasis_meta)
 
-        processed, rate_meta = ProsodyProcessor._process_rate(processed)
+        processed, rate_meta = processor._process_rate(processed)
         metadata['rate_changes'].extend(rate_meta)
 
-        processed, pitch_meta = ProsodyProcessor._process_pitch(processed)
+        processed, pitch_meta = processor._process_pitch(processed)
         metadata['pitch_changes'].extend(pitch_meta)
 
         # Zpracuj jednoduché kontrolní znaky pokud jsou povolené
         if use_simple_markers:
-            processed, simple_meta = ProsodyProcessor._process_simple_markers(processed)
+            processed, simple_meta = processor._process_simple_markers(processed)
             metadata['emphasis'].extend(simple_meta)
 
         # Zpracuj pauzy
-        processed, pause_meta = ProsodyProcessor._process_pauses(processed)
+        processed, pause_meta = processor._process_pauses(processed)
         metadata['pauses'].extend(pause_meta)
 
         return processed, metadata
 
-    @staticmethod
-    def _process_emphasis(text: str) -> Tuple[str, List[Dict]]:
+    def _process_emphasis(self, text: str) -> Tuple[str, List[Dict]]:
         """Zpracuje emphasis značky"""
         metadata = []
         processed = text
@@ -117,8 +129,7 @@ class ProsodyProcessor:
 
         return processed, metadata
 
-    @staticmethod
-    def _process_rate(text: str) -> Tuple[str, List[Dict]]:
+    def _process_rate(self, text: str) -> Tuple[str, List[Dict]]:
         """Zpracuje rate (rychlost) značky"""
         metadata = []
         processed = text
@@ -146,8 +157,7 @@ class ProsodyProcessor:
 
         return processed, metadata
 
-    @staticmethod
-    def _process_pitch(text: str) -> Tuple[str, List[Dict]]:
+    def _process_pitch(self, text: str) -> Tuple[str, List[Dict]]:
         """Zpracuje pitch (výška) značky"""
         metadata = []
         processed = text
@@ -175,8 +185,7 @@ class ProsodyProcessor:
 
         return processed, metadata
 
-    @staticmethod
-    def _process_simple_markers(text: str) -> Tuple[str, List[Dict]]:
+    def _process_simple_markers(self, text: str) -> Tuple[str, List[Dict]]:
         """Zpracuje jednoduché kontrolní znaky (*, **, atd.)"""
         metadata = []
         processed = text
@@ -201,8 +210,7 @@ class ProsodyProcessor:
 
         return processed, metadata
 
-    @staticmethod
-    def _process_pauses(text: str) -> Tuple[str, List[Dict]]:
+    def _process_pauses(self, text: str) -> Tuple[str, List[Dict]]:
         """Zpracuje pauzy"""
         metadata = []
         processed = text
@@ -267,6 +275,7 @@ class ProsodyProcessor:
         text = text.replace('…', '')
 
         return text.strip()
+
 
 
 

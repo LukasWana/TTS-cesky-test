@@ -119,6 +119,14 @@ ENABLE_PROSODY_CONTROL = os.getenv("ENABLE_PROSODY_CONTROL", "True").lower() == 
 # Phonetic Translation (fonetický přepis cizích slov)
 ENABLE_PHONETIC_TRANSLATION = os.getenv("ENABLE_PHONETIC_TRANSLATION", "True").lower() == "true"
 
+# Czech Text Processing (pokročilé předzpracování pomocí lookup tabulek)
+ENABLE_CZECH_TEXT_PROCESSING = os.getenv("ENABLE_CZECH_TEXT_PROCESSING", "True").lower() == "true"
+
+# Dialect Conversion (převod textu na nářečí)
+ENABLE_DIALECT_CONVERSION = os.getenv("ENABLE_DIALECT_CONVERSION", "False").lower() == "true"
+DIALECT_CODE = os.getenv("DIALECT_CODE", "standardni")  # standardni, moravske, hanacke, slezske, chodske, brnenske
+DIALECT_INTENSITY = float(os.getenv("DIALECT_INTENSITY", "1.0"))  # 0.0-1.0 (1.0 = plný převod)
+
 # Speaker Adaptation
 ENABLE_SPEAKER_CACHE = os.getenv("ENABLE_SPEAKER_CACHE", "True").lower() == "true"
 SPEAKER_CACHE_DIR = BASE_DIR / "speaker_cache"
