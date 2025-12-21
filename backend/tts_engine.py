@@ -38,6 +38,7 @@ from backend.config import (
     ENABLE_BATCH_PROCESSING,
     MAX_CHUNK_LENGTH,
     ENABLE_PROSODY_CONTROL,
+    ENABLE_INTONATION_PROCESSING,
     ENABLE_PHONETIC_TRANSLATION,
     ENABLE_CZECH_TEXT_PROCESSING,
     ENABLE_DIALECT_CONVERSION,
@@ -717,10 +718,11 @@ class XTTSEngine:
             )
 
         # Prosody preprocessing
+        prosody_metadata = {}
         try:
             from backend.prosody_processor import ProsodyProcessor
             if ENABLE_PROSODY_CONTROL:
-                text, _ = ProsodyProcessor.process_text(text)
+                text, prosody_metadata = ProsodyProcessor.process_text(text)
         except Exception as e:
             print(f"Warning: Prosody processing failed: {e}")
 
@@ -795,7 +797,8 @@ class XTTSEngine:
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
-        job_id: Optional[str] = None
+        job_id: Optional[str] = None,
+        prosody_metadata: Optional[Dict] = None
     ):
         # DEBUG: Ověření, že speed parametr skutečně přichází
         print(f"🔍 DEBUG _generate_sync START: speed={speed}, type={type(speed)}, output_path={output_path}")
@@ -1067,6 +1070,284 @@ class XTTSEngine:
                     sr = OUTPUT_SAMPLE_RATE
                     print(f"✅ Audio upsamplováno na {OUTPUT_SAMPLE_RATE} Hz")
 
+                # Prosody post-processing (intonace a emphasis) - před enhancement
+                if prosody_metadata:
+                    try:
+                        from backend.intonation_processor import IntonationProcessor
+                        from backend.audio_enhancer import AudioEnhancer
+                        from backend.config import ENABLE_INTONATION_PROCESSING, ENABLE_PROSODY_CONTROL
+
+                        # Intonační post-processing
+                        if ENABLE_INTONATION_PROCESSING and prosody_metadata.get('intonation'):
+                            _progress(63, "intonation", "Aplikuji intonaci…")
+                            intonation_metadata = prosody_metadata.get('intonation', [])
+
+                            if intonation_metadata:
+                                print(f"🎵 Aplikuji {len(intonation_metadata)} intonačních změn…")
+                                applied_count = 0
+
+                                for i, inton in enumerate(intonation_metadata):
+                                    inton_type = inton.get('intonation_type')
+                                    contour = inton.get('contour')
+                                    content = inton.get('content', '')
+                                    position = inton.get('position', 0)
+                                    length = inton.get('length', len(content))
+                                    intensity = inton.get('intensity', 1.0)
+                                    auto_detected = inton.get('auto_detected', False)
+
+                                    print(f"   Intonace {i+1}: type={inton_type}, auto={auto_detected}, content='{content[:50]}', pos={position}, len={length}")
+
+                                    # Vypočítej pozice v audio (relativní k původnímu textu)
+                                    text_length = len(text)
+                                    if text_length > 0:
+                                        start_ratio = position / text_length
+                                        end_ratio = (position + length) / text_length
+
+                                        start_sample = int(start_ratio * len(audio))
+                                        end_sample = int(end_ratio * len(audio))
+
+                                        print(f"      Audio: text_len={text_length}, audio_len={len(audio)}, start={start_sample}, end={end_sample}")
+
+                                        if start_sample < end_sample and end_sample <= len(audio):
+                                            if contour:
+                                                # Aplikuj konturu
+                                                segment = audio[start_sample:end_sample]
+                                                modified_segment = IntonationProcessor.apply_contour(
+                                                    segment, sr, contour
+                                                )
+                                                audio[start_sample:end_sample] = modified_segment
+                                                applied_count += 1
+                                                print(f"      ✅ Kontura aplikována na segment {start_sample}-{end_sample}")
+                                            elif inton_type:
+                                                # Pro automaticky detekovanou intonaci
+                                                if auto_detected and inton_type in ['FALL', 'RISE', 'HALF_FALL']:
+                                                    segment_length = end_sample - start_sample
+
+                                                    # Pro FALL aplikuj na celou větu pro výraznější a přirozenější pokles
+                                                    if inton_type == 'FALL':
+                                                        # Aplikuj FALL na celou větu - profil už má pokles jen na konci
+                                                        intonation_start = start_sample
+                                                        intonation_end = end_sample
+
+                                                        # Zkontroluj, jestli je to vykřičník (vyšší intenzita)
+                                                        is_exclamation = inton.get('is_exclamation', False)
+                                                        if is_exclamation:
+                                                            # Pro vykřičník použij ještě vyšší intenzitu
+                                                            fall_intensity = 1.8
+                                                            print(f"      Auto-detekce FALL (vykřičník!): aplikuji na celou větu ({intonation_start}-{intonation_end}, 100% věty, intensity={fall_intensity})")
+                                                        else:
+                                                            # Zvýšená intenzita pro běžný FALL
+                                                            fall_intensity = 1.3
+                                                            print(f"      Auto-detekce FALL: aplikuji na celou větu ({intonation_start}-{intonation_end}, 100% věty, intensity={fall_intensity})")
+                                                    elif inton_type == 'RISE':
+                                                        # Pro RISE stačí posledních 40% - stoupání je výraznější
+                                                        intonation_start = start_sample + int(segment_length * 0.6)
+                                                        intonation_end = end_sample
+                                                        fall_intensity = intensity
+                                                        print(f"      Auto-detekce RISE: aplikuji na konec ({intonation_start}-{intonation_end}, {100*(intonation_end-intonation_start)/segment_length:.0f}% věty)")
+                                                    else:  # HALF_FALL
+                                                        intonation_start = start_sample + int(segment_length * 0.7)
+                                                        intonation_end = end_sample
+                                                        fall_intensity = intensity
+                                                        print(f"      Auto-detekce HALF_FALL: aplikuji na konec ({intonation_start}-{intonation_end}, {100*(intonation_end-intonation_start)/segment_length:.0f}% věty)")
+
+                                                    if intonation_start < intonation_end:
+                                                        audio = IntonationProcessor.apply_intonation_to_segment(
+                                                            audio, sr, intonation_start, intonation_end,
+                                                            inton_type, fall_intensity if inton_type == 'FALL' else intensity
+                                                        )
+                                                        applied_count += 1
+                                                        print(f"      ✅ Intonace {inton_type} aplikována na segment {intonation_start}-{intonation_end}")
+                                                    else:
+                                                        # Pokud je segment příliš krátký, aplikuj na celý
+                                                        audio = IntonationProcessor.apply_intonation_to_segment(
+                                                            audio, sr, start_sample, end_sample,
+                                                            inton_type, fall_intensity if inton_type == 'FALL' else intensity
+                                                        )
+                                                        applied_count += 1
+                                                        print(f"      ✅ Intonace {inton_type} aplikována na celý segment {start_sample}-{end_sample} (segment příliš krátký)")
+                                                else:
+                                                    # Pro explicitní značky aplikuj na celý segment
+                                                    audio = IntonationProcessor.apply_intonation_to_segment(
+                                                        audio, sr, start_sample, end_sample,
+                                                        inton_type, intensity
+                                                    )
+                                                    applied_count += 1
+                                                    print(f"      ✅ Intonace {inton_type} aplikována na segment {start_sample}-{end_sample}")
+                                        else:
+                                            print(f"      ⚠️ Intonace NENÍ aplikována: start={start_sample}, end={end_sample}, audio_len={len(audio)}")
+
+                                print(f"✅ Intonace aplikována: {applied_count}/{len(intonation_metadata)}")
+
+                        # Emphasis post-processing
+                        if ENABLE_PROSODY_CONTROL and prosody_metadata.get('emphasis'):
+                            _progress(64, "emphasis", "Aplikuji důraz…")
+                            emphasis_metadata = prosody_metadata.get('emphasis', [])
+
+                            if emphasis_metadata:
+                                print(f"💪 Aplikuji {len(emphasis_metadata)} důrazů…")
+                                applied_count = 0
+
+                                for i, emph in enumerate(emphasis_metadata):
+                                    level = emph.get('level', 'MODERATE')
+                                    # Použij zpracovaný obsah a pozici (pokud existuje), jinak původní
+                                    processed_content = emph.get('processed_content', emph.get('content', ''))
+                                    processed_position = emph.get('processed_position', emph.get('position', 0))
+                                    processed_length = emph.get('processed_length', len(processed_content))
+                                    auto_detected_emphasis = emph.get('auto_detected', False)
+
+                                    print(f"   Emphasis {i+1}: level={level}, auto={auto_detected_emphasis}, content='{emph.get('content', '')[:30]}', processed='{processed_content[:30]}', pos={processed_position}, len={processed_length}")
+
+                                    # Vypočítej pozice v audio (relativní k zpracovanému textu)
+                                    text_length = len(text)
+                                    if text_length > 0:
+                                        # Odhad délky emphasis segmentu v audio
+                                        if processed_length > 0:
+                                            content_ratio = processed_length / text_length
+                                            segment_length = int(content_ratio * len(audio))
+
+                                            # Najdi pozici v audio
+                                            position_ratio = processed_position / text_length
+                                            start_sample = int(position_ratio * len(audio))
+                                            end_sample = min(start_sample + segment_length, len(audio))
+
+                                            print(f"      Audio: text_len={text_length}, audio_len={len(audio)}, start={start_sample}, end={end_sample}, segment_len={segment_length}")
+
+                                            if start_sample < end_sample and end_sample <= len(audio):
+                                                # Aplikuj emphasis efekt na segment (zvýšená intenzita pro výraznější efekt)
+                                                segment = audio[start_sample:end_sample]
+                                                # Pro STRONG použij vyšší intenzitu (1.5), pro MODERATE standardní (1.0)
+                                                # Pro automaticky detekovaný emphasis z vykřičníku použij ještě vyšší intenzitu
+                                                if auto_detected_emphasis and level == 'STRONG':
+                                                    emphasis_intensity = 2.0  # Velmi vysoká intenzita pro vykřičník
+                                                elif level == 'STRONG':
+                                                    emphasis_intensity = 1.5
+                                                else:
+                                                    emphasis_intensity = 1.0
+                                                modified_segment = AudioEnhancer.apply_emphasis_effect(
+                                                    segment, sr, level=level, intensity=emphasis_intensity
+                                                )
+
+                                                # Vlož zpět s vyhlazením přechodů
+                                                fade_samples = min(int(sr * 0.01), len(modified_segment) // 4)  # 10ms fade
+                                                if fade_samples > 0:
+                                                    fade_in = np.linspace(0.0, 1.0, fade_samples)
+                                                    fade_out = np.linspace(1.0, 0.0, fade_samples)
+                                                    modified_segment[:fade_samples] *= fade_in
+                                                    modified_segment[-fade_samples:] *= fade_out
+
+                                                audio[start_sample:end_sample] = modified_segment
+                                                applied_count += 1
+                                                print(f"      ✅ Emphasis aplikován na segment {start_sample}-{end_sample}")
+                                            else:
+                                                print(f"      ⚠️ Emphasis NENÍ aplikován: start={start_sample}, end={end_sample}, audio_len={len(audio)}")
+                                        else:
+                                            print(f"      ⚠️ Emphasis NENÍ aplikován: processed_length=0")
+                                    else:
+                                        print(f"      ⚠️ Emphasis NENÍ aplikován: text_length=0")
+
+                                print(f"✅ Důraz aplikován: {applied_count}/{len(emphasis_metadata)}")
+
+                        # Rate post-processing (rychlost řeči)
+                        if ENABLE_PROSODY_CONTROL and prosody_metadata.get('rate_changes'):
+                            _progress(65, "rate", "Aplikuji rychlost…")
+                            rate_metadata = prosody_metadata.get('rate_changes', [])
+
+                            if rate_metadata:
+                                print(f"⚡ Aplikuji {len(rate_metadata)} změn rychlosti…")
+
+                                for rate_info in rate_metadata:
+                                    rate = rate_info.get('rate', 'NORMAL')
+                                    content = rate_info.get('content', '')
+                                    position = rate_info.get('position', 0)
+
+                                    # Vypočítej pozice v audio
+                                    text_length = len(text)
+                                    if text_length > 0:
+                                        content_length = len(content)
+                                        if content_length > 0:
+                                            content_ratio = content_length / text_length
+                                            segment_length = int(content_ratio * len(audio))
+
+                                            position_ratio = position / text_length
+                                            start_sample = int(position_ratio * len(audio))
+                                            end_sample = min(start_sample + segment_length, len(audio))
+
+                                            if start_sample < end_sample and end_sample <= len(audio):
+                                                # Aplikuj rate efekt na segment
+                                                segment = audio[start_sample:end_sample]
+                                                modified_segment = AudioEnhancer.apply_rate_effect(
+                                                    segment, sr, rate=rate, intensity=1.0
+                                                )
+
+                                                # Vlož zpět s vyhlazením přechodů
+                                                fade_samples = min(int(sr * 0.01), len(modified_segment) // 4)
+                                                if fade_samples > 0:
+                                                    fade_in = np.linspace(0.0, 1.0, fade_samples)
+                                                    fade_out = np.linspace(1.0, 0.0, fade_samples)
+                                                    modified_segment[:fade_samples] *= fade_in
+                                                    modified_segment[-fade_samples:] *= fade_out
+
+                                                # Pokud se délka změnila, musíme upravit audio
+                                                length_diff = len(modified_segment) - len(segment)
+                                                if length_diff != 0:
+                                                    # Vytvoř nové audio s upravenou délkou
+                                                    new_audio = np.zeros(len(audio) + length_diff, dtype=audio.dtype)
+                                                    new_audio[:start_sample] = audio[:start_sample]
+                                                    new_audio[start_sample:start_sample + len(modified_segment)] = modified_segment
+                                                    new_audio[start_sample + len(modified_segment):] = audio[end_sample:]
+                                                    audio = new_audio
+                                                else:
+                                                    audio[start_sample:end_sample] = modified_segment
+
+                                print(f"✅ Rychlost aplikována")
+
+                        # Pitch post-processing (výška hlasu)
+                        if ENABLE_PROSODY_CONTROL and prosody_metadata.get('pitch_changes'):
+                            _progress(66, "pitch", "Aplikuji výšku hlasu…")
+                            pitch_metadata = prosody_metadata.get('pitch_changes', [])
+
+                            if pitch_metadata:
+                                print(f"🎵 Aplikuji {len(pitch_metadata)} změn výšky hlasu…")
+
+                                for pitch_info in pitch_metadata:
+                                    pitch = pitch_info.get('pitch', 'NORMAL')
+                                    content = pitch_info.get('content', '')
+                                    position = pitch_info.get('position', 0)
+
+                                    # Vypočítej pozice v audio
+                                    text_length = len(text)
+                                    if text_length > 0:
+                                        content_length = len(content)
+                                        if content_length > 0:
+                                            content_ratio = content_length / text_length
+                                            segment_length = int(content_ratio * len(audio))
+
+                                            position_ratio = position / text_length
+                                            start_sample = int(position_ratio * len(audio))
+                                            end_sample = min(start_sample + segment_length, len(audio))
+
+                                            if start_sample < end_sample and end_sample <= len(audio):
+                                                # Aplikuj pitch efekt na segment
+                                                segment = audio[start_sample:end_sample]
+                                                modified_segment = AudioEnhancer.apply_pitch_effect(
+                                                    segment, sr, pitch=pitch, intensity=1.0
+                                                )
+
+                                                # Vlož zpět s vyhlazením přechodů
+                                                fade_samples = min(int(sr * 0.01), len(modified_segment) // 4)
+                                                if fade_samples > 0:
+                                                    fade_in = np.linspace(0.0, 1.0, fade_samples)
+                                                    fade_out = np.linspace(1.0, 0.0, fade_samples)
+                                                    modified_segment[:fade_samples] *= fade_in
+                                                    modified_segment[-fade_samples:] *= fade_out
+
+                                                audio[start_sample:end_sample] = modified_segment
+
+                                print(f"✅ Výška hlasu aplikována")
+                    except Exception as e:
+                        print(f"⚠️ Warning: Prosody post-processing selhal: {e}")
+
                 # Uložení s upsamplovaným audio (před enhancement)
                 sf.write(output_path, audio, sr)
                 _progress(65, "upsample", "Upsampling dokončen")
@@ -1087,6 +1368,32 @@ class XTTSEngine:
                     # Použít předaný enhancement_preset, nebo výchozí z configu
                     preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
 
+                    # Zkontroluj, jestli je whisper zapnutý v presetu a další enhancement nastavení
+                    enable_whisper = False
+                    whisper_intensity = 1.0
+                    whisper_normalization = True  # Výchozí: normalizace zapnutá
+                    whisper_headroom = None  # Výchozí: použít globální headroom
+                    try:
+                        from backend.config import QUALITY_PRESETS
+                        # Pokud je quality_mode nastaven, použij jeho enhancement config
+                        if quality_mode and quality_mode in QUALITY_PRESETS:
+                            preset_config = QUALITY_PRESETS.get(quality_mode, {})
+                            enhancement_config = preset_config.get("enhancement", {})
+                            enable_whisper = enhancement_config.get("enable_whisper", False)
+                            whisper_intensity = enhancement_config.get("whisper_intensity", 1.0)
+                            whisper_normalization = enhancement_config.get("enable_normalization", True)
+                            whisper_headroom = enhancement_config.get("target_headroom_db", None)
+                        # Jinak zkontroluj enhancement_preset (může být také quality preset)
+                        elif preset_to_use in QUALITY_PRESETS:
+                            preset_config = QUALITY_PRESETS.get(preset_to_use, {})
+                            enhancement_config = preset_config.get("enhancement", {})
+                            enable_whisper = enhancement_config.get("enable_whisper", False)
+                            whisper_intensity = enhancement_config.get("whisper_intensity", 1.0)
+                            whisper_normalization = enhancement_config.get("enable_normalization", True)
+                            whisper_headroom = enhancement_config.get("target_headroom_db", None)
+                    except Exception as e:
+                        print(f"⚠️ Warning: Failed to load whisper config from preset: {e}")
+
                     # Počítáme aktivní kroky pro správné rozložení procent
                     active_steps = []
                     if enable_trim:
@@ -1099,6 +1406,8 @@ class XTTSEngine:
                         active_steps.append("compressor")
                     if enable_deesser:
                         active_steps.append("deesser")
+                    if enable_whisper:
+                        active_steps.append("whisper")
                     active_steps.append("final")  # fade + DC + normalizace
 
                     step_size = 20.0 / max(1, len(active_steps))  # 68-88% pro enhancement
@@ -1143,12 +1452,19 @@ class XTTSEngine:
                         _progress(current_pct, "enhance", "De-esser…")
                         audio = AudioEnhancer.apply_deesser(audio, sr)
 
+                    # 5.5. Whisper effect (pokud zapnuto) - šeptavý efekt
+                    if enable_whisper:
+                        current_pct += step_size
+                        _progress(current_pct, "enhance", "Šeptavý efekt…")
+                        audio = AudioEnhancer.apply_whisper_effect(audio, sr, intensity=whisper_intensity)
+
                     # 6. Fade in/out + DC offset + normalizace
                     current_pct += step_size
                     _progress(current_pct, "enhance", "Finální úpravy enhancement…")
                     audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=50)
                     audio = AudioEnhancer.remove_dc_offset(audio)
 
+                    # Normalizace (whisper efekt neovlivňuje hlasitost, takže použij standardní normalizaci)
                     if enable_normalization:
                         audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
 
@@ -1843,6 +2159,8 @@ class XTTSEngine:
                         # Více segmentů v části - generuj každý segment zvlášť a spoj
                         part_audio_files = []
                         for seg in part_segments:
+                            # Odstraň enable_trim z kwargs, protože ho explicitně nastavujeme
+                            seg_kwargs = {k: v for k, v in kwargs.items() if k != 'enable_trim'}
                             seg_audio = await self.generate(
                                 text=seg.text,
                                 speaker_wav=seg.speaker_wav or default_speaker_wav,
@@ -1851,7 +2169,7 @@ class XTTSEngine:
                                 handle_pauses=False,
                                 enable_trim=False,
                                 job_id=None,
-                                **kwargs
+                                **seg_kwargs
                             )
                             part_audio_files.append(seg_audio)
 

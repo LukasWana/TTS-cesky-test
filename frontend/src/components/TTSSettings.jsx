@@ -305,11 +305,15 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 <option value="high_quality">Vysoká kvalita</option>
                 <option value="natural">Přirozený</option>
                 <option value="fast">Rychlý</option>
+                <option value="meditative">Meditativní</option>
+                <option value="whisper">Šeptavý</option>
               </select>
               <div className="setting-description">
                 {quality.qualityMode === 'high_quality' && 'Nejlepší kvalita, pomalejší generování'}
                 {quality.qualityMode === 'natural' && 'Vyvážená kvalita a rychlost'}
                 {quality.qualityMode === 'fast' && 'Rychlé generování, základní kvalita'}
+                {quality.qualityMode === 'meditative' && 'Klidný, meditativní hlas s pomalejší řečí'}
+                {quality.qualityMode === 'whisper' && 'Šeptavý hlas s whisper efektem'}
                 {!quality.qualityMode && 'Použijte vlastní parametry výše'}
               </div>
             </div>

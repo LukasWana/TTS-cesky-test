@@ -2,7 +2,7 @@
 Prosody Control modul pro kontrolu intonace a důrazu
 """
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from backend.config import ENABLE_PROSODY_CONTROL
 
 
@@ -55,6 +55,21 @@ class ProsodyProcessor:
         (r'…', 'PAUSE_SHORT'),
     ]
 
+    # Intonační značky
+    INTONATION_PATTERNS = [
+        (r'\[intonation:fall\](.*?)\[/intonation\]', 'FALL'),
+        (r'\[intonation:rise\](.*?)\[/intonation\]', 'RISE'),
+        (r'\[intonation:flat\](.*?)\[/intonation\]', 'FLAT'),
+        (r'\[intonation:wave\](.*?)\[/intonation\]', 'WAVE'),
+        (r'\[intonation:half_fall\](.*?)\[/intonation\]', 'HALF_FALL'),
+    ]
+
+    # SSML-like kontury
+    PROSODY_CONTOUR_PATTERN = re.compile(
+        r'<prosody\s+contour=["\']([^"\']+)["\']>(.*?)</prosody>',
+        re.IGNORECASE | re.DOTALL
+    )
+
     @staticmethod
     def process_text(text: str, use_simple_markers: bool = True) -> Tuple[str, Dict]:
         """
@@ -77,7 +92,8 @@ class ProsodyProcessor:
             'emphasis': [],
             'rate_changes': [],
             'pitch_changes': [],
-            'pauses': []
+            'pauses': [],
+            'intonation': []
         }
 
         processed = text
@@ -101,12 +117,35 @@ class ProsodyProcessor:
         processed, pause_meta = processor._process_pauses(processed)
         metadata['pauses'].extend(pause_meta)
 
-        # Detekce a úprava intonace otázek (na konci věty s ?)
-        if processed.endswith('?'):
-            # Pro XTTS někdy pomůže přidat více otazníků nebo specifickou strukturu
-            # ale většinou stačí zajistit, aby tam otazník byl.
-            # Zde můžeme přidat logiku pro "stoupavou" intonaci pokud je potřeba.
-            pass
+        # Zpracuj intonační značky
+        processed, intonation_meta = processor._process_intonation(processed)
+        metadata['intonation'].extend(intonation_meta)
+
+        # Zpracuj SSML kontury
+        processed, contour_meta = processor._process_contours(processed)
+        metadata['intonation'].extend(contour_meta)
+
+        # Automatická detekce intonace podle typu věty (pokud není explicitně zadána)
+        if not metadata['intonation']:
+            auto_intonation = processor._detect_sentence_intonation(processed)
+            if auto_intonation:
+                metadata['intonation'].append(auto_intonation)
+
+                # Pro vykřičník přidej automatický emphasis na celou větu pro větší důraz
+                if auto_intonation.get('is_exclamation'):
+                    # Přidej emphasis metadata pro celou větu s vykřičníkem
+                    emphasis_meta = {
+                        'type': 'emphasis',
+                        'level': 'STRONG',  # Silný důraz pro vykřičník
+                        'content': processed,  # Celá věta
+                        'processed_content': processed.upper(),  # Velká písmena pro důraz
+                        'position': 0,
+                        'processed_position': 0,
+                        'processed_length': len(processed),
+                        'auto_detected': True
+                    }
+                    metadata['emphasis'].append(emphasis_meta)
+                    print(f"💥 Automatický důraz detekován pro vykřičník: '{processed[:50]}...'")
 
         return processed, metadata
 
@@ -127,12 +166,32 @@ class ProsodyProcessor:
                 metadata.append({
                     'type': 'emphasis',
                     'level': level,
-                    'content': content,
-                    'position': match.start()
+                    'content': content,  # Původní obsah
+                    'processed_content': emphasized,  # Zpracovaný obsah
+                    'position': match.start()  # Pozice v původním textu
                 })
                 return emphasized
 
             processed = re.sub(pattern, replace_emphasis, processed, flags=re.IGNORECASE | re.DOTALL)
+
+        # Přepočítej pozice podle zpracovaného textu
+        for meta in metadata:
+            processed_content = meta.get('processed_content', meta['content'])
+            # Najdi pozici zpracovaného obsahu v zpracovaném textu
+            try:
+                # Začni hledat od původní pozice (přibližně)
+                start_pos = max(0, meta['position'] - 10)
+                found_pos = processed.find(processed_content, start_pos)
+                if found_pos != -1:
+                    meta['processed_position'] = found_pos
+                    meta['processed_length'] = len(processed_content)
+                else:
+                    # Pokud nenajdeme, použijeme původní pozici
+                    meta['processed_position'] = meta['position']
+                    meta['processed_length'] = len(processed_content)
+            except Exception:
+                meta['processed_position'] = meta['position']
+                meta['processed_length'] = len(processed_content)
 
         return processed, metadata
 
@@ -210,12 +269,32 @@ class ProsodyProcessor:
                 metadata.append({
                     'type': 'emphasis',
                     'level': level,
-                    'content': content,
-                    'position': match.start()
+                    'content': content,  # Původní obsah
+                    'processed_content': emphasized,  # Zpracovaný obsah
+                    'position': match.start()  # Pozice v původním textu
                 })
                 return emphasized
 
             processed = re.sub(pattern, replace_simple, processed)
+
+        # Přepočítej pozice podle zpracovaného textu
+        for meta in metadata:
+            processed_content = meta.get('processed_content', meta['content'])
+            # Najdi pozici zpracovaného obsahu v zpracovaném textu
+            try:
+                # Začni hledat od původní pozice (přibližně)
+                start_pos = max(0, meta['position'] - 10)
+                found_pos = processed.find(processed_content, start_pos)
+                if found_pos != -1:
+                    meta['processed_position'] = found_pos
+                    meta['processed_length'] = len(processed_content)
+                else:
+                    # Pokud nenajdeme, použijeme původní pozici
+                    meta['processed_position'] = meta['position']
+                    meta['processed_length'] = len(processed_content)
+            except Exception:
+                meta['processed_position'] = meta['position']
+                meta['processed_length'] = len(processed_content)
 
         return processed, metadata
 
@@ -257,6 +336,115 @@ class ProsodyProcessor:
 
         return processed, metadata
 
+    def _process_intonation(self, text: str) -> Tuple[str, List[Dict]]:
+        """Zpracuje intonační značky [intonation:type]text[/intonation]"""
+        metadata = []
+        processed = text
+
+        for pattern, intonation_type in ProsodyProcessor.INTONATION_PATTERNS:
+            def replace_intonation(match):
+                content = match.group(1)
+                metadata.append({
+                    'type': 'intonation',
+                    'intonation_type': intonation_type,
+                    'content': content,
+                    'position': match.start(),
+                    'length': len(content),
+                    'intensity': 1.0
+                })
+                return content  # Vrátíme obsah bez značek
+
+            processed = re.sub(pattern, replace_intonation, processed, flags=re.IGNORECASE | re.DOTALL)
+
+        return processed, metadata
+
+    def _process_contours(self, text: str) -> Tuple[str, List[Dict]]:
+        """Zpracuje SSML-like kontury <prosody contour="...">text</prosody>"""
+        metadata = []
+        processed = text
+
+        matches = list(ProsodyProcessor.PROSODY_CONTOUR_PATTERN.finditer(text))
+
+        for match in matches:
+            contour_str = match.group(1)
+            content = match.group(2)
+
+            # Parsuj konturu
+            try:
+                from backend.intonation_processor import IntonationProcessor
+                contour = IntonationProcessor.parse_contour_string(contour_str)
+            except Exception:
+                contour = []
+
+            metadata.append({
+                'type': 'contour',
+                'contour': contour,
+                'content': content,
+                'position': match.start(),
+                'length': len(content),
+                'intensity': 1.0
+            })
+
+        # Odstraň značky z textu
+        processed = ProsodyProcessor.PROSODY_CONTOUR_PATTERN.sub(r'\2', processed)
+
+        return processed, metadata
+
+    @staticmethod
+    def _detect_sentence_intonation(text: str) -> Optional[Dict]:
+        """
+        Automaticky detekuje intonaci podle typu věty
+
+        Args:
+            text: Text věty
+
+        Returns:
+            Metadata o intonaci nebo None
+        """
+        text = text.strip()
+        if not text:
+            return None
+
+        # Zkontroluj přímo konec textu (nebo poslední znak před mezerou)
+        # Odstraň mezery na konci pro kontrolu
+        text_clean = text.rstrip()
+
+        intonation_type = None
+
+        # Zkontroluj poslední znak (nebo poslední znaky před mezerou)
+        intonation_intensity = 1.0
+        is_exclamation = False
+
+        if text_clean.endswith('?'):
+            intonation_type = 'RISE'  # Stoupavá pro otázky
+        elif text_clean.endswith('.'):
+            intonation_type = 'FALL'  # Klesavá pro oznamovací
+        elif text_clean.endswith(','):
+            intonation_type = 'HALF_FALL'  # Polokadence
+        elif text_clean.endswith('!'):
+            intonation_type = 'FALL'  # Klesavá pro rozkazy/výkřiky
+            intonation_intensity = 1.5  # Zvýšená intenzita pro výraznější efekt
+            is_exclamation = True
+
+        if intonation_type:
+            result = {
+                'type': 'intonation',
+                'intonation_type': intonation_type,
+                'content': text,
+                'position': 0,
+                'length': len(text),
+                'intensity': intonation_intensity,
+                'auto_detected': True
+            }
+
+            # Pro vykřičník přidej také emphasis metadata pro větší důraz
+            if is_exclamation:
+                result['is_exclamation'] = True
+
+            return result
+
+        return None
+
     @staticmethod
     def clean_prosody_markers(text: str) -> str:
         """
@@ -282,6 +470,13 @@ class ProsodyProcessor:
         text = re.sub(r'\[PAUSE(?::\d+)?\]', '', text)
         text = text.replace('...', '')
         text = text.replace('…', '')
+
+        # Odstranit intonační značky
+        for pattern, _ in ProsodyProcessor.INTONATION_PATTERNS:
+            text = re.sub(pattern, r'\1', text, flags=re.IGNORECASE | re.DOTALL)
+
+        # Odstranit SSML kontury
+        text = ProsodyProcessor.PROSODY_CONTOUR_PATTERN.sub(r'\2', text)
 
         return text.strip()
 

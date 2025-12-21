@@ -21,6 +21,54 @@ class PhoneticTranslator:
             'en': self.lookup_loader.get_english_phonetic(),
         }
 
+        # České stop words - slova, která se NEPŘEPISUJÍ foneticky
+        # (předložky, spojky, zájmena, pomocná slovesa, částice, atd.)
+        self.czech_stopwords = {
+            # Předložky
+            'za', 'na', 'v', 's', 'z', 'k', 'o', 'u', 'pro', 'před', 'pod', 'nad',
+            'přes', 'bez', 'od', 'do', 'po', 'při', 'mezi', 'kolem', 'okolo', 'přes',
+            'kromě', 'mimo', 'vedle', 'blízko', 'daleko', 'před', 'za', 'podle',
+            # Spojky
+            'a', 'i', 'ale', 'nebo', 'protože', 'když', 'že', 'aby', 'kdyby',
+            'pak', 'tak', 'také', 'takže', 'proto', 'protože', 'neboť', 'nebo',
+            'avšak', 'však', 'ale', 'jenže', 'přesto', 'nicméně',
+            # Zájmena osobní
+            'já', 'ty', 'on', 'ona', 'ono', 'my', 'vy', 'oni', 'ony', 'ona',
+            'mne', 'mě', 'tebe', 'tě', 'něj', 'ho', 'ní', 'ji', 'nás', 'vás',
+            'nimi', 'jimi', 'nimi', 'jimi',
+            # Zájmena přivlastňovací
+            'můj', 'tvůj', 'jeho', 'její', 'náš', 'váš', 'jejich',
+            'mého', 'tvé', 'jeho', 'její', 'naše', 'vaše', 'jejich',
+            # Zájmena ukazovací
+            'to', 'ta', 'ten', 'toto', 'tato', 'tento', 'tam', 'tady', 'tamto',
+            'tamhle', 'tadyhle', 'tamhleto', 'tadyhleto',
+            # Zájmena tázací
+            'kdo', 'co', 'jaký', 'který', 'kde', 'kam', 'kdy', 'proč', 'jak',
+            'kolik', 'čí', 'čího', 'čemu', 'čím',
+            # Zájmena vztažná
+            'který', 'která', 'které', 'jenž', 'jež', 'jehož', 'jejíž',
+            # Zájmena neurčitá
+            'někdo', 'něco', 'nějaký', 'některý', 'někde', 'někam', 'někdy',
+            'kdokoli', 'cokoli', 'jakýkoli', 'kdekoli', 'kdykoli',
+            # Částice
+            'ne', 'ano', 'ne', 'nechť', 'ať', 'kéž', 'jen', 'jenom', 'pouze',
+            'také', 'i', 'ani', 'nebo', 'či', 'a', 'ale', 'však',
+            # Pomocná slovesa
+            'je', 'jsem', 'jsme', 'jste', 'jsou', 'být', 'mít', 'bývat', 'mívat',
+            'byl', 'byla', 'bylo', 'byli', 'byly', 'bude', 'budou', 'byl by',
+            # Reflexivní zájmena
+            'se', 'si', 'sebe', 'sobě', 'sebou',
+            # Krátké tvary zájmen
+            'mi', 'ti', 'mu', 'jí', 'nám', 'vám', 'jim', 'jim',
+            # Další běžná česká slova
+            'jak', 'tak', 'pak', 'kde', 'kdy', 'kdo', 'co', 'proč', 'jaký',
+            'takový', 'takovýto', 'takovýhle', 'takovýto',
+            # Číslovky základní (1-10)
+            'jeden', 'dva', 'tři', 'čtyři', 'pět', 'šest', 'sedm', 'osm', 'devět', 'deset',
+            # Číslovky řadové (1-10)
+            'první', 'druhý', 'třetí', 'čtvrtý', 'pátý', 'šestý', 'sedmý', 'osmý', 'devátý', 'desátý'
+        }
+
         # Načtení lookup tabulek pro přejatá slova
         try:
             prejata_slova = self.lookup_loader.get_prejata_slova_dict()
@@ -81,6 +129,10 @@ class PhoneticTranslator:
         sorted_words = sorted(phonetic_dict.keys(), key=len, reverse=True)
 
         for foreign_word in sorted_words:
+            # Přeskočit české stop words - nepřepisovat je foneticky
+            if foreign_word.lower() in self.czech_stopwords:
+                continue
+
             phonetic = phonetic_dict[foreign_word]
 
             # Pro zkratky psané velkými písmeny (např. SE, ES, USA, UK, EU)

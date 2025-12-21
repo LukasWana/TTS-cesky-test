@@ -28,7 +28,9 @@ class AudioEnhancer:
         enable_compression: Optional[bool] = None,
         enable_deesser: Optional[bool] = None,
         enable_normalization: bool = True,
-        enable_trim: bool = True
+        enable_trim: bool = True,
+        enable_whisper: bool = False,
+        whisper_intensity: float = 1.0
     ) -> str:
         """
         Hlavní metoda pro post-processing audio
@@ -95,6 +97,10 @@ class AudioEnhancer:
         # 5. De-esser (pokud zapnuto) - odstranění ostrých sykavek
         if use_deesser:
             audio = AudioEnhancer.apply_deesser(audio, sr)
+
+        # 5.5. Whisper effect (pokud zapnuto) - šeptavý efekt
+        if enable_whisper:
+            audio = AudioEnhancer.apply_whisper_effect(audio, sr, intensity=whisper_intensity)
 
         # 6. Fade in/out
         audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=50)
@@ -281,6 +287,105 @@ class AudioEnhancer:
             return audio
 
     @staticmethod
+    def apply_whisper_effect(audio: np.ndarray, sr: int, intensity: float = 1.0) -> np.ndarray:
+        """
+        Aplikuje šeptavý efekt na audio na základě frekvenčních charakteristik šeptání.
+
+        Šeptání je charakterizováno:
+        - Absencí fundamentální frekvence (F0) - hlasivky nevibrují
+        - Širokopásmovým spektrem s energií rozloženou napříč frekvencemi
+        - Hlavní energie v pásmu 200-5000 Hz
+        - Formanty (rezonance hlasového traktu) v pásmu 1-3 kHz
+        - Šumovým charakterem bez periodické struktury
+        - Menším dynamickým rozsahem než běžná řeč
+
+        Args:
+            audio: Audio data
+            sr: Sample rate
+            intensity: Intenzita efektu (0.0-1.0, výchozí: 1.0)
+                     0.0 = žádný efekt, 1.0 = plný šeptavý efekt
+
+        Returns:
+            Audio se šeptavým efektem
+        """
+        if not SCIPY_AVAILABLE:
+            return audio
+
+        if len(audio) == 0:
+            return audio
+
+        try:
+            nyquist = sr / 2
+
+            # 1. Snížení velmi nízkých frekvencí (pod 100-150 Hz)
+            # Šeptání má minimální energii pod 100 Hz (bez fundamentální frekvence)
+            # Při intenzitě 1.0: cutoff = 100 Hz, při 0.5: cutoff = 150 Hz
+            low_cutoff = 100 + (50 * (1.0 - intensity))  # 100-150 Hz podle intenzity
+            low_cutoff = max(low_cutoff, 50)  # Minimální limit
+            sos_hp_low = signal.butter(4, low_cutoff / nyquist, btype='high', output='sos')
+            # Větší redukce basů pro autentičnost šeptání
+            bass_reduction = 0.15 + (0.15 * intensity)  # 15-30% redukce
+            high_passed_low = signal.sosfiltfilt(sos_hp_low, audio)
+            audio = audio * (1.0 - bass_reduction) + high_passed_low * bass_reduction
+
+            # 2. Zvýšení středních frekvencí (1-3 kHz) - formanty šeptání
+            # Formanty (rezonance hlasového traktu) jsou stále přítomné v šeptání
+            # Toto pásmo obsahuje hlavní energii šeptavého hlasu
+            sos_boost_formants = signal.butter(4, [1000, 3000], btype='band', fs=sr, output='sos')
+            boosted_formants = signal.sosfiltfilt(sos_boost_formants, audio)
+            # Mírně vyšší boost pro lepší simulaci formantů (5-10% boost)
+            boost_amount = 0.05 + (0.05 * intensity)  # 5-10%
+            audio = audio + (boost_amount * boosted_formants)
+
+            # 3. Mírné zvýšení středně-vysokých frekvencí (3-4 kHz)
+            # Šeptání má ještě určitou energii v tomto pásmu
+            sos_boost_mid = signal.butter(4, [3000, 4000], btype='band', fs=sr, output='sos')
+            boosted_mid = signal.sosfiltfilt(sos_boost_mid, audio)
+            # Jemné zvýraznění (2-4% boost)
+            mid_boost = 0.02 + (0.02 * intensity)  # 2-4%
+            audio = audio + (mid_boost * boosted_mid)
+
+            # 4. Snížení vysokých frekvencí (high-frequency roll-off)
+            # Šeptání má výrazně méně vysokých frekvencí než běžná řeč
+            # Hlavní energie je v pásmu 200-5000 Hz, nad 5 kHz výrazný pokles
+            # Při intenzitě 1.0: cutoff = 4000 Hz, při 0.5: cutoff = 5500 Hz
+            cutoff = 4000 + (1500 * (1.0 - intensity))  # 4.0-5.5 kHz podle intenzity
+            cutoff = min(cutoff, nyquist * 0.9)  # Bezpečnostní limit
+
+            # Použijeme strmější low-pass filter pro autentičnost
+            sos_lp = signal.butter(8, cutoff / nyquist, btype='low', output='sos')
+            audio = signal.sosfiltfilt(sos_lp, audio)
+
+            # 5. Výraznější pokles velmi vysokých frekvencí (nad 5-6 kHz)
+            # Šeptání má téměř žádné frekvence nad 5 kHz
+            if cutoff < 5500:
+                # Další pokles pro frekvence nad cutoff
+                sos_lp2 = signal.butter(6, (cutoff + 500) / nyquist, btype='low', output='sos')
+                high_freq = signal.sosfiltfilt(sos_lp2, audio)
+                # Větší redukce vysokých frekvencí (60-85% podle intenzity)
+                reduction = 0.6 + (0.25 * intensity)  # 0.6-0.85
+                audio = audio * (1.0 - reduction) + high_freq * reduction
+
+            # 6. Přidání jemného šumu pro autentičnost šumového charakteru šeptání
+            # Šeptání má šumový charakter bez periodické struktury
+            noise_level = 0.005 * intensity  # 0-0.5% šumu podle intenzity
+            noise = np.random.normal(0, noise_level * np.std(audio), len(audio))
+            audio = audio + noise
+
+            # 7. Snížení dynamiky (komprese) - šeptání má menší dynamický rozsah
+            # Vyšší kompresní poměr pro autentičnost
+            compression_ratio = 2.5 + (0.5 * intensity)  # 2.5-3.0
+            audio = AudioEnhancer.compress_dynamic_range(audio, ratio=compression_ratio, threshold=-18.0)
+
+            # NENÍ snížení celkové hlasitosti - šeptání se simuluje pouze EQ úpravami!
+            # Hlasitost zůstane na normální úrovni
+
+            return audio
+        except Exception as e:
+            print(f"⚠️ Warning: Whisper effect failed: {e}, continuing without whisper effect")
+            return audio
+
+    @staticmethod
     def compress_dynamic_range(audio: np.ndarray, ratio: float = 2.5, threshold: float = -12.0) -> np.ndarray:
         """
         Jemná komprese dynamiky pro zvládnutí transientů (zmírněno pro lepší kvalitu)
@@ -370,5 +475,165 @@ class AudioEnhancer:
 
         except Exception as e:
             print(f"Warning: De-esser failed: {e}, continuing without de-essing")
+            return audio
+
+    @staticmethod
+    def apply_emphasis_effect(audio: np.ndarray, sr: int, level: str = 'MODERATE', intensity: float = 1.0) -> np.ndarray:
+        """
+        Aplikuje důraz na audio segment
+
+        Args:
+            audio: Audio data
+            sr: Sample rate
+            level: Úroveň důrazu ('STRONG' nebo 'MODERATE')
+            intensity: Intenzita efektu (0.0-2.0, výchozí: 1.0, hodnoty > 1.0 zvyšují efekt)
+
+        Returns:
+            Audio s aplikovaným důrazem
+        """
+        if not SCIPY_AVAILABLE:
+            return audio
+
+        if len(audio) == 0:
+            return audio
+
+        try:
+            # 1. Zvýšení hlasitosti podle úrovně důrazu (zvýšeno pro výraznější efekt)
+            if level == 'STRONG':
+                # Silný důraz: +6-12 dB podle intenzity (zvýšeno z 3-6 dB)
+                gain_db = 6.0 + (6.0 * intensity)  # 6-12 dB
+            else:  # MODERATE
+                # Mírný důraz: +3-6 dB podle intenzity (zvýšeno z 1.5-3 dB)
+                gain_db = 3.0 + (3.0 * intensity)  # 3-6 dB
+
+            gain_linear = 10 ** (gain_db / 20.0)
+            audio = audio * gain_linear
+
+            # 2. Výrazné zvýšení středních frekvencí (1-4 kHz) - kde je důraz nejvýraznější
+            nyquist = sr / 2
+            sos_boost = signal.butter(4, [1000, 4000], btype='band', fs=sr, output='sos')
+            boosted = signal.sosfiltfilt(sos_boost, audio)
+            # Boost podle úrovně a intenzity (zvýšeno pro výraznější efekt)
+            if level == 'STRONG':
+                boost_amount = 0.15 + (0.15 * intensity)  # 15-30% boost (zvýšeno z 5-10%)
+            else:
+                boost_amount = 0.08 + (0.12 * intensity)  # 8-20% boost (zvýšeno z 2-5%)
+            audio = audio + (boost_amount * boosted)
+
+            # 3. Dynamická komprese pro větší kontrast (pouze pro STRONG)
+            if level == 'STRONG':
+                # Mírná komprese pro větší dynamiku
+                threshold = -20.0  # dB
+                ratio = 3.0
+                # Aplikuj jednoduchou kompresi
+                audio_abs = np.abs(audio)
+                audio_max = np.max(audio_abs) if np.max(audio_abs) > 0 else 1.0
+                audio_db = 20 * np.log10(audio_abs / audio_max + 1e-10)
+
+                # Komprese nad prahem
+                compressed_db = np.where(
+                    audio_db > threshold,
+                    threshold + (audio_db - threshold) / ratio,
+                    audio_db
+                )
+
+                # Převeď zpět na lineární
+                compressed_linear = 10 ** (compressed_db / 20.0) * audio_max
+                audio = np.sign(audio) * compressed_linear
+
+            # 4. Pro silný důraz: mírné zvýšení pitch (simulace větší energie)
+            if level == 'STRONG' and intensity > 0.5:
+                try:
+                    import librosa
+                    # Zvýšení pitch (1-2 semitony podle intenzity, zvýšeno z 0.5-1.0)
+                    pitch_shift = 1.0 + (1.0 * (intensity - 0.5) * 2)  # 1.0-2.0 semiton
+                    audio = librosa.effects.pitch_shift(audio, sr=sr, n_steps=pitch_shift)
+                except Exception:
+                    pass  # Pokud pitch shift selže, pokračuj bez něj
+
+            return audio
+        except Exception as e:
+            print(f"⚠️ Warning: Emphasis effect failed: {e}, continuing without emphasis")
+            return audio
+
+    @staticmethod
+    def apply_rate_effect(audio: np.ndarray, sr: int, rate: str = 'NORMAL', intensity: float = 1.0) -> np.ndarray:
+        """
+        Aplikuje změnu rychlosti řeči na audio segment
+
+        Args:
+            audio: Audio data
+            sr: Sample rate
+            rate: Úroveň rychlosti ('SLOW', 'X_SLOW', 'FAST', 'X_FAST', 'NORMAL')
+            intensity: Intenzita efektu (0.0-1.0, výchozí: 1.0)
+
+        Returns:
+            Audio s aplikovanou změnou rychlosti
+        """
+        if len(audio) == 0:
+            return audio
+
+        try:
+            import librosa
+
+            # Určení faktoru rychlosti
+            if rate == 'X_SLOW':
+                speed_factor = 0.6 + (0.2 * (1.0 - intensity))  # 0.6-0.8x (pomalejší)
+            elif rate == 'SLOW':
+                speed_factor = 0.75 + (0.15 * (1.0 - intensity))  # 0.75-0.9x (mírně pomalejší)
+            elif rate == 'X_FAST':
+                speed_factor = 1.3 + (0.3 * intensity)  # 1.3-1.6x (rychlejší)
+            elif rate == 'FAST':
+                speed_factor = 1.1 + (0.2 * intensity)  # 1.1-1.3x (mírně rychlejší)
+            else:  # NORMAL
+                return audio  # Žádná změna
+
+            # Aplikuj změnu rychlosti pomocí time-stretching (zachová pitch)
+            # Použijeme librosa.effects.time_stretch
+            audio_stretched = librosa.effects.time_stretch(audio, rate=speed_factor)
+
+            return audio_stretched
+        except Exception as e:
+            print(f"⚠️ Warning: Rate effect failed: {e}, continuing without rate change")
+            return audio
+
+    @staticmethod
+    def apply_pitch_effect(audio: np.ndarray, sr: int, pitch: str = 'NORMAL', intensity: float = 1.0) -> np.ndarray:
+        """
+        Aplikuje změnu výšky hlasu (pitch) na audio segment
+
+        Args:
+            audio: Audio data
+            sr: Sample rate
+            pitch: Úroveň pitch ('HIGH', 'X_HIGH', 'LOW', 'X_LOW', 'NORMAL')
+            intensity: Intenzita efektu (0.0-1.0, výchozí: 1.0)
+
+        Returns:
+            Audio s aplikovanou změnou pitch
+        """
+        if len(audio) == 0:
+            return audio
+
+        try:
+            import librosa
+
+            # Určení změny pitch v semitonech
+            if pitch == 'X_HIGH':
+                pitch_shift = 2.0 + (2.0 * intensity)  # +2 až +4 semitony
+            elif pitch == 'HIGH':
+                pitch_shift = 1.0 + (1.0 * intensity)  # +1 až +2 semitony
+            elif pitch == 'X_LOW':
+                pitch_shift = -2.0 - (2.0 * intensity)  # -2 až -4 semitony
+            elif pitch == 'LOW':
+                pitch_shift = -1.0 - (1.0 * intensity)  # -1 až -2 semitony
+            else:  # NORMAL
+                return audio  # Žádná změna
+
+            # Aplikuj pitch shift
+            audio_shifted = librosa.effects.pitch_shift(audio, sr=sr, n_steps=pitch_shift)
+
+            return audio_shifted
+        except Exception as e:
+            print(f"⚠️ Warning: Pitch effect failed: {e}, continuing without pitch change")
             return audio
 

@@ -115,6 +115,7 @@ VAD_AGGRESSIVENESS = int(os.getenv("VAD_AGGRESSIVENESS", "2"))  # 0-3
 
 # Prosody Control
 ENABLE_PROSODY_CONTROL = os.getenv("ENABLE_PROSODY_CONTROL", "True").lower() == "true"
+ENABLE_INTONATION_PROCESSING = os.getenv("ENABLE_INTONATION_PROCESSING", "True").lower() == "true"
 
 # Phonetic Translation (fonetický přepis cizích slov)
 ENABLE_PHONETIC_TRANSLATION = os.getenv("ENABLE_PHONETIC_TRANSLATION", "True").lower() == "true"
@@ -229,6 +230,40 @@ QUALITY_PRESETS = {
             "enable_noise_reduction": False,
             "enable_compression": True,
             "enable_deesser": False
+        }
+    },
+    "meditative": {
+        "speed": 0.75,
+        "temperature": 0.45,
+        "length_penalty": 1.1,
+        "repetition_penalty": 2.2,
+        "top_k": 35,
+        "top_p": 0.75,
+        "enhancement": {
+            "enable_eq": True,
+            "enable_noise_reduction": True,
+            "enable_compression": True,
+            "enable_deesser": False,
+            "enable_whisper": False,
+            "whisper_intensity": 0.0
+        }
+    },
+    "whisper": {
+        "speed": 0.65,
+        "temperature": 0.30,  # Nižší pro konzistentnější, tichý hlas bez periodické struktury
+        "length_penalty": 1.2,  # Vyšší pro plynulejší řeč (šeptání má menší dynamiku)
+        "repetition_penalty": 2.6,  # Vyšší pro lepší artikulaci
+        "top_k": 25,  # Nižší pro konzistentnější výstup (šeptání má šumový charakter)
+        "top_p": 0.65,  # Nižší pro konzistentnější výstup
+        "enhancement": {
+            "enable_eq": False,  # Vypnuto - whisper efekt má vlastní EQ úpravy založené na frekvenčních charakteristikách šeptání
+            "enable_noise_reduction": True,  # Zapnuto - šeptání má šumový charakter, ale chceme zachovat autentický šum
+            "enable_compression": False,  # Vypnuto - whisper efekt má vlastní kompresi s vyšším poměrem
+            "enable_deesser": False,  # Vypnuto - šeptání má méně sykavek kvůli sníženým vysokým frekvencím
+            "enable_whisper": True,
+            "whisper_intensity": 1.0,  # Plná intenzita pro autentické šeptání
+            "enable_normalization": True,  # Zapnuto - normální hlasitost
+            "target_headroom_db": None  # Použít globální headroom (-6 dB)
         }
     }
 }
