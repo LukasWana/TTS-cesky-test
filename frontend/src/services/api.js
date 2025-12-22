@@ -124,6 +124,12 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
   if (ttsParams.enableTrim !== undefined) {
     formData.append('enable_trim', ttsParams.enableTrim.toString())
   }
+  if (ttsParams.enableWhisper !== undefined) {
+    formData.append('enable_whisper', ttsParams.enableWhisper.toString())
+  }
+  if (ttsParams.whisperIntensity !== undefined && ttsParams.whisperIntensity !== null) {
+    formData.append('whisper_intensity', ttsParams.whisperIntensity.toString())
+  }
   if (ttsParams.enableDialectConversion !== undefined) {
     formData.append('enable_dialect_conversion', ttsParams.enableDialectConversion.toString())
   }

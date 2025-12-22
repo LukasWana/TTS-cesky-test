@@ -47,7 +47,9 @@ const DEFAULT_QUALITY_SETTINGS = {
   // Dialect conversion
   enableDialectConversion: false,
   dialectCode: null,
-  dialectIntensity: 1.0
+  dialectIntensity: 1.0,
+  // Whisper efekt
+  whisperIntensity: 1.0
 }
 
 // Klíče pro localStorage - varianty jsou vázané na konkrétní hlas (id)
@@ -480,7 +482,12 @@ function App() {
         enableTrim: qualitySettings.enableTrim,
         enableDialectConversion: qualitySettings.enableDialectConversion,
         dialectCode: qualitySettings.dialectCode,
-        dialectIntensity: qualitySettings.dialectIntensity
+        dialectIntensity: qualitySettings.dialectIntensity,
+        // Whisper efekt parametry
+        enableWhisper: qualitySettings.qualityMode === 'whisper' ? true : undefined,
+        whisperIntensity: qualitySettings.qualityMode === 'whisper' && qualitySettings.whisperIntensity !== undefined
+          ? qualitySettings.whisperIntensity
+          : undefined
       }
 
       // Zrušit předchozí progress SSE spojení, pokud běží

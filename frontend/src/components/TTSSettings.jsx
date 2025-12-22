@@ -63,7 +63,8 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
     enableCompressor: true,
     enableDeesser: true,
     enableEq: true,
-    enableTrim: true
+    enableTrim: true,
+    whisperIntensity: 1.0
   }
 
   const quality = qualitySettings || defaultQualitySettings
@@ -126,27 +127,33 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
             onToggle={() => setTtsParamsExpanded(!ttsParamsExpanded)}
           >
             <div className="settings-grid">
-            {/* Rychlost řeči - skryto, protože degraduje kvalitu zvuku */}
-            {/* <div className="setting-item">
-              <label htmlFor="speed">
-                Rychlost řeči (Speed)
-                <span className="setting-value">{settings.speed.toFixed(2)}</span>
-              </label>
-              <input
-                type="range"
-                id="speed"
-                min="0.5"
-                max="2.0"
-                step="0.1"
-                value={settings.speed}
-                onChange={(e) => handleChange('speed', e.target.value)}
-              />
-              <div className="setting-range">
-                <span>0.5x</span>
-                <span>1.0x</span>
-                <span>2.0x</span>
+            {/* Rychlost řeči - zobrazit pro meditative/whisper nebo pokud je explicitně v Advanced */}
+            {(quality.qualityMode === 'meditative' || quality.qualityMode === 'whisper') && (
+              <div className="setting-item">
+                <label htmlFor="speed">
+                  Rychlost řeči (Tempo)
+                  <span className="setting-value">{settings.speed.toFixed(2)}x</span>
+                </label>
+                <input
+                  type="range"
+                  id="speed"
+                  min="0.5"
+                  max="1.5"
+                  step="0.05"
+                  value={settings.speed}
+                  onChange={(e) => handleChange('speed', e.target.value)}
+                />
+                <div className="setting-range">
+                  <span>0.5x (pomalejší)</span>
+                  <span>1.0x (normální)</span>
+                  <span>1.5x (rychlejší)</span>
+                </div>
+                <div className="setting-description">
+                  {quality.qualityMode === 'meditative' && 'Pro meditativní hlas doporučeno 0.75x'}
+                  {quality.qualityMode === 'whisper' && 'Pro šeptavý hlas doporučeno 0.65x'}
+                </div>
               </div>
-            </div> */}
+            )}
 
             {/* Teplota */}
             <div className="setting-item">
@@ -312,11 +319,41 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 {quality.qualityMode === 'high_quality' && 'Nejlepší kvalita, pomalejší generování'}
                 {quality.qualityMode === 'natural' && 'Vyvážená kvalita a rychlost'}
                 {quality.qualityMode === 'fast' && 'Rychlé generování, základní kvalita'}
-                {quality.qualityMode === 'meditative' && 'Klidný, meditativní hlas s pomalejší řečí'}
-                {quality.qualityMode === 'whisper' && 'Šeptavý hlas s whisper efektem'}
+                {quality.qualityMode === 'meditative' && 'Klidný, meditativní hlas s pomalejší řečí (speed: 0.75x)'}
+                {quality.qualityMode === 'whisper' && 'Šeptavý hlas s whisper efektem (speed: 0.65x)'}
                 {!quality.qualityMode && 'Použijte vlastní parametry výše'}
               </div>
             </div>
+
+            {/* Whisper intensity slider (pouze pro whisper režim) */}
+            {quality.qualityMode === 'whisper' && (
+              <div className="setting-item">
+                <label htmlFor="whisperIntensity">
+                  Intenzita whisper efektu
+                  <span className="setting-value">{(quality.whisperIntensity !== undefined ? quality.whisperIntensity : 1.0).toFixed(2)}</span>
+                </label>
+                <input
+                  type="range"
+                  id="whisperIntensity"
+                  min="0.0"
+                  max="1.0"
+                  step="0.05"
+                  value={quality.whisperIntensity !== undefined ? quality.whisperIntensity : 1.0}
+                  onChange={(e) => onQualityChange && onQualityChange({
+                    ...quality,
+                    whisperIntensity: parseFloat(e.target.value)
+                  })}
+                />
+                <div className="setting-range">
+                  <span>0.0 (jemný)</span>
+                  <span>0.5</span>
+                  <span>1.0 (plný efekt)</span>
+                </div>
+                <div className="setting-description">
+                  Intenzita šeptavého efektu. Vyšší hodnota = výraznější šeptání.
+                </div>
+              </div>
+            )}
 
             <div className="setting-item">
               <label htmlFor="enhancementPreset">

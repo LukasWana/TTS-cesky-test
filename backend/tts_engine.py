@@ -363,7 +363,7 @@ class XTTSEngine:
         Aplikuje quality preset na TTS parametry
 
         Args:
-            preset: Název presetu (high_quality, natural, fast)
+            preset: Název presetu (high_quality, natural, fast, meditative, whisper)
 
         Returns:
             Slovník s TTS parametry
@@ -381,6 +381,126 @@ class XTTSEngine:
         }
 
         return tts_params
+
+    def _compute_effective_settings(
+        self,
+        quality_mode: Optional[str] = None,
+        enhancement_preset: Optional[str] = None,
+        speed: Optional[float] = None,
+        temperature: Optional[float] = None,
+        length_penalty: Optional[float] = None,
+        repetition_penalty: Optional[float] = None,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        enable_eq: Optional[bool] = None,
+        enable_denoiser: Optional[bool] = None,
+        enable_compressor: Optional[bool] = None,
+        enable_deesser: Optional[bool] = None,
+        enable_normalization: Optional[bool] = None,
+        enable_trim: Optional[bool] = None,
+        enable_whisper: Optional[bool] = None,
+        whisper_intensity: Optional[float] = None,
+        target_headroom_db: Optional[float] = None,
+    ) -> dict:
+        """
+        Vypočítá efektivní nastavení kombinací quality_mode presetu, enhancement_preset a explicitních parametrů.
+
+        Pravidla priority:
+        1. Explicitní parametry (pokud zadány) mají přednost před presety
+        2. quality_mode určuje TTS parametry a enhancement (pokud je quality preset)
+        3. enhancement_preset určuje enhancement (pokud není quality_mode nebo quality_mode není quality preset)
+        4. Výchozí hodnoty z configu pro neexplicitní parametry
+
+        Pro speed: Pokud je quality_mode in {meditative, whisper} a speed není explicitně zadán,
+        použije se speed z presetu. Jinak se zachová explicitní speed nebo výchozí.
+
+        Returns:
+            Dictionary s efektivními nastaveními:
+            - tts: {speed, temperature, length_penalty, repetition_penalty, top_k, top_p}
+            - enhancement: {enable_eq, enable_denoiser, enable_compressor, enable_deesser, enable_trim, enable_normalization}
+            - whisper: {enable_whisper, whisper_intensity}
+            - headroom: {target_headroom_db}
+        """
+        from backend.config import (
+            TTS_SPEED, TTS_TEMPERATURE, TTS_LENGTH_PENALTY, TTS_REPETITION_PENALTY, TTS_TOP_K, TTS_TOP_P,
+            OUTPUT_HEADROOM_DB, ENABLE_AUDIO_ENHANCEMENT
+        )
+
+        # Výchozí hodnoty z configu
+        defaults = {
+            "speed": TTS_SPEED,
+            "temperature": TTS_TEMPERATURE,
+            "length_penalty": TTS_LENGTH_PENALTY,
+            "repetition_penalty": TTS_REPETITION_PENALTY,
+            "top_k": TTS_TOP_K,
+            "top_p": TTS_TOP_P,
+            "enable_eq": True,
+            "enable_denoiser": True,
+            "enable_compressor": True,
+            "enable_deesser": True,
+            "enable_trim": True,
+            "enable_normalization": True,
+            "enable_whisper": False,
+            "whisper_intensity": 1.0,
+            "target_headroom_db": OUTPUT_HEADROOM_DB,
+        }
+
+        # Načti TTS parametry z quality_mode presetu (pokud existuje)
+        preset_tts = {}
+        preset_enhancement = {}
+        if quality_mode and quality_mode in QUALITY_PRESETS:
+            preset_config = QUALITY_PRESETS[quality_mode]
+            preset_tts = self._apply_quality_preset(quality_mode)
+            preset_enhancement = preset_config.get("enhancement", {})
+
+        # Načti enhancement z enhancement_preset (pokud je to quality preset a quality_mode není nastaven)
+        elif enhancement_preset and enhancement_preset in QUALITY_PRESETS:
+            preset_config = QUALITY_PRESETS[enhancement_preset]
+            preset_enhancement = preset_config.get("enhancement", {})
+
+        # Sestav efektivní TTS parametry (explicitní > preset > výchozí)
+        effective_tts = {
+            "speed": speed if speed is not None else (preset_tts.get("speed") if preset_tts else defaults["speed"]),
+            "temperature": temperature if temperature is not None else (preset_tts.get("temperature") if preset_tts else defaults["temperature"]),
+            "length_penalty": length_penalty if length_penalty is not None else (preset_tts.get("length_penalty") if preset_tts else defaults["length_penalty"]),
+            "repetition_penalty": repetition_penalty if repetition_penalty is not None else (preset_tts.get("repetition_penalty") if preset_tts else defaults["repetition_penalty"]),
+            "top_k": top_k if top_k is not None else (preset_tts.get("top_k") if preset_tts else defaults["top_k"]),
+            "top_p": top_p if top_p is not None else (preset_tts.get("top_p") if preset_tts else defaults["top_p"]),
+        }
+
+        # Speciální pravidlo pro speed: pokud je quality_mode meditative/whisper a speed není explicitně zadán,
+        # použij speed z presetu (pro meditative/whisper je to důležité pro správný efekt)
+        if quality_mode in ("meditative", "whisper") and speed is None:
+            effective_tts["speed"] = preset_tts.get("speed", defaults["speed"])
+
+        # Sestav efektivní enhancement parametry (explicitní > preset > výchozí)
+        # Mapování názvů: enable_noise_reduction -> enable_denoiser, enable_compression -> enable_compressor
+        effective_enhancement = {
+            "enable_eq": enable_eq if enable_eq is not None else (preset_enhancement.get("enable_eq", defaults["enable_eq"])),
+            "enable_denoiser": enable_denoiser if enable_denoiser is not None else (preset_enhancement.get("enable_noise_reduction", defaults["enable_denoiser"])),
+            "enable_compressor": enable_compressor if enable_compressor is not None else (preset_enhancement.get("enable_compression", defaults["enable_compressor"])),
+            "enable_deesser": enable_deesser if enable_deesser is not None else (preset_enhancement.get("enable_deesser", defaults["enable_deesser"])),
+            "enable_trim": enable_trim if enable_trim is not None else defaults["enable_trim"],
+            "enable_normalization": enable_normalization if enable_normalization is not None else (preset_enhancement.get("enable_normalization", defaults["enable_normalization"])),
+        }
+
+        # Whisper efekt (z presetu nebo explicitní)
+        effective_whisper = {
+            "enable_whisper": enable_whisper if enable_whisper is not None else (preset_enhancement.get("enable_whisper", defaults["enable_whisper"])),
+            "whisper_intensity": whisper_intensity if whisper_intensity is not None else (preset_enhancement.get("whisper_intensity", defaults["whisper_intensity"])),
+        }
+
+        # Headroom (preset může mít target_headroom_db, jinak globální)
+        effective_headroom = {
+            "target_headroom_db": target_headroom_db if target_headroom_db is not None else (preset_enhancement.get("target_headroom_db", defaults["target_headroom_db"])),
+        }
+
+        return {
+            "tts": effective_tts,
+            "enhancement": effective_enhancement,
+            "whisper": effective_whisper,
+            "headroom": effective_headroom,
+        }
 
     async def generate(
         self,
@@ -411,6 +531,12 @@ class XTTSEngine:
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
+        enable_whisper: Optional[bool] = None,
+        whisper_intensity: Optional[float] = None,
+        target_headroom_db: Optional[float] = None,
+        hifigan_refinement_intensity: Optional[float] = None,
+        hifigan_normalize_output: Optional[bool] = None,
+        hifigan_normalize_gain: Optional[float] = None,
         job_id: Optional[str] = None
     ):
         """
@@ -458,19 +584,46 @@ class XTTSEngine:
             except Exception:
                 pass
 
-        # Aplikace quality preset pokud je zadán - MUSÍ být PŘED kontrolou multi-pass a batch
-        # aby se parametry správně aplikovaly ve všech případech
+        # Vypočítej efektivní nastavení (kombinace quality_mode, enhancement_preset a explicitních parametrů)
+        effective = self._compute_effective_settings(
+            quality_mode=quality_mode,
+            enhancement_preset=enhancement_preset,
+            speed=speed,
+            temperature=temperature,
+            length_penalty=length_penalty,
+            repetition_penalty=repetition_penalty,
+            top_k=top_k,
+            top_p=top_p,
+            enable_eq=enable_eq,
+            enable_denoiser=enable_denoiser,
+            enable_compressor=enable_compressor,
+            enable_deesser=enable_deesser,
+            enable_normalization=enable_normalization,
+            enable_trim=enable_trim,
+            enable_whisper=enable_whisper,
+            whisper_intensity=whisper_intensity,
+            target_headroom_db=target_headroom_db,
+        )
+
+        # Extrahuj efektivní hodnoty
+        speed = effective["tts"]["speed"]
+        temperature = effective["tts"]["temperature"]
+        length_penalty = effective["tts"]["length_penalty"]
+        repetition_penalty = effective["tts"]["repetition_penalty"]
+        top_k = effective["tts"]["top_k"]
+        top_p = effective["tts"]["top_p"]
+        enable_eq = effective["enhancement"]["enable_eq"]
+        enable_denoiser = effective["enhancement"]["enable_denoiser"]
+        enable_compressor = effective["enhancement"]["enable_compressor"]
+        enable_deesser = effective["enhancement"]["enable_deesser"]
+        enable_normalization = effective["enhancement"]["enable_normalization"]
+        enable_trim = effective["enhancement"]["enable_trim"]
+        enable_whisper = effective["whisper"]["enable_whisper"]
+        whisper_intensity = effective["whisper"]["whisper_intensity"]
+        target_headroom_db = effective["headroom"]["target_headroom_db"]
+
         if quality_mode:
-            preset_params = self._apply_quality_preset(quality_mode)
-            # Rychlost (speed) chceme zachovat z parametrů volání,
-            # protože ji uživatel nastavuje v UI posuvníkem
-            # speed = preset_params["speed"]
-            temperature = preset_params["temperature"]
-            length_penalty = preset_params["length_penalty"]
-            repetition_penalty = preset_params["repetition_penalty"]
-            top_k = preset_params["top_k"]
-            top_p = preset_params["top_p"]
-            print(f"🎯 Quality mode '{quality_mode}' aplikován - parametry přepsány z presetu")
+            print(f"🎯 Quality mode '{quality_mode}' aplikován - efektivní nastavení vypočítáno z presetu (speed={speed:.2f}x)")
 
         # Multi-pass generování
         if multi_pass or (ENABLE_MULTI_PASS and not multi_pass):
@@ -765,6 +918,12 @@ class XTTSEngine:
             enable_dialect_conversion,
             dialect_code,
             dialect_intensity,
+            enable_whisper,
+            whisper_intensity,
+            target_headroom_db,
+            hifigan_refinement_intensity,
+            hifigan_normalize_output,
+            hifigan_normalize_gain,
             job_id
         )
 
@@ -797,6 +956,12 @@ class XTTSEngine:
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
+        enable_whisper: bool = False,
+        whisper_intensity: float = 1.0,
+        target_headroom_db: Optional[float] = None,
+        hifigan_refinement_intensity: Optional[float] = None,
+        hifigan_normalize_output: Optional[bool] = None,
+        hifigan_normalize_gain: Optional[float] = None,
         job_id: Optional[str] = None,
         prosody_metadata: Optional[Dict] = None
     ):
@@ -1359,140 +1524,30 @@ class XTTSEngine:
             # Post-processing audio enhancement (pokud je zapnuto)
             if ENABLE_AUDIO_ENHANCEMENT:
                 try:
-                    # Rozděl enhancement na více kroků pro lepší progress feedback
-                    _progress(68, "enhance", "Načítám audio pro enhancement…")
-                    import librosa
-                    import soundfile as sf
-                    audio, sr = librosa.load(output_path, sr=OUTPUT_SAMPLE_RATE)
-
-                    # Použít předaný enhancement_preset, nebo výchozí z configu
+                    # Použít předaný enhancement_preset, nebo výchozí z configu (pro kompatibilitu se starým kódem)
                     preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
 
-                    # Načti enhancement nastavení z presetu (pokud je quality_mode nebo enhancement_preset quality preset)
-                    # Výchozí hodnoty z parametrů volání
-                    enable_eq_from_preset = enable_eq
-                    enable_denoiser_from_preset = enable_denoiser
-                    enable_compressor_from_preset = enable_compressor
-                    enable_deesser_from_preset = enable_deesser
-                    enable_whisper = False
-                    whisper_intensity = 1.0
-                    whisper_normalization = True  # Výchozí: normalizace zapnutá
-                    whisper_headroom = None  # Výchozí: použít globální headroom
+                    # Progress callback wrapper: mapuje 0-100 z AudioEnhancer na 68-88 v celkovém progressu
+                    def enhance_progress(percent: float, stage: str, message: str):
+                        mapped_percent = 68.0 + (percent / 100.0) * 20.0  # 68-88%
+                        _progress(mapped_percent, "enhance", message)
 
-                    try:
-                        from backend.config import QUALITY_PRESETS
-                        # Pokud je quality_mode nastaven, použij jeho enhancement config
-                        if quality_mode and quality_mode in QUALITY_PRESETS:
-                            preset_config = QUALITY_PRESETS.get(quality_mode, {})
-                            enhancement_config = preset_config.get("enhancement", {})
-                            # Načti všechny enhancement parametry z presetu
-                            enable_eq_from_preset = enhancement_config.get("enable_eq", enable_eq)
-                            enable_denoiser_from_preset = enhancement_config.get("enable_noise_reduction", enable_denoiser)
-                            enable_compressor_from_preset = enhancement_config.get("enable_compression", enable_compressor)
-                            enable_deesser_from_preset = enhancement_config.get("enable_deesser", enable_deesser)
-                            enable_whisper = enhancement_config.get("enable_whisper", False)
-                            whisper_intensity = enhancement_config.get("whisper_intensity", 1.0)
-                            whisper_normalization = enhancement_config.get("enable_normalization", True)
-                            whisper_headroom = enhancement_config.get("target_headroom_db", None)
-                        # Jinak zkontroluj enhancement_preset (může být také quality preset)
-                        elif preset_to_use in QUALITY_PRESETS:
-                            preset_config = QUALITY_PRESETS.get(preset_to_use, {})
-                            enhancement_config = preset_config.get("enhancement", {})
-                            # Načti všechny enhancement parametry z presetu
-                            enable_eq_from_preset = enhancement_config.get("enable_eq", enable_eq)
-                            enable_denoiser_from_preset = enhancement_config.get("enable_noise_reduction", enable_denoiser)
-                            enable_compressor_from_preset = enhancement_config.get("enable_compression", enable_compressor)
-                            enable_deesser_from_preset = enhancement_config.get("enable_deesser", enable_deesser)
-                            enable_whisper = enhancement_config.get("enable_whisper", False)
-                            whisper_intensity = enhancement_config.get("whisper_intensity", 1.0)
-                            whisper_normalization = enhancement_config.get("enable_normalization", True)
-                            whisper_headroom = enhancement_config.get("target_headroom_db", None)
-                    except Exception as e:
-                        print(f"⚠️ Warning: Failed to load enhancement config from preset: {e}")
-
-                    # Použij hodnoty z presetu (nebo výchozí z parametrů)
-                    enable_eq = enable_eq_from_preset
-                    enable_denoiser = enable_denoiser_from_preset
-                    enable_compressor = enable_compressor_from_preset
-                    enable_deesser = enable_deesser_from_preset
-
-                    # Počítáme aktivní kroky pro správné rozložení procent
-                    active_steps = []
-                    if enable_trim:
-                        active_steps.append("trim")
-                    if enable_denoiser:
-                        active_steps.append("denoiser")
-                    if enable_eq:
-                        active_steps.append("eq")
-                    if enable_compressor:
-                        active_steps.append("compressor")
-                    if enable_deesser:
-                        active_steps.append("deesser")
-                    if enable_whisper:
-                        active_steps.append("whisper")
-                    active_steps.append("final")  # fade + DC + normalizace
-
-                    step_size = 20.0 / max(1, len(active_steps))  # 68-88% pro enhancement
-                    current_pct = 68.0
-
-                    # 1. Trim (pokud zapnuto)
-                    if enable_trim:
-                        current_pct += step_size
-                        _progress(current_pct, "enhance", "Ořez ticha…")
-                        try:
-                            from backend.vad_processor import get_vad_processor
-                            from backend.config import ENABLE_VAD
-                            if ENABLE_VAD:
-                                vad_processor = get_vad_processor()
-                                audio = vad_processor.trim_silence_vad(audio, sr)
-                            else:
-                                audio, _ = librosa.effects.trim(audio, top_db=25)
-                        except Exception:
-                            audio, _ = librosa.effects.trim(audio, top_db=25)
-
-                    # 2. Noise reduction (pokud zapnuto)
-                    if enable_denoiser:
-                        current_pct += step_size
-                        _progress(current_pct, "enhance", "Redukce šumu…")
-                        audio = AudioEnhancer.reduce_noise_advanced(audio, sr)
-
-                    # 3. EQ (pokud zapnuto)
-                    if enable_eq:
-                        current_pct += step_size
-                        _progress(current_pct, "enhance", "EQ korekce…")
-                        audio = AudioEnhancer.apply_eq(audio, sr)
-
-                    # 4. Komprese (pokud zapnuto)
-                    if enable_compressor:
-                        current_pct += step_size
-                        _progress(current_pct, "enhance", "Komprese dynamiky…")
-                        audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
-
-                    # 5. De-esser (pokud zapnuto)
-                    if enable_deesser:
-                        current_pct += step_size
-                        _progress(current_pct, "enhance", "De-esser…")
-                        audio = AudioEnhancer.apply_deesser(audio, sr)
-
-                    # 5.5. Whisper effect (pokud zapnuto) - šeptavý efekt
-                    if enable_whisper:
-                        current_pct += step_size
-                        _progress(current_pct, "enhance", "Šeptavý efekt…")
-                        audio = AudioEnhancer.apply_whisper_effect(audio, sr, intensity=whisper_intensity)
-
-                    # 6. Fade in/out + DC offset + normalizace
-                    current_pct += step_size
-                    _progress(current_pct, "enhance", "Finální úpravy enhancement…")
-                    audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=50)
-                    audio = AudioEnhancer.remove_dc_offset(audio)
-
-                    # Normalizace (whisper efekt neovlivňuje hlasitost, takže použij standardní normalizaci)
-                    if enable_normalization:
-                        audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
-
-                    # Uložení
-                    sf.write(output_path, audio, sr)
-                    _progress(88, "enhance", "Enhancement dokončen")
+                    # Volání jednotné enhancement metody
+                    AudioEnhancer.enhance_output(
+                        audio_path=str(output_path),
+                        preset=preset_to_use,
+                        enable_eq=enable_eq,
+                        enable_noise_reduction=enable_denoiser,
+                        enable_compression=enable_compressor,
+                        enable_deesser=enable_deesser,
+                        enable_normalization=enable_normalization,
+                        enable_trim=enable_trim,
+                        enable_whisper=enable_whisper,
+                        whisper_intensity=whisper_intensity,
+                        enable_vad=enable_vad,
+                        target_headroom_db=target_headroom_db,
+                        progress_callback=enhance_progress
+                    )
                 except Exception as e:
                     print(f"Warning: Audio enhancement failed: {e}, continuing with original audio")
                     _progress(88, "enhance", "Enhancement přeskočen (chyba)")
@@ -1529,19 +1584,21 @@ class XTTSEngine:
                     mel_log = np.log10(np.maximum(mel, 1e-5))
 
                     # 2. Resyntéza pomocí HiFi-GAN (s blending pokud je intensity < 1.0)
+                    # Použij per-request parametry (předané z API)
                     refined_audio = self.vocoder.vocode(
                         mel_log,
                         sample_rate=sr,
-                        # Vždy předáme originál; vocoder si podle aktuální intensity z configu rozhodne,
-                        # jestli blendovat (UI → backend.main dočasně přepíše config hodnoty).
-                        original_audio=original_audio
+                        original_audio=original_audio,
+                        refinement_intensity=hifigan_refinement_intensity,
+                        normalize_output=hifigan_normalize_output,
+                        normalize_gain=hifigan_normalize_gain
                     )
 
                     if refined_audio is not None:
                         # Uložení vylepšeného audio
                         sf.write(output_path, refined_audio, sr)
-                        intensity = config.HIFIGAN_REFINEMENT_INTENSITY
-                        intensity_str = f" (intensity: {intensity:.2f})" if intensity < 1.0 else ""
+                        used_intensity = hifigan_refinement_intensity if hifigan_refinement_intensity is not None else config.HIFIGAN_REFINEMENT_INTENSITY
+                        intensity_str = f" (intensity: {used_intensity:.2f})" if used_intensity is not None and used_intensity < 1.0 else ""
                         print(f"✅ HiFi-GAN refinement dokončen{intensity_str}")
                     else:
                         print("⚠️ HiFi-GAN vocoding vrátil None, refinement přeskočen")
@@ -1611,18 +1668,21 @@ class XTTSEngine:
 
             # Finální headroom (po VŠEM): stáhne hlasitost, aby výstup nepůsobil "přebuzile"
             # Aplikuje se i když je normalizace/komprese vypnutá, protože samotný model může generovat hodně "hot" signál.
+            # Použij target_headroom_db pokud je zadán, jinak globální OUTPUT_HEADROOM_DB
             try:
                 _progress(97, "final", "Finální úpravy (headroom)…")
                 import librosa
                 import soundfile as sf
 
                 audio, sr = librosa.load(output_path, sr=None)
-                gain = 10 ** (float(OUTPUT_HEADROOM_DB) / 20.0)  # např. -6 dB => ~0.501
-                audio = audio * gain
-                # bezpečnostní clip (float WAV může jít mimo rozsah)
-                audio = np.clip(audio, -1.0, 1.0)
-                sf.write(output_path, audio, sr)
-                print(f"🔉 Aplikuji finální headroom: {OUTPUT_HEADROOM_DB} dB")
+                final_headroom_db = target_headroom_db if target_headroom_db is not None else OUTPUT_HEADROOM_DB
+                if final_headroom_db is not None and final_headroom_db < 0:
+                    gain = 10 ** (float(final_headroom_db) / 20.0)  # např. -6 dB => ~0.501
+                    audio = audio * gain
+                    # bezpečnostní clip (float WAV může jít mimo rozsah)
+                    audio = np.clip(audio, -1.0, 1.0)
+                    sf.write(output_path, audio, sr)
+                    print(f"🔉 Aplikuji finální headroom: {final_headroom_db} dB")
             except Exception as e:
                 print(f"⚠️ Warning: Finální headroom selhal: {e}")
             # 99% necháme až pro úplně poslední krok v backend/main.py (těsně před done=100),

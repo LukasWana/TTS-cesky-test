@@ -5,7 +5,7 @@ import numpy as np
 import librosa
 import soundfile as sf
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 from backend.config import OUTPUT_SAMPLE_RATE
 
 try:
@@ -30,50 +30,90 @@ class AudioEnhancer:
         enable_normalization: bool = True,
         enable_trim: bool = True,
         enable_whisper: bool = False,
-        whisper_intensity: float = 1.0
+        whisper_intensity: float = 1.0,
+        enable_vad: Optional[bool] = None,
+        target_headroom_db: Optional[float] = None,
+        progress_callback: Optional[Callable[[float, str, str], None]] = None
     ) -> str:
         """
         Hlavní metoda pro post-processing audio
 
         Args:
             audio_path: Cesta k audio souboru
-            preset: Preset kvality (high_quality, natural, fast)
+            preset: Preset kvality (high_quality, natural, fast) - použije se pouze pokud explicitní parametry nejsou zadány
             enable_eq: Zapnout EQ korekci (None = použít preset)
             enable_noise_reduction: Zapnout noise reduction (None = použít preset)
             enable_compression: Zapnout kompresi (None = použít preset)
             enable_deesser: Zapnout de-esser (None = použít preset)
             enable_normalization: Zapnout finální normalizaci (výchozí: True)
             enable_trim: Zapnout ořez ticha (výchozí: True)
+            enable_whisper: Zapnout whisper efekt (výchozí: False)
+            whisper_intensity: Intenzita whisper efektu (0.0-1.0, výchozí: 1.0)
+            enable_vad: Použít VAD pro trim (None = použít config, True/False = explicitně)
+            target_headroom_db: Cílový headroom v dB po normalizaci (None = použít globální OUTPUT_HEADROOM_DB)
+            progress_callback: Volitelná callback funkce pro progress updates (funkce(percent, stage, message))
 
         Returns:
             Cesta k vylepšenému audio souboru
         """
+        from backend.config import OUTPUT_HEADROOM_DB, ENABLE_VAD as CONFIG_ENABLE_VAD
+
         # Načtení audio
+        if progress_callback:
+            progress_callback(0, "enhance", "Načítám audio pro enhancement…")
         audio, sr = librosa.load(audio_path, sr=OUTPUT_SAMPLE_RATE)
 
-        # Určení nastavení podle presetu
-        try:
-            from backend.config import QUALITY_PRESETS
-            preset_config = QUALITY_PRESETS.get(preset, QUALITY_PRESETS["natural"])
-            enhancement_config = preset_config.get("enhancement", {})
-        except ImportError:
-            # Fallback pokud import selže
-            from backend import config
-            preset_config = config.QUALITY_PRESETS.get(preset, config.QUALITY_PRESETS["natural"])
-            enhancement_config = preset_config.get("enhancement", {})
+        # Určení nastavení podle presetu (pouze pokud explicitní parametry nejsou zadány)
+        use_eq = enable_eq
+        use_noise_reduction = enable_noise_reduction
+        use_compression = enable_compression
+        use_deesser = enable_deesser
+        if any(p is None for p in [enable_eq, enable_noise_reduction, enable_compression, enable_deesser]):
+            try:
+                from backend.config import QUALITY_PRESETS
+                preset_config = QUALITY_PRESETS.get(preset, QUALITY_PRESETS["natural"])
+                enhancement_config = preset_config.get("enhancement", {})
+            except ImportError:
+                from backend import config
+                preset_config = config.QUALITY_PRESETS.get(preset, config.QUALITY_PRESETS["natural"])
+                enhancement_config = preset_config.get("enhancement", {})
 
-        # Použití preset hodnot nebo explicitních parametrů
-        use_eq = enable_eq if enable_eq is not None else enhancement_config.get("enable_eq", True)
-        use_noise_reduction = enable_noise_reduction if enable_noise_reduction is not None else enhancement_config.get("enable_noise_reduction", True)
-        use_compression = enable_compression if enable_compression is not None else enhancement_config.get("enable_compression", True)
-        use_deesser = enable_deesser if enable_deesser is not None else enhancement_config.get("enable_deesser", True)
+            # Použití preset hodnot pouze pro parametry, které nejsou explicitně zadány
+            use_eq = enable_eq if enable_eq is not None else enhancement_config.get("enable_eq", True)
+            use_noise_reduction = enable_noise_reduction if enable_noise_reduction is not None else enhancement_config.get("enable_noise_reduction", True)
+            use_compression = enable_compression if enable_compression is not None else enhancement_config.get("enable_compression", True)
+            use_deesser = enable_deesser if enable_deesser is not None else enhancement_config.get("enable_deesser", True)
+
+        # Určení, zda použít VAD
+        use_vad = enable_vad if enable_vad is not None else CONFIG_ENABLE_VAD
+
+        # Počítáme aktivní kroky pro progress
+        active_steps = []
+        if enable_trim:
+            active_steps.append("trim")
+        if use_noise_reduction:
+            active_steps.append("denoiser")
+        if use_eq:
+            active_steps.append("eq")
+        if use_compression:
+            active_steps.append("compressor")
+        if use_deesser:
+            active_steps.append("deesser")
+        if enable_whisper:
+            active_steps.append("whisper")
+        active_steps.append("final")  # fade + DC + normalizace + headroom
+
+        step_size = 100.0 / max(1, len(active_steps))
+        current_pct = 0.0
 
         # 1. Ořez ticha (s VAD pokud je dostupné)
         if enable_trim:
+            current_pct += step_size
+            if progress_callback:
+                progress_callback(current_pct, "enhance", "Ořez ticha…")
             try:
-                from backend.vad_processor import get_vad_processor
-                from backend.config import ENABLE_VAD
-                if ENABLE_VAD:
+                if use_vad:
+                    from backend.vad_processor import get_vad_processor
                     vad_processor = get_vad_processor()
                     audio = vad_processor.trim_silence_vad(audio, sr)
                 else:
@@ -84,37 +124,59 @@ class AudioEnhancer:
 
         # 2. Pokročilá redukce šumu (pokud zapnuto)
         if use_noise_reduction:
+            current_pct += step_size
+            if progress_callback:
+                progress_callback(current_pct, "enhance", "Redukce šumu…")
             audio = AudioEnhancer.reduce_noise_advanced(audio, sr)
 
         # 3. EQ korekce (pokud zapnuto)
         if use_eq:
+            current_pct += step_size
+            if progress_callback:
+                progress_callback(current_pct, "enhance", "EQ korekce…")
             audio = AudioEnhancer.apply_eq(audio, sr)
 
         # 4. Komprese dynamiky (pokud zapnuto) - jemná komprese pro transienty
         if use_compression:
+            current_pct += step_size
+            if progress_callback:
+                progress_callback(current_pct, "enhance", "Komprese dynamiky…")
             audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
 
         # 5. De-esser (pokud zapnuto) - odstranění ostrých sykavek
         if use_deesser:
+            current_pct += step_size
+            if progress_callback:
+                progress_callback(current_pct, "enhance", "De-esser…")
             audio = AudioEnhancer.apply_deesser(audio, sr)
 
         # 5.5. Whisper effect (pokud zapnuto) - šeptavý efekt
         if enable_whisper:
+            current_pct += step_size
+            if progress_callback:
+                progress_callback(current_pct, "enhance", "Šeptavý efekt…")
             audio = AudioEnhancer.apply_whisper_effect(audio, sr, intensity=whisper_intensity)
 
-        # 6. Fade in/out
+        # 6. Fade in/out + DC offset + normalizace
+        current_pct += step_size
+        if progress_callback:
+            progress_callback(current_pct, "enhance", "Finální úpravy enhancement…")
         audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=50)
-
-        # 7. Odstranění DC offsetu (stejnosměrné složky)
         audio = AudioEnhancer.remove_dc_offset(audio)
 
-        # 8. Finální normalizace podle best practices pro hlas
+        # 7. Finální normalizace podle best practices pro hlas
         if enable_normalization:
             # Peak: -3 dB, RMS: -18 dB
             audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
 
+        # 8. Headroom se NEAPLIKUJE zde - aplikuje se až po HiFi-GAN a speed změně
+        # (viz tts_engine._generate_sync finální headroom sekce)
+
         # Uložení zpět do souboru
         sf.write(audio_path, audio, sr)
+
+        if progress_callback:
+            progress_callback(100.0, "enhance", "Enhancement dokončen")
 
         return audio_path
 

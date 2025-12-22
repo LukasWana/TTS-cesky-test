@@ -177,12 +177,76 @@ Nebo kombinaci s důrazem:
 **Dýchejte** [intonation:flat]zhluboka a uvolněte se.[/intonation]
 ```
 
+## Co ovládá quality_mode
+
+Režim `quality_mode` automaticky nastavuje:
+
+1. **TTS parametry** (temperature, length_penalty, repetition_penalty, top_k, top_p)
+2. **Speed (tempo)** - pro `meditative` a `whisper` se automaticky aplikuje zpomalení
+3. **Enhancement parametry** (enable_eq, enable_noise_reduction, enable_compression, enable_deesser)
+4. **Whisper efekt** (enable_whisper, whisper_intensity) - pouze pro `whisper` režim
+5. **Target headroom** (volitelné override pro finální hlasitost)
+
+Pokud zadáte explicitní parametry (např. `speed`, `temperature`), mají přednost před presetem. Výjimka: pro `meditative` a `whisper` se `speed` z presetu použije, pokud není explicitně zadán.
+
+## Doporučené kombinace parametrů
+
+### Whisper režim s různou intenzitou
+
+```javascript
+// Plný whisper efekt (výchozí pro quality_mode="whisper")
+{
+  quality_mode: "whisper",
+  whisper_intensity: 1.0  // Plná intenzita
+}
+
+// Jemnější whisper efekt (50% intenzita)
+{
+  quality_mode: "whisper",
+  whisper_intensity: 0.5
+}
+
+// Velmi jemný whisper efekt (25% intenzita)
+{
+  quality_mode: "whisper",
+  whisper_intensity: 0.25
+}
+```
+
+### Whisper s vlastním headroom
+
+```javascript
+// Whisper s větším headroom pro "měkčí" pocit
+{
+  quality_mode: "whisper",
+  target_headroom_db: -9.0  // Větší headroom = tišší výstup
+}
+
+// Whisper s menším headroom pro hlasitější výstup
+{
+  quality_mode: "whisper",
+  target_headroom_db: -3.0  // Menší headroom = hlasitější výstup
+}
+```
+
+### Meditative režim s custom speed
+
+```javascript
+// Meditative s vlastní rychlostí
+{
+  quality_mode: "meditative",
+  speed: 0.8  // Rychlejší než výchozí 0.75x
+}
+```
+
 ## Tipy
 
 1. **Pro meditaci**: Použijte preset "meditative" - klidný, pomalejší hlas bez whisper efektu
 2. **Pro šeptání**: Použijte preset "whisper" - plný whisper efekt s tichým, šeptavým zvukem
 3. **Pro vlastní nastavení**: Kombinujte parametry podle potřeby
-4. **Intenzita whisper efektu**: V presetu je nastavena na 1.0 (plná), ale může být upravena v kódu
+4. **Intenzita whisper efektu**: V presetu je nastavena na 1.0 (plná), ale může být upravena přes UI slider nebo API parametr `whisper_intensity`
+5. **Speed slider**: V UI je zobrazen automaticky pro `meditative` a `whisper` režimy, umožňuje jemné doladění tempa
+6. **Headroom**: Výchozí hodnota je -6.0 dB. Pro "měkčí" pocit zkuste -9.0 dB, pro hlasitější výstup -3.0 dB
 
 ## Technické poznámky
 
@@ -190,4 +254,43 @@ Nebo kombinaci s důrazem:
 - Whisper efekt **před** fade in/out a normalizací
 - Intenzita whisper efektu: 0.0 = žádný efekt, 1.0 = plný efekt
 - Whisper efekt může mírně snížit srozumitelnost - používejte opatrně
+- Speed se aplikuje až **po** HiFi-GAN refinement (pokud je zapnutý)
+- Finální headroom se aplikuje až na konci pipeline (po všech post-processing krocích)
+
+## QA Checklist - Ověření kvality
+
+Před nasazením do produkce ověřte následující:
+
+### Meditative režim
+- [ ] Rychlost řeči je zpomalená (~0.75x)
+- [ ] Hlas zní klidně a meditativně
+- [ ] Srozumitelnost je zachována
+- [ ] Audio není příliš hlasité ("přebuzelé")
+- [ ] Není slyšet šum nebo artefakty
+
+### Whisper režim
+- [ ] Rychlost řeči je zpomalená (~0.65x)
+- [ ] Hlas zní jako šeptání (absence basů, snížené vysoké frekvence)
+- [ ] Whisper efekt je aplikován (ověřit spektrogram)
+- [ ] Srozumitelnost je stále dostatečná (i když může být mírně nižší)
+- [ ] Audio není příliš hlasité
+- [ ] Intenzita whisper efektu funguje (změna intenzity mění charakter)
+
+### Normalizace a headroom
+- [ ] Finální headroom je aplikován (-6.0 dB výchozí)
+- [ ] Audio nepůsobí "přebuzile" ani při vysoké hlasitosti
+- [ ] Normalizace nezpůsobuje clipping
+- [ ] Hlasitost je konzistentní napříč různými texty
+
+### HiFi-GAN (pokud je zapnutý)
+- [ ] HiFi-GAN refinement zlepšuje kvalitu (pokud je model dostupný)
+- [ ] Blending s originálním audio funguje (pokud je intensity < 1.0)
+- [ ] Normalizace výstupu HiFi-GAN funguje správně
+- [ ] Fallback na originální audio funguje, pokud model není dostupný
+
+### Obecné
+- [ ] Speed slider se zobrazuje pro meditative/whisper režimy
+- [ ] Whisper intensity slider se zobrazuje pro whisper režim
+- [ ] Všechny parametry se správně předávají přes API
+- [ ] UI odpovídá backend logice (presety jsou správně aplikovány)
 

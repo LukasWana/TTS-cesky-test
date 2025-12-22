@@ -169,6 +169,15 @@ async def generate_speech(
     enable_dialect_conversion: str = Form(None),
     dialect_code: str = Form(None),
     dialect_intensity: str = Form(None),
+    # HiFi-GAN parametry
+    hifigan_refinement_intensity: str = Form(None),
+    hifigan_normalize_output: str = Form(None),
+    hifigan_normalize_gain: str = Form(None),
+    # Whisper efekt overrides (volitelné, pokud není quality_mode=whisper)
+    enable_whisper: str = Form(None),
+    whisper_intensity: str = Form(None),
+    # Headroom override (volitelné)
+    target_headroom_db: str = Form(None),
     # Reference voice quality gate / auto enhance
     auto_enhance_voice: str = Form(None),
     allow_poor_voice: str = Form(None),
@@ -481,76 +490,102 @@ async def generate_speech(
             pass
 
         # Určení enhancement nastavení
-        use_enhancement = enable_enhancement.lower() == "true" if enable_enhancement else ENABLE_AUDIO_ENHANCEMENT
+        use_enhancement = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
         enhancement_preset_value = enhancement_preset if enhancement_preset else (quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET)
 
         # Nové parametry
-        use_multi_pass = multi_pass.lower() == "true" if multi_pass else False
+        use_multi_pass = (multi_pass.lower() == "true") if isinstance(multi_pass, str) else False
         multi_pass_count_value = multi_pass_count if multi_pass_count is not None else 3
-        use_vad = enable_vad.lower() == "true" if enable_vad else None
+        use_vad = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
         # use_batch je už nastaveno výše podle délky textu - NEPŘEPISOVAT!
-        use_hifigan_value = use_hifigan.lower() == "true" if use_hifigan else False
-        use_normalization = enable_normalization.lower() == "true" if enable_normalization else True
-        use_denoiser = enable_denoiser.lower() == "true" if enable_denoiser else True
-        use_compressor = enable_compressor.lower() == "true" if enable_compressor else True
-        use_deesser = enable_deesser.lower() == "true" if enable_deesser else True
-        use_eq = enable_eq.lower() == "true" if enable_eq else True
-        use_trim = enable_trim.lower() == "true" if enable_trim else True
+        use_hifigan_value = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
+        use_normalization = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
+        use_denoiser = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
+        use_compressor = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
+        use_deesser = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
+        use_eq = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
+        use_trim = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
 
         # Dialect conversion parametry
-        use_dialect = enable_dialect_conversion.lower() == "true" if enable_dialect_conversion else False
+        use_dialect = (enable_dialect_conversion.lower() == "true") if isinstance(enable_dialect_conversion, str) else False
         dialect_code_value = dialect_code if dialect_code and dialect_code != "standardni" else None
         try:
             dialect_intensity_value = float(dialect_intensity) if dialect_intensity else 1.0
         except (ValueError, TypeError):
             dialect_intensity_value = 1.0
 
-        # Dočasně změnit ENABLE_AUDIO_ENHANCEMENT pokud je zadáno v requestu
-        original_enhancement = ENABLE_AUDIO_ENHANCEMENT
-        original_preset = AUDIO_ENHANCEMENT_PRESET
+        # HiFi-GAN parametry
+        try:
+            hifigan_refinement_intensity_value = float(hifigan_refinement_intensity) if hifigan_refinement_intensity else None
+            if hifigan_refinement_intensity_value is not None and not (0.0 <= hifigan_refinement_intensity_value <= 1.0):
+                raise HTTPException(status_code=400, detail="hifigan_refinement_intensity musí být mezi 0.0 a 1.0")
+        except (ValueError, TypeError):
+            hifigan_refinement_intensity_value = None
+
+        hifigan_normalize_output_value = (hifigan_normalize_output.lower() == "true") if isinstance(hifigan_normalize_output, str) else None
 
         try:
-            # Dočasně změnit globální nastavení
-            import backend.config as config_module
-            config_module.ENABLE_AUDIO_ENHANCEMENT = use_enhancement
-            config_module.AUDIO_ENHANCEMENT_PRESET = enhancement_preset_value
+            hifigan_normalize_gain_value = float(hifigan_normalize_gain) if hifigan_normalize_gain else None
+            if hifigan_normalize_gain_value is not None and not (0.0 <= hifigan_normalize_gain_value <= 1.0):
+                raise HTTPException(status_code=400, detail="hifigan_normalize_gain musí být mezi 0.0 a 1.0")
+        except (ValueError, TypeError):
+            hifigan_normalize_gain_value = None
 
-            # Generování řeči
-            if job_id:
-                ProgressManager.update(job_id, percent=1, stage="tts", message="Generuji řeč…")
-            result = await tts_engine.generate(
-                text=text,
-                speaker_wav=speaker_wav,
-                language="cs",
-                speed=tts_speed,
-                temperature=tts_temperature,
-                length_penalty=tts_length_penalty,
-                repetition_penalty=tts_repetition_penalty,
-                top_k=tts_top_k,
-                top_p=tts_top_p,
-                quality_mode=tts_quality_mode,
-                seed=seed,
-                enhancement_preset=enhancement_preset_value,
-                multi_pass=use_multi_pass,
-                multi_pass_count=multi_pass_count_value,
-                enable_batch=use_batch,
-                enable_vad=use_vad,
-                use_hifigan=use_hifigan_value,
-                enable_normalization=use_normalization,
-                enable_denoiser=use_denoiser,
-                enable_compressor=use_compressor,
-                enable_deesser=use_deesser,
-                enable_eq=use_eq,
-                enable_trim=use_trim,
-                enable_dialect_conversion=use_dialect,
-                dialect_code=dialect_code_value,
-                dialect_intensity=dialect_intensity_value,
-                job_id=job_id
-            )
-        finally:
-            # Obnovit původní nastavení
-            config_module.ENABLE_AUDIO_ENHANCEMENT = original_enhancement
-            config_module.AUDIO_ENHANCEMENT_PRESET = original_preset
+        # Whisper efekt overrides (volitelné)
+        enable_whisper_value = (enable_whisper.lower() == "true") if isinstance(enable_whisper, str) else None
+        try:
+            whisper_intensity_value = float(whisper_intensity) if whisper_intensity else None
+            if whisper_intensity_value is not None and not (0.0 <= whisper_intensity_value <= 1.0):
+                raise HTTPException(status_code=400, detail="whisper_intensity musí být mezi 0.0 a 1.0")
+        except (ValueError, TypeError):
+            whisper_intensity_value = None
+
+        # Headroom override (volitelné)
+        try:
+            target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
+            if target_headroom_db_value is not None and not (-20.0 <= target_headroom_db_value <= 0.0):
+                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -20.0 a 0.0 dB")
+        except (ValueError, TypeError):
+            target_headroom_db_value = None
+
+        # Generování řeči (efektivní nastavení se počítá v tts_engine pomocí _compute_effective_settings)
+        if job_id:
+            ProgressManager.update(job_id, percent=1, stage="tts", message="Generuji řeč…")
+        result = await tts_engine.generate(
+            text=text,
+            speaker_wav=speaker_wav,
+            language="cs",
+            speed=tts_speed,
+            temperature=tts_temperature,
+            length_penalty=tts_length_penalty,
+            repetition_penalty=tts_repetition_penalty,
+            top_k=tts_top_k,
+            top_p=tts_top_p,
+            quality_mode=tts_quality_mode,
+            seed=seed,
+            enhancement_preset=enhancement_preset_value,
+            multi_pass=use_multi_pass,
+            multi_pass_count=multi_pass_count_value,
+            enable_batch=use_batch,
+            enable_vad=use_vad,
+            use_hifigan=use_hifigan_value,
+            enable_normalization=use_normalization,
+            enable_denoiser=use_denoiser,
+            enable_compressor=use_compressor,
+            enable_deesser=use_deesser,
+            enable_eq=use_eq,
+            enable_trim=use_trim,
+            enable_dialect_conversion=use_dialect,
+            dialect_code=dialect_code_value,
+            dialect_intensity=dialect_intensity_value,
+            enable_whisper=enable_whisper_value,
+            whisper_intensity=whisper_intensity_value,
+            target_headroom_db=target_headroom_db_value,
+            hifigan_refinement_intensity=hifigan_refinement_intensity_value,
+            hifigan_normalize_output=hifigan_normalize_output_value,
+            hifigan_normalize_gain=hifigan_normalize_gain_value,
+            job_id=job_id
+        )
 
         # Zpracování výsledku (může být string nebo list pro multi-pass)
         if isinstance(result, list):
