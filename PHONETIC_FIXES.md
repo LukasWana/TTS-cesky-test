@@ -101,3 +101,4 @@ Zkuste vygenerovat texty s:
 - Pokud najdete další problematická slova, přidejte je do `czech_stopwords`
 - Stop words se kontrolují case-insensitive (malá/velká písmena)
 
+

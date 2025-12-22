@@ -105,3 +105,4 @@ Prejata slova: 36
 - Prosodická pravidla jsou připravena pro budoucí rozšíření prosody control funkcionality
 
 
+

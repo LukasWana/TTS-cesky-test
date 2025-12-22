@@ -363,3 +363,4 @@ ENABLE_INTONATION_PROCESSING = True  # Zapnout/vypnout intonační post-processi
 - Ujistěte se, že demo hlas existuje
 - Pro cross-language použijte hlas v jazyce textu
 
+
