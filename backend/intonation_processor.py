@@ -11,6 +11,20 @@ warnings.filterwarnings("ignore", category=UserWarning)
 try:
     import librosa
     LIBROSA_AVAILABLE = True
+
+    # Workaround (Windows/librosa/numba):
+    # Na některých sestavách padá librosa phase vocoder na numba ufunc `_phasor_angles`
+    # ("did not contain a loop with signature..."). Přepíšeme na čistě numpy implementaci.
+    try:
+        import numpy as _np
+        import librosa.util.utils as _luu
+
+        def _phasor_angles_numpy(x):
+            return _np.cos(x) + 1j * _np.sin(x)
+
+        _luu._phasor_angles = _phasor_angles_numpy  # type: ignore[attr-defined]
+    except Exception:
+        pass
 except ImportError:
     LIBROSA_AVAILABLE = False
     print("Warning: librosa není dostupný, intonační post-processing nebude fungovat")
@@ -63,6 +77,50 @@ class IntonationProcessor:
     }
 
     @staticmethod
+    def _naive_pitch_shift_resample(segment: np.ndarray, n_steps: float) -> np.ndarray:
+        """
+        Nouzový "pitch shift" bez librosa/phase vocoderu.
+
+        Pokud librosa.effects.pitch_shift selže (na Windows se to může stát kvůli numba/_phasor_angles),
+        použijeme jednoduchý resampling/interpolaci. Změní to pitch i timing, ale pro KONCOVOU intonaci
+        je to lepší než žádný efekt.
+        """
+        if segment is None or len(segment) < 2:
+            return segment
+        if abs(n_steps) < 0.05:
+            return segment
+
+        # Pitch multiplier (librosa konvence): +12 => 2x frekvence, -12 => 0.5x frekvence
+        m = float(2.0 ** (n_steps / 12.0))
+        if not np.isfinite(m) or m <= 0:
+            return segment
+
+        orig_len = int(len(segment))
+        # Resampling "rychlostí" m: pro m<1 (pitch down) se délka zvětší
+        new_len = int(max(2, round(orig_len / m)))
+
+        # Bezpečnostní limity (aby to neustřelilo)
+        new_len = min(new_len, orig_len * 4)
+        new_len = max(new_len, max(2, orig_len // 4))
+
+        x = np.asarray(segment, dtype=np.float64)
+        xp = np.linspace(0.0, 1.0, orig_len, endpoint=False)
+        xnew = np.linspace(0.0, 1.0, new_len, endpoint=False)
+        y = np.interp(xnew, xp, x)
+
+        # Udrž původní délku; zarovnej na KONEC (aby navazování bylo méně slyšitelné)
+        if new_len > orig_len:
+            y = y[-orig_len:]
+        elif new_len < orig_len:
+            pad = np.zeros(orig_len - new_len, dtype=y.dtype)
+            y = np.concatenate([pad, y], axis=0)
+
+        try:
+            return y.astype(segment.dtype, copy=False)
+        except Exception:
+            return y
+
+    @staticmethod
     def apply_contour(
         audio: np.ndarray,
         sample_rate: int,
@@ -90,6 +148,15 @@ class IntonationProcessor:
         if len(audio) == 0:
             return audio
 
+        # Librosa pitch_shift občas selže pro float32 na některých Windows/Numpy kombinacích.
+        # Stabilizace: pracuj ve float64 a případně vrať zpět původní dtype.
+        orig_dtype = audio.dtype
+        if audio.dtype != np.float64:
+            try:
+                audio = audio.astype(np.float64, copy=False)
+            except Exception:
+                audio = np.asarray(audio, dtype=np.float64)
+
         duration = len(audio) / sample_rate
 
         # Pokud je kontura prázdná nebo má jen jeden bod, vrať původní audio
@@ -108,16 +175,22 @@ class IntonationProcessor:
         if duration < 0.1:
             avg_shift = np.mean(pitch_shifts)
             if abs(avg_shift) < 0.1:
-                return audio
+                return audio.astype(orig_dtype, copy=False) if orig_dtype != audio.dtype else audio
             try:
-                return librosa.effects.pitch_shift(
+                shifted = librosa.effects.pitch_shift(
                     audio,
                     sr=sample_rate,
                     n_steps=avg_shift
                 )
+                return shifted.astype(orig_dtype, copy=False) if orig_dtype != shifted.dtype else shifted
             except Exception as e:
                 print(f"⚠️ Pitch shifting selhal: {e}")
-                return audio
+                # Fallback bez librosa (slyšitelný efekt i při problémech s numba/librosa)
+                try:
+                    fb = IntonationProcessor._naive_pitch_shift_resample(audio, float(avg_shift))
+                    return fb.astype(orig_dtype, copy=False) if orig_dtype != fb.dtype else fb
+                except Exception:
+                    return audio.astype(orig_dtype, copy=False) if orig_dtype != audio.dtype else audio
 
         # Pro delší audio: aplikuj konturu po segmentech
         # Rozděl audio na segmenty podle kontury
@@ -143,6 +216,9 @@ class IntonationProcessor:
             # Aplikuj pitch shift pouze pokud je změna významná
             if abs(pitch_shift) > 0.1:
                 try:
+                    # Viz poznámka výše: pitch_shift je stabilnější na float64
+                    if segment.dtype != np.float64:
+                        segment = segment.astype(np.float64, copy=False)
                     shifted_segment = librosa.effects.pitch_shift(
                         segment,
                         sr=sample_rate,
@@ -151,7 +227,11 @@ class IntonationProcessor:
                     result_segments.append(shifted_segment)
                 except Exception as e:
                     print(f"⚠️ Pitch shifting segmentu {i} selhal: {e}")
-                    result_segments.append(segment)
+                    # Fallback bez librosa (lepší než žádný pitch efekt)
+                    try:
+                        result_segments.append(IntonationProcessor._naive_pitch_shift_resample(segment, float(pitch_shift)))
+                    except Exception:
+                        result_segments.append(segment)
             else:
                 result_segments.append(segment)
 
@@ -161,9 +241,9 @@ class IntonationProcessor:
             # Vyhlazení přechodů mezi segmenty
             if smooth and len(result) > sample_rate * 0.01:  # Pokud je audio delší než 10ms
                 result = IntonationProcessor._smooth_transitions(result, sample_rate)
-            return result
+            return result.astype(orig_dtype, copy=False) if orig_dtype != result.dtype else result
 
-        return audio
+        return audio.astype(orig_dtype, copy=False) if orig_dtype != audio.dtype else audio
 
     @staticmethod
     def apply_intonation_type(

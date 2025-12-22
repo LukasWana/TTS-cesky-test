@@ -924,7 +924,8 @@ class XTTSEngine:
             hifigan_refinement_intensity,
             hifigan_normalize_output,
             hifigan_normalize_gain,
-            job_id
+            job_id,
+            prosody_metadata,
         )
 
         # finální 100% řeší backend/main.py (ProgressManager.done(job_id))
@@ -1008,6 +1009,19 @@ class XTTSEngine:
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity
             )
+
+            # Úprava: Odstranit koncovou tečku jen pro XTTS model,
+            # aby ji model nepřečetl jako slovo "tečka".
+            # Intonace (FALL) je už zachycena v prosody_metadata z dřívější fáze.
+            text_for_model = processed_text
+            if language == "cs" and isinstance(text_for_model, str):
+                # Odstraníme koncovou tečku/tečky a případné mezery za ní
+                text_for_model = re.sub(r"\s*[.…]+(\s*)$", r"\1", text_for_model).rstrip()
+                if not text_for_model.strip():
+                    # Pokud by po odstranění tečky nic nezbylo (např. vstup "."),
+                    # vrátíme původní text jako fallback
+                    text_for_model = processed_text
+
             _progress(15, "tts", "Generuji řeč (XTTS)…")
 
             # Příprava parametrů pro tts_to_file
@@ -1037,7 +1051,7 @@ class XTTSEngine:
                 print(f"⚠️ Top-p {top_p} je příliš nízká, upravuji na {safe_top_p} (min: 0.5)")
 
             tts_params = {
-                "text": processed_text,
+                "text": text_for_model,
                 "speaker_wav": speaker_wav,
                 "language": language,
                 "file_path": output_path,
@@ -1156,7 +1170,8 @@ class XTTSEngine:
 
                     # Základní parametry + pouze temperature (nejčastěji podporované)
                     basic_params = {
-                        "text": processed_text,
+                        # Použij stejný text jako pro hlavní inference, aby se na konci nečetla "tečka"
+                        "text": text_for_model,
                         "speaker_wav": speaker_wav,
                         "language": language,
                         "file_path": output_path,

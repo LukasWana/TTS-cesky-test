@@ -1,6 +1,7 @@
 """
 FastAPI aplikace pro XTTS-v2 Demo
 """
+import sys
 import os
 import base64
 import uuid
@@ -21,6 +22,18 @@ from typing import Optional
 # Potlačení deprecation warning z librosa (pkg_resources je zastaralé, ale knihovna ho ještě používá)
 import warnings
 warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*", category=UserWarning)
+
+# Windows + librosa/numba: na některých sestavách padá numba ufunc (např. _phasor_angles) při pitch shifting.
+# Vypneme JIT (bezpečnější, za cenu menší rychlosti pouze pro tyto operace).
+if os.name == "nt":
+    os.environ.setdefault("NUMBA_DISABLE_JIT", "1")
+
+# Windows: zajisti UTF-8 pro výpisy (jinak mohou emoji/diakritika shodit proces na cp1252 konzoli).
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 
 from backend.progress_manager import ProgressManager
 try:
