@@ -1,10 +1,9 @@
 .tts-settings {
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 16px;
-  margin: 32px 0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  margin: var(--spacing-lg) 0;
+  border: 1px solid var(--color-border);
   overflow: hidden;
-  backdrop-filter: blur(10px);
 }
 
 /* V pravém panelu - integrace s pozadím */
@@ -27,31 +26,7 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.tts-settings-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.03);
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.2s ease;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.tts-settings-header:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.tts-settings-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+/* TTS Settings header je nyní v Section komponentě */
 
 .toggle-icon {
   font-size: 14px;
@@ -63,10 +38,7 @@
   transform: rotate(180deg);
 }
 
-.tts-settings-content {
-  padding: 24px;
-  background: transparent;
-}
+/* TTS Settings content je nyní v Section komponentě */
 
 .variants-section {
   margin-bottom: 0;
@@ -116,8 +88,8 @@
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 32px;
-  margin-bottom: 32px;
+  gap: var(--spacing-2xl);
+  margin-bottom: var(--spacing-2xl);
 }
 
 .setting-item {
@@ -226,50 +198,8 @@
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* Rozbalovací sekce */
-.collapsible-section {
-  margin-bottom: 20px;
-}
-
-.collapsible-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.2s ease;
-  margin-bottom: 12px;
-}
-
-.collapsible-section-header:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.collapsible-section-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.collapsible-section-title h4 {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #fff;
-}
-
-.section-icon {
-  font-size: 1.1rem;
-}
-
-.collapsible-section-content {
-  padding: 0 4px;
-}
+/* Rozbalovací sekce - nyní používáme UI Section komponentu */
+/* Styly jsou v ui/ui.css */
 
 .quality-section-content {
   display: flex;

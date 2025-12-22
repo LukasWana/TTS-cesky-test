@@ -1,24 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react'
 import './TTSSettings.css'
+import Section from './ui/Section'
+import SliderRow from './ui/SliderRow'
+import SelectRow from './ui/SelectRow'
 
-// Komponenta pro rozbalovací sekci
-function CollapsibleSection({ title, icon, isExpanded, onToggle, children }) {
-  return (
-    <div className="collapsible-section">
-      <div className="collapsible-section-header" onClick={onToggle}>
-        <div className="collapsible-section-title">
-          <span className="section-icon">{icon}</span>
-          <h4>{title}</h4>
-        </div>
-        <span className="toggle-icon">{isExpanded ? '▼' : '▶'}</span>
-      </div>
-      {isExpanded && (
-        <div className="collapsible-section-content">
-          {children}
-        </div>
-      )}
-    </div>
-  )
+// Výchozí hodnoty pro reset
+const DEFAULT_TTS_SETTINGS = {
+  speed: 1.0,
+  temperature: 0.7,
+  lengthPenalty: 1.0,
+  repetitionPenalty: 2.0,
+  topK: 50,
+  topP: 0.85,
+  seed: null
 }
 
 function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityChange, activeVariant, onVariantChange }) {
@@ -92,175 +86,121 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
 
   return (
     <div className="tts-settings">
-      <div className="tts-settings-header" onClick={() => setIsExpanded(!isExpanded)}>
-        <h3>⚙️ Nastavení hlasu</h3>
-        <span className="toggle-icon">{isExpanded ? '▼' : '▶'}</span>
-      </div>
+      <Section
+        title="⚙️ Nastavení hlasu"
+        isExpanded={isExpanded}
+        onToggle={() => setIsExpanded(!isExpanded)}
+      >
+        {/* Záložky pro varianty */}
+        <Section
+          title="Varianty nastavení"
+          icon="📋"
+          isExpanded={variantsExpanded}
+          onToggle={() => setVariantsExpanded(!variantsExpanded)}
+        >
+          <div className="variants-tabs">
+            {variants.map((variant) => (
+              <button
+                key={variant.id}
+                className={`variant-tab ${activeVariant === variant.id ? 'active' : ''}`}
+                onClick={() => onVariantChange && onVariantChange(variant.id)}
+              >
+                {variant.label}
+              </button>
+            ))}
+          </div>
+        </Section>
 
-      {isExpanded && (
-        <div className="tts-settings-content">
-          {/* Záložky pro varianty */}
-          <CollapsibleSection
-            title="Varianty nastavení"
-            icon="📋"
-            isExpanded={variantsExpanded}
-            onToggle={() => setVariantsExpanded(!variantsExpanded)}
-          >
-            <div className="variants-tabs">
-              {variants.map((variant) => (
-                <button
-                  key={variant.id}
-                  className={`variant-tab ${activeVariant === variant.id ? 'active' : ''}`}
-                  onClick={() => onVariantChange && onVariantChange(variant.id)}
-                >
-                  {variant.label}
-                </button>
-              ))}
-            </div>
-          </CollapsibleSection>
-
-          {/* TTS parametry */}
-          <CollapsibleSection
-            title="TTS parametry"
-            icon="🎛️"
-            isExpanded={ttsParamsExpanded}
-            onToggle={() => setTtsParamsExpanded(!ttsParamsExpanded)}
-          >
-            <div className="settings-grid">
+        {/* TTS parametry */}
+        <Section
+          title="TTS parametry"
+          icon="🎛️"
+          isExpanded={ttsParamsExpanded}
+          onToggle={() => setTtsParamsExpanded(!ttsParamsExpanded)}
+          onReset={() => {
+            onChange({ ...settings, ...DEFAULT_TTS_SETTINGS })
+          }}
+        >
+          <div className="settings-grid">
             {/* Rychlost řeči - zobrazit pro meditative/whisper nebo pokud je explicitně v Advanced */}
             {(quality.qualityMode === 'meditative' || quality.qualityMode === 'whisper') && (
-              <div className="setting-item">
-                <label htmlFor="speed">
-                  Rychlost řeči (Tempo)
-                  <span className="setting-value">{settings.speed.toFixed(2)}x</span>
-                </label>
-                <input
-                  type="range"
-                  id="speed"
-                  min="0.5"
-                  max="1.5"
-                  step="0.05"
-                  value={settings.speed}
-                  onChange={(e) => handleChange('speed', e.target.value)}
-                />
-                <div className="setting-range">
-                  <span>0.5x (pomalejší)</span>
-                  <span>1.0x (normální)</span>
-                  <span>1.5x (rychlejší)</span>
-                </div>
-                <div className="setting-description">
-                  {quality.qualityMode === 'meditative' && 'Pro meditativní hlas doporučeno 0.75x'}
-                  {quality.qualityMode === 'whisper' && 'Pro šeptavý hlas doporučeno 0.65x'}
-                </div>
-              </div>
+              <SliderRow
+                label="Rychlost řeči (Tempo)"
+                value={settings.speed}
+                min={0.5}
+                max={1.5}
+                step={0.05}
+                onChange={(v) => handleChange('speed', v)}
+                onReset={() => handleChange('speed', DEFAULT_TTS_SETTINGS.speed)}
+                formatValue={(v) => `${v.toFixed(2)}x`}
+                showTicks={true}
+              />
             )}
 
             {/* Teplota */}
-            <div className="setting-item">
-              <label htmlFor="temperature">
-                Teplota (Temperature)
-                <span className="setting-value">{settings.temperature.toFixed(2)}</span>
-              </label>
-              <input
-                type="range"
-                id="temperature"
-                min="0.01"
-                max="1.0"
-                step="0.05"
-                value={settings.temperature}
-                onChange={(e) => handleChange('temperature', e.target.value)}
-              />
-              <div className="setting-range">
-                <span>Konzistentní (0.01)</span>
-                <span>Variabilní (1.0)</span>
-              </div>
-            </div>
+            <SliderRow
+              label="Teplota (Temperature)"
+              value={settings.temperature}
+              min={0.01}
+              max={1.0}
+              step={0.05}
+              onChange={(v) => handleChange('temperature', v)}
+              onReset={() => handleChange('temperature', DEFAULT_TTS_SETTINGS.temperature)}
+              formatValue={(v) => v.toFixed(2)}
+              showTicks={true}
+            />
 
             {/* Length Penalty */}
-            <div className="setting-item">
-              <label htmlFor="lengthPenalty">
-                Length Penalty
-                <span className="setting-value">{settings.lengthPenalty.toFixed(2)}</span>
-              </label>
-              <input
-                type="range"
-                id="lengthPenalty"
-                min="0.5"
-                max="2.0"
-                step="0.1"
-                value={settings.lengthPenalty}
-                onChange={(e) => handleChange('lengthPenalty', e.target.value)}
-              />
-              <div className="setting-range">
-                <span>Krátké (0.5)</span>
-                <span>Dlouhé (2.0)</span>
-              </div>
-            </div>
+            <SliderRow
+              label="Length Penalty"
+              value={settings.lengthPenalty}
+              min={0.5}
+              max={2.0}
+              step={0.1}
+              onChange={(v) => handleChange('lengthPenalty', v)}
+              onReset={() => handleChange('lengthPenalty', DEFAULT_TTS_SETTINGS.lengthPenalty)}
+              formatValue={(v) => v.toFixed(2)}
+              showTicks={true}
+            />
 
             {/* Repetition Penalty */}
-            <div className="setting-item">
-              <label htmlFor="repetitionPenalty">
-                Repetition Penalty
-                <span className="setting-value">{settings.repetitionPenalty.toFixed(2)}</span>
-              </label>
-              <input
-                type="range"
-                id="repetitionPenalty"
-                min="1.0"
-                max="5.0"
-                step="0.1"
-                value={settings.repetitionPenalty}
-                onChange={(e) => handleChange('repetitionPenalty', e.target.value)}
-              />
-              <div className="setting-range">
-                <span>Méně opakování (1.0)</span>
-                <span>Více opakování (5.0)</span>
-              </div>
-            </div>
+            <SliderRow
+              label="Repetition Penalty"
+              value={settings.repetitionPenalty}
+              min={1.0}
+              max={5.0}
+              step={0.1}
+              onChange={(v) => handleChange('repetitionPenalty', v)}
+              onReset={() => handleChange('repetitionPenalty', DEFAULT_TTS_SETTINGS.repetitionPenalty)}
+              formatValue={(v) => v.toFixed(2)}
+              showTicks={true}
+            />
 
             {/* Top-K */}
-            <div className="setting-item">
-              <label htmlFor="topK">
-                Top-K Sampling
-                <span className="setting-value">{settings.topK}</span>
-              </label>
-              <input
-                type="range"
-                id="topK"
-                min="1"
-                max="100"
-                step="1"
-                value={settings.topK}
-                onChange={(e) => handleChange('topK', parseInt(e.target.value))}
-              />
-              <div className="setting-range">
-                <span>1</span>
-                <span>50</span>
-                <span>100</span>
-              </div>
-            </div>
+            <SliderRow
+              label="Top-K Sampling"
+              value={settings.topK}
+              min={1}
+              max={100}
+              step={1}
+              onChange={(v) => handleChange('topK', v)}
+              onReset={() => handleChange('topK', DEFAULT_TTS_SETTINGS.topK)}
+              formatValue={(v) => v}
+              showTicks={true}
+            />
 
             {/* Top-P */}
-            <div className="setting-item">
-              <label htmlFor="topP">
-                Top-P Sampling
-                <span className="setting-value">{settings.topP.toFixed(2)}</span>
-              </label>
-              <input
-                type="range"
-                id="topP"
-                min="0.0"
-                max="1.0"
-                step="0.05"
-                value={settings.topP}
-                onChange={(e) => handleChange('topP', e.target.value)}
-              />
-              <div className="setting-range">
-                <span>0.0</span>
-                <span>0.85</span>
-                <span>1.0</span>
-              </div>
-            </div>
+            <SliderRow
+              label="Top-P Sampling"
+              value={settings.topP}
+              min={0.0}
+              max={1.0}
+              step={0.05}
+              onChange={(v) => handleChange('topP', v)}
+              onReset={() => handleChange('topP', DEFAULT_TTS_SETTINGS.topP)}
+              formatValue={(v) => v.toFixed(2)}
+              showTicks={true}
+            />
 
             {/* Seed */}
             <div className="setting-item">
@@ -284,95 +224,78 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 Prázdné pole použije fixní seed 42.
               </div>
             </div>
-            </div>
-          </CollapsibleSection>
+          </div>
+        </Section>
 
-          {/* Sekce kvality výstupu */}
-          <CollapsibleSection
-            title="Kvalita výstupu"
-            icon="🎵"
-            isExpanded={qualityExpanded}
-            onToggle={() => setQualityExpanded(!qualityExpanded)}
-          >
-            <div className="quality-section-content">
+        <Section
+          title="Kvalita výstupu"
+          icon="🎵"
+          isExpanded={qualityExpanded}
+          onToggle={() => setQualityExpanded(!qualityExpanded)}
+        >
+          <div className="quality-section-content">
+            <SelectRow
+              label="Režim kvality"
+              icon="✨"
+              value={quality.qualityMode || ''}
+              onChange={(val) => onQualityChange && onQualityChange({
+                ...quality,
+                qualityMode: val || null
+              })}
+              options={[
+                { value: '', label: 'Vlastní (použít parametry výše)' },
+                { value: 'high_quality', label: 'Vysoká kvalita' },
+                { value: 'natural', label: 'Přirozený' },
+                { value: 'fast', label: 'Rychlý' },
+                { value: 'meditative', label: 'Meditativní' },
+                { value: 'whisper', label: 'Šeptavý' }
+              ]}
+            />
 
-            <div className="setting-item">
-              <label htmlFor="qualityMode">
-                Režim kvality
-              </label>
-              <select
-                id="qualityMode"
-                value={quality.qualityMode || ''}
-                onChange={(e) => onQualityChange && onQualityChange({
-                  ...quality,
-                  qualityMode: e.target.value || null
-                })}
-              >
-                <option value="">Vlastní (použít parametry výše)</option>
-                <option value="high_quality">Vysoká kvalita</option>
-                <option value="natural">Přirozený</option>
-                <option value="fast">Rychlý</option>
-                <option value="meditative">Meditativní</option>
-                <option value="whisper">Šeptavý</option>
-              </select>
-              <div className="setting-description">
-                {quality.qualityMode === 'high_quality' && 'Nejlepší kvalita, pomalejší generování'}
-                {quality.qualityMode === 'natural' && 'Vyvážená kvalita a rychlost'}
-                {quality.qualityMode === 'fast' && 'Rychlé generování, základní kvalita'}
-                {quality.qualityMode === 'meditative' && 'Klidný, meditativní hlas s pomalejší řečí (speed: 0.75x)'}
-                {quality.qualityMode === 'whisper' && 'Šeptavý hlas s whisper efektem (speed: 0.65x)'}
-                {!quality.qualityMode && 'Použijte vlastní parametry výše'}
-              </div>
+            <div className="setting-description" style={{ marginTop: '-10px', marginBottom: '10px' }}>
+              {quality.qualityMode === 'high_quality' && 'Nejlepší kvalita, pomalejší generování'}
+              {quality.qualityMode === 'natural' && 'Vyvážená kvalita a rychlost'}
+              {quality.qualityMode === 'fast' && 'Rychlé generování, základní kvalita'}
+              {quality.qualityMode === 'meditative' && 'Klidný, meditativní hlas s pomalejší řečí (speed: 0.75x)'}
+              {quality.qualityMode === 'whisper' && 'Šeptavý hlas s whisper efektem (speed: 0.65x)'}
+              {!quality.qualityMode && 'Použijte vlastní parametry výše'}
             </div>
 
             {/* Whisper intensity slider (pouze pro whisper režim) */}
             {quality.qualityMode === 'whisper' && (
-              <div className="setting-item">
-                <label htmlFor="whisperIntensity">
-                  Intenzita whisper efektu
-                  <span className="setting-value">{(quality.whisperIntensity !== undefined ? quality.whisperIntensity : 1.0).toFixed(2)}</span>
-                </label>
-                <input
-                  type="range"
-                  id="whisperIntensity"
-                  min="0.0"
-                  max="1.0"
-                  step="0.05"
-                  value={quality.whisperIntensity !== undefined ? quality.whisperIntensity : 1.0}
-                  onChange={(e) => onQualityChange && onQualityChange({
-                    ...quality,
-                    whisperIntensity: parseFloat(e.target.value)
-                  })}
-                />
-                <div className="setting-range">
-                  <span>0.0 (jemný)</span>
-                  <span>0.5</span>
-                  <span>1.0 (plný efekt)</span>
-                </div>
-                <div className="setting-description">
-                  Intenzita šeptavého efektu. Vyšší hodnota = výraznější šeptání.
-                </div>
-              </div>
+              <SliderRow
+                label="Intenzita whisper efektu"
+                value={quality.whisperIntensity !== undefined ? quality.whisperIntensity : 1.0}
+                min={0.0}
+                max={1.0}
+                step={0.05}
+                onChange={(v) => onQualityChange && onQualityChange({
+                  ...quality,
+                  whisperIntensity: v
+                })}
+                onReset={() => onQualityChange && onQualityChange({
+                  ...quality,
+                  whisperIntensity: 1.0
+                })}
+                formatValue={(v) => v.toFixed(2)}
+                showTicks={true}
+              />
             )}
 
-            <div className="setting-item">
-              <label htmlFor="enhancementPreset">
-                Audio enhancement preset
-              </label>
-              <select
-                id="enhancementPreset"
-                value={quality.enhancementPreset || 'natural'}
-                onChange={(e) => onQualityChange && onQualityChange({
-                  ...quality,
-                  enhancementPreset: e.target.value
-                })}
-                disabled={!quality.enableEnhancement}
-              >
-                <option value="high_quality">Vysoká kvalita</option>
-                <option value="natural">Přirozený</option>
-                <option value="fast">Rychlý</option>
-              </select>
-            </div>
+            <SelectRow
+              label="Audio enhancement preset"
+              icon="🪄"
+              value={quality.enhancementPreset || 'natural'}
+              onChange={(val) => onQualityChange && onQualityChange({
+                ...quality,
+                enhancementPreset: val
+              })}
+              options={[
+                { value: 'high_quality', label: 'Vysoká kvalita' },
+                { value: 'natural', label: 'Přirozený' },
+                { value: 'fast', label: 'Rychlý' }
+              ]}
+            />
 
             <div className="feature-checkbox-item">
               <input
@@ -494,15 +417,15 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
               </div>
             )}
             </div>
-          </CollapsibleSection>
+        </Section>
 
-          {/* Pokročilé funkce */}
-          <CollapsibleSection
-            title="Pokročilé funkce"
-            icon="⚙️"
-            isExpanded={advancedExpanded}
-            onToggle={() => setAdvancedExpanded(!advancedExpanded)}
-          >
+        {/* Pokročilé funkce */}
+        <Section
+          title="Pokročilé funkce"
+          icon="⚙️"
+          isExpanded={advancedExpanded}
+          onToggle={() => setAdvancedExpanded(!advancedExpanded)}
+        >
             <div className="quality-section-content">
 
             <div className="features-grid">
@@ -525,28 +448,24 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
               </div>
 
               {quality.multiPass && (
-                <div className="setting-item multi-pass-count" style={{ marginTop: '-10px', marginBottom: '20px', marginLeft: '54px' }}>
-                  <label htmlFor="multiPassCount">
-                    Počet variant
-                    <span className="setting-value">{quality.multiPassCount || 3}</span>
-                  </label>
-                  <input
-                    type="range"
-                    id="multiPassCount"
-                    min="2"
-                    max="5"
-                    step="1"
+                <div style={{ marginTop: '-10px', marginBottom: '20px', marginLeft: '54px' }}>
+                  <SliderRow
+                    label="Počet variant"
                     value={quality.multiPassCount || 3}
-                    onChange={(e) => onQualityChange && onQualityChange({
+                    min={2}
+                    max={5}
+                    step={1}
+                    onChange={(v) => onQualityChange && onQualityChange({
                       ...quality,
-                      multiPassCount: parseInt(e.target.value)
+                      multiPassCount: v
                     })}
+                    onReset={() => onQualityChange && onQualityChange({
+                      ...quality,
+                      multiPassCount: 3
+                    })}
+                    formatValue={(v) => v}
+                    showTicks={true}
                   />
-                  <div className="setting-range">
-                    <span>2</span>
-                    <span>3</span>
-                    <span>5</span>
-                  </div>
                 </div>
               )}
 
@@ -628,51 +547,42 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 <div className="dialect-settings" style={{ marginTop: '15px', marginLeft: '54px', padding: '15px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.1)' }}>
                   <h5 style={{ marginTop: '0', marginBottom: '15px', fontSize: '14px', fontWeight: '600' }}>🌍 Nastavení nářečí</h5>
 
-                  <div className="setting-item" style={{ marginBottom: '15px' }}>
-                    <label htmlFor="dialectCode">
-                      Vyberte nářečí
-                    </label>
-                    <select
-                      id="dialectCode"
-                      value={quality.dialectCode || 'moravske'}
-                      onChange={(e) => onQualityChange && onQualityChange({
-                        ...quality,
-                        dialectCode: e.target.value
-                      })}
-                    >
-                      <option value="moravske">Moravské</option>
-                      <option value="hanacke">Hanácké</option>
-                      <option value="slezske">Slezské</option>
-                      <option value="chodske">Chodské</option>
-                      <option value="brnenske">Brněnské (hantec)</option>
-                    </select>
-                    <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
-                      Vyberte nářečí, na které se má text převést
-                    </div>
-                  </div>
+                  <SelectRow
+                    label="Vyberte nářečí"
+                    icon="🌍"
+                    value={quality.dialectCode || 'moravske'}
+                    onChange={(val) => onQualityChange && onQualityChange({
+                      ...quality,
+                      dialectCode: val
+                    })}
+                    options={[
+                      { value: 'moravske', label: 'Moravské' },
+                      { value: 'hanacke', label: 'Hanácké' },
+                      { value: 'slezske', label: 'Slezské' },
+                      { value: 'chodske', label: 'Chodské' },
+                      { value: 'brnenske', label: 'Brněnské (hantec)' }
+                    ]}
+                  />
 
-                  <div className="setting-item" style={{ marginBottom: '15px' }}>
-                    <label htmlFor="dialectIntensity">
-                      Intenzita převodu
-                      <span className="setting-value">{(quality.dialectIntensity || 1.0).toFixed(2)}</span>
-                    </label>
-                    <input
-                      type="range"
-                      id="dialectIntensity"
-                      min="0.0"
-                      max="1.0"
-                      step="0.1"
+                  <div style={{ marginBottom: '15px' }}>
+                    <SliderRow
+                      label="Intenzita převodu"
                       value={quality.dialectIntensity || 1.0}
-                      onChange={(e) => onQualityChange && onQualityChange({
+                      min={0.0}
+                      max={1.0}
+                      step={0.1}
+                      onChange={(v) => onQualityChange && onQualityChange({
                         ...quality,
-                        dialectIntensity: parseFloat(e.target.value)
+                        dialectIntensity: v
                       })}
+                      onReset={() => onQualityChange && onQualityChange({
+                        ...quality,
+                        dialectIntensity: 1.0
+                      })}
+                      formatValue={(v) => (v * 100).toFixed(0)}
+                      valueUnit="%"
+                      showTicks={true}
                     />
-                    <div className="setting-range">
-                      <span>0% (žádný převod)</span>
-                      <span>50%</span>
-                      <span>100% (plný převod)</span>
-                    </div>
                     <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
                       Jak silně se má text převést na nářečí (1.0 = plný převod)
                     </div>
@@ -686,28 +596,25 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                   <h5 style={{ marginTop: '0', marginBottom: '15px', fontSize: '14px', fontWeight: '600' }}>⚙️ HiFi-GAN nastavení</h5>
 
                   {/* Intenzita refinement */}
-                  <div className="setting-item" style={{ marginBottom: '15px' }}>
-                    <label htmlFor="hifiganRefinementIntensity">
-                      Intenzita refinement
-                      <span className="setting-value">{(quality.hifiganRefinementIntensity || 1.0).toFixed(2)}</span>
-                    </label>
-                    <input
-                      type="range"
-                      id="hifiganRefinementIntensity"
-                      min="0.0"
-                      max="1.0"
-                      step="0.05"
+                  <div style={{ marginBottom: '15px' }}>
+                    <SliderRow
+                      label="Intenzita refinement"
                       value={quality.hifiganRefinementIntensity || 1.0}
-                      onChange={(e) => onQualityChange && onQualityChange({
+                      min={0.0}
+                      max={1.0}
+                      step={0.05}
+                      onChange={(v) => onQualityChange && onQualityChange({
                         ...quality,
-                        hifiganRefinementIntensity: parseFloat(e.target.value)
+                        hifiganRefinementIntensity: v
                       })}
+                      onReset={() => onQualityChange && onQualityChange({
+                        ...quality,
+                        hifiganRefinementIntensity: 1.0
+                      })}
+                      formatValue={(v) => (v * 100).toFixed(0)}
+                      valueUnit="%"
+                      showTicks={true}
                     />
-                    <div className="setting-range">
-                      <span>0% (pouze originál)</span>
-                      <span>50%</span>
-                      <span>100% (plný refinement)</span>
-                    </div>
                     <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
                       {quality.hifiganRefinementIntensity === 1.0
                         ? 'Použije se pouze HiFi-GAN výstup'
@@ -737,28 +644,24 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
 
                   {/* Normalize gain (pouze pokud je normalizace zapnutá) */}
                   {quality.hifiganNormalizeOutput && (
-                    <div className="setting-item" style={{ marginBottom: '15px' }}>
-                      <label htmlFor="hifiganNormalizeGain">
-                        Normalizační gain
-                        <span className="setting-value">{(quality.hifiganNormalizeGain || 0.95).toFixed(2)}</span>
-                      </label>
-                      <input
-                        type="range"
-                        id="hifiganNormalizeGain"
-                        min="0.5"
-                        max="1.0"
-                        step="0.05"
+                    <div style={{ marginBottom: '15px' }}>
+                      <SliderRow
+                        label="Normalizační gain"
                         value={quality.hifiganNormalizeGain || 0.95}
-                        onChange={(e) => onQualityChange && onQualityChange({
+                        min={0.5}
+                        max={1.0}
+                        step={0.05}
+                        onChange={(v) => onQualityChange && onQualityChange({
                           ...quality,
-                          hifiganNormalizeGain: parseFloat(e.target.value)
+                          hifiganNormalizeGain: v
                         })}
+                        onReset={() => onQualityChange && onQualityChange({
+                          ...quality,
+                          hifiganNormalizeGain: 0.95
+                        })}
+                        formatValue={(v) => v.toFixed(2)}
+                        showTicks={true}
                       />
-                      <div className="setting-range">
-                        <span>0.5</span>
-                        <span>0.95</span>
-                        <span>1.0</span>
-                      </div>
                       <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
                         Nižší hodnota = více headroom (bezpečnější), vyšší = hlasitější
                       </div>
@@ -768,15 +671,17 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
               )}
             </div>
             </div>
-          </CollapsibleSection>
+        </Section>
 
-          <div className="settings-actions">
-            <button className="btn-reset" onClick={onReset}>
-              🔄 Obnovit výchozí hodnoty pro {variants.find(v => v.id === activeVariant)?.label || 'tuto variantu'}
-            </button>
-          </div>
+        {/* Spodní reset tlačítko schováno na žádost uživatele */}
+        {/*
+        <div className="settings-actions">
+          <button className="btn-reset" onClick={onReset}>
+            🔄 Obnovit výchozí hodnoty pro {variants.find(v => v.id === activeVariant)?.label || 'tuto variantu'}
+          </button>
         </div>
-      )}
+        */}
+      </Section>
     </div>
   )
 }

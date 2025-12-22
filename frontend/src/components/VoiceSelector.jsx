@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import AudioRecorder from './AudioRecorder'
 import YouTubeImporter from './YouTubeImporter'
+import Chips from './ui/Chips'
 import './VoiceSelector.css'
 
 function VoiceSelector({
@@ -154,11 +155,9 @@ function VoiceSelector({
             <span className="quality-snr">SNR: {voiceQuality.snr.toFixed(1)} dB</span>
           </div>
           {voiceQuality.warnings && voiceQuality.warnings.length > 0 && (
-            <ul className="quality-warnings">
-              {voiceQuality.warnings.map((warning, index) => (
-                <li key={index}>{warning}</li>
-              ))}
-            </ul>
+            <div className="quality-warnings-chips">
+              <Chips items={voiceQuality.warnings.map(w => ({ label: w, icon: '⚠️' }))} />
+            </div>
           )}
         </div>
       )}

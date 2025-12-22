@@ -1,0 +1,394 @@
+/* UI Primitives - Shared Styles */
+
+/* Section Component - Compact Card Style */
+.ui-section {
+  margin-bottom: var(--spacing-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.ui-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-surface-hover);
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition-fast);
+}
+
+.ui-section-header:hover {
+  background: var(--color-surface-active);
+}
+
+.ui-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.ui-section-icon {
+  font-size: var(--font-lg);
+}
+
+.ui-section-header h4 {
+  margin: 0;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.ui-section-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.ui-section-content {
+  padding: var(--spacing-md);
+}
+
+.ui-toggle-icon {
+  font-size: var(--font-sm);
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+}
+
+/* Reset Button */
+.ui-reset-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-sm);
+  transition: all var(--transition-fast);
+  padding: 0;
+}
+
+.ui-reset-button:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-hover);
+  color: var(--color-text-secondary);
+}
+
+.ui-reset-button-small {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-xs);
+  transition: all var(--transition-fast);
+  padding: 0;
+  margin-right: var(--spacing-sm);
+}
+
+.ui-reset-button-small:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-hover);
+  color: var(--color-text-secondary);
+}
+
+/* Segmented Control - Pill Shape */
+.ui-segmented-control {
+  display: inline-flex;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 2px;
+  gap: 0;
+  position: relative;
+}
+
+.ui-segmented-option {
+  padding: 8px 20px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  position: relative;
+  z-index: 1;
+}
+
+.ui-segmented-option:first-child {
+  border-radius: 18px 0 0 18px;
+}
+
+.ui-segmented-option:last-child {
+  border-radius: 0 18px 18px 0;
+}
+
+.ui-segmented-option:only-child {
+  border-radius: 18px;
+}
+
+.ui-segmented-option:hover:not(.selected) {
+  color: var(--color-text-secondary);
+}
+
+.ui-segmented-option.selected {
+  background: var(--color-surface-active);
+  color: var(--color-text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Slider Row - Compact */
+.ui-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.ui-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ui-slider-label {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-size: var(--font-sm);
+}
+
+.ui-reset-icon-button {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: 8px;
+  transition: all var(--transition-fast);
+}
+
+.ui-reset-icon-button:hover {
+  color: var(--color-text-primary);
+  transform: rotate(-30deg);
+}
+
+.ui-slider-container {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.ui-slider-track-fill {
+  position: absolute;
+  left: 0;
+  height: 12px;
+  background: var(--color-accent);
+  border-radius: 6px 0 0 6px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ui-slider-input {
+  width: 100%;
+  height: 12px;
+  background: #0f0f11;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc((100% / 12) - 1px),
+    rgba(255, 255, 255, 0.15) calc((100% / 12) - 1px),
+    rgba(255, 255, 255, 0.15) calc(100% / 12)
+  );
+  background-size: calc(100% + (100% / 12)) 100%;
+  border-radius: 6px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  margin: 0;
+}
+
+.ui-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--color-accent);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+  transition: all var(--transition-fast);
+  position: relative;
+  z-index: 3;
+}
+
+.ui-slider-input::-webkit-slider-thumb:hover {
+  background: var(--color-accent-hover);
+  transform: scale(1.05);
+}
+
+.ui-slider-input::-moz-range-thumb {
+  width: 12px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--color-accent);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+  transition: all var(--transition-fast);
+  position: relative;
+  z-index: 3;
+}
+
+.ui-slider-value-number {
+  color: var(--color-text-primary);
+  font-weight: 500;
+  font-size: var(--font-base);
+}
+
+/* Tick marks jsou v background-image slideru */
+.ui-slider-ticks {
+  display: none; /* Skryté, protože používáme CSS background pro vertikální linky */
+}
+
+.ui-slider-tick {
+  display: none;
+}
+
+/* Select Row */
+.ui-select-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.ui-select-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-size: var(--font-sm);
+}
+
+.ui-select-icon {
+  font-size: 14px;
+}
+
+.ui-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.ui-select-input {
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(40, 40, 45, 1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  appearance: none;
+  transition: all var(--transition-fast);
+}
+
+.ui-select-input:hover {
+  background: rgba(50, 50, 55, 1);
+  border-color: var(--color-border-hover);
+}
+
+.ui-select-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.ui-select-chevron {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.ui-select-input option {
+  background-color: #0f0f11;
+  color: var(--color-text-primary);
+}
+.ui-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 4px var(--spacing-sm);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.ui-chip-icon {
+  font-size: var(--font-sm);
+  opacity: 0.7;
+}
+
+.ui-chip-label {
+  white-space: nowrap;
+}
+
+.ui-chip-remove {
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-lg);
+  line-height: 1;
+  padding: 0;
+  margin-left: var(--spacing-xs);
+  transition: color var(--transition-fast);
+}
+
+.ui-chip-remove:hover {
+  color: var(--color-text-secondary);
+}
+

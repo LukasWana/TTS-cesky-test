@@ -208,24 +208,8 @@
   border-radius: 4px;
 }
 
-.quality-warnings {
-  margin: 8px 0 0 0;
-  padding-left: 24px;
-  list-style-type: none;
-}
-
-.quality-warnings li {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.6);
-  position: relative;
-  margin-bottom: 4px;
-}
-
-.quality-warnings li::before {
-  content: '•';
-  position: absolute;
-  left: -15px;
-  color: rgba(255, 255, 255, 0.3);
+.quality-warnings-chips {
+  margin-top: var(--spacing-md);
 }
 
 @keyframes fadeIn {
