@@ -23,7 +23,7 @@ function AudioPlayer({ audioUrl }) {
         barWidth: 2,
         barRadius: 3,
         responsive: true,
-        height: 80,
+        height: 50,
         normalize: true,
         partialRender: true
       })
@@ -81,13 +81,16 @@ function AudioPlayer({ audioUrl }) {
       </div>
 
       <div className="audio-player-main">
-        <button className="play-button-large" onClick={togglePlay}>
-          {isPlaying ? '⏸' : '▶️'}
+        <button
+          className={`play-button-large ${isPlaying ? 'playing' : ''}`}
+          onClick={togglePlay}
+        >
+          {isPlaying ? '⏸' : '▶'}
         </button>
 
         <div className="waveform-container" ref={waveformRef}></div>
 
-        <button className="download-button-large" onClick={handleDownload}>
+        <button className="download-button-large" onClick={handleDownload} title="Stáhnout audio">
           💾
         </button>
       </div>

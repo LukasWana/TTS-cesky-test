@@ -87,6 +87,7 @@ function App() {
   const [uploadedVoiceFileName, setUploadedVoiceFileName] = useState(null)
   const [text, setText] = useState('')
   const [generatedAudio, setGeneratedAudio] = useState(null)
+  const [generatedVariants, setGeneratedVariants] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [ttsProgress, setTtsProgress] = useState(null)
@@ -94,6 +95,7 @@ function App() {
   const [modelStatus, setModelStatus] = useState(null)
   const [voiceQuality, setVoiceQuality] = useState(null)
   const [textVersions, setTextVersions] = useState([])
+  const [showSettings, setShowSettings] = useState(true)
 
   // Nastavení pro aktuální variantu (vázané na vybraný hlas)
   const [ttsSettings, setTtsSettings] = useState(DEFAULT_TTS_SETTINGS)
@@ -436,6 +438,7 @@ function App() {
     setLoading(true)
     setError(null)
     setGeneratedAudio(null)
+    setGeneratedVariants([])
     setTtsProgress(null)
 
     try {
@@ -579,12 +582,13 @@ function App() {
 
       // Pokud je multi-pass, zobrazit varianty
       if (result.variants && result.variants.length > 0) {
-        // Prozatím použijeme první variantu
-        // V budoucnu můžete přidat VariantSelector komponent
+        setGeneratedVariants(result.variants)
+        // Nastavíme první jako výchozí, aby AudioPlayer (pokud by byl jen jeden) měl co přehrát
         setGeneratedAudio(result.variants[0].audio_url)
         console.log('Multi-pass: vygenerováno', result.variants.length, 'variant')
       } else {
         setGeneratedAudio(result.audio_url)
+        setGeneratedVariants([])
       }
 
       // Automaticky uložit text do historie verzí po úspěšném generování
@@ -687,11 +691,23 @@ function App() {
 
       <main className="app-main">
         <div className="container">
-          {/* Záložky Generovat/Historie */}
-          <Tabs activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} />
+          <div className="main-header-row">
+            {/* Záložky Generovat/Historie */}
+            <Tabs activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} />
+
+            {activeTab === 'generate' && (
+              <button
+                className={`btn-toggle-settings ${!showSettings ? 'collapsed' : ''}`}
+                onClick={() => setShowSettings(!showSettings)}
+                title={showSettings ? "Skrýt nastavení" : "Zobrazit nastavení"}
+              >
+                {showSettings ? '✕ Skrýt nastavení' : '⚙️ Nastavení'}
+              </button>
+            )}
+          </div>
 
           {activeTab === 'generate' && (
-            <div className="generate-layout">
+            <div className={`generate-layout ${!showSettings ? 'full-width' : ''}`}>
               <div className="generate-content">
                 <VoiceSelector
                   demoVoices={demoVoices}
@@ -733,44 +749,63 @@ function App() {
                   </div>
                 )}
 
-                {generatedAudio && !loading && (
-                  <AudioPlayer audioUrl={generatedAudio} />
+                {generatedVariants && generatedVariants.length > 0 && !loading ? (
+                  <div className="variants-output-list">
+                    <h3>✨ Vygenerované varianty ({generatedVariants.length})</h3>
+                    <div className="variants-grid">
+                      {generatedVariants.map((variant, index) => (
+                        <div key={index} className="variant-output-item">
+                          <div className="variant-label">Varianta {index + 1}</div>
+                          <AudioPlayer audioUrl={variant.audio_url} />
+                          <div className="variant-meta-info">
+                            Seed: {variant.seed} | Temp: {variant.temperature?.toFixed(2)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  generatedAudio && !loading && (
+                    <AudioPlayer audioUrl={generatedAudio} />
+                  )
                 )}
               </div>
 
-              <div className="settings-panel">
-                <TTSSettings
-                  settings={ttsSettings}
-                  onChange={setTtsSettings}
-                  onReset={() => {
-                    // Resetovat nastavení pro aktuální variantu
-                    const resetTts = { ...DEFAULT_TTS_SETTINGS }
-                    const resetQuality = { ...DEFAULT_QUALITY_SETTINGS }
+              {showSettings && (
+                <div className="settings-panel">
+                  <TTSSettings
+                    settings={ttsSettings}
+                    onChange={setTtsSettings}
+                    onReset={() => {
+                      // Resetovat nastavení pro aktuální variantu
+                      const resetTts = { ...DEFAULT_TTS_SETTINGS }
+                      const resetQuality = { ...DEFAULT_QUALITY_SETTINGS }
 
-                    setTtsSettings(resetTts)
-                    setQualitySettings(resetQuality)
+                      setTtsSettings(resetTts)
+                      setQualitySettings(resetQuality)
 
-                    // Aktualizovat ref okamžitě
-                    currentSettingsRef.current = {
-                      ttsSettings: { ...resetTts },
-                      qualitySettings: { ...resetQuality }
-                    }
-
-                    // Uložit resetované hodnoty do localStorage pro tuto variantu
-                    if (selectedVoice && selectedVoice !== 'demo1' && voiceType === 'demo') {
-                      const resetSettings = {
+                      // Aktualizovat ref okamžitě
+                      currentSettingsRef.current = {
                         ttsSettings: { ...resetTts },
                         qualitySettings: { ...resetQuality }
                       }
-                      saveVariantSettings(selectedVoice, activeVariant, resetSettings)
-                    }
-                  }}
-                  qualitySettings={qualitySettings}
-                  onQualityChange={setQualitySettings}
-                  activeVariant={activeVariant}
-                  onVariantChange={handleVariantChange}
-                />
-              </div>
+
+                      // Uložit resetované hodnoty do localStorage pro tuto variantu
+                      if (selectedVoice && selectedVoice !== 'demo1' && voiceType === 'demo') {
+                        const resetSettings = {
+                          ttsSettings: { ...resetTts },
+                          qualitySettings: { ...resetQuality }
+                        }
+                        saveVariantSettings(selectedVoice, activeVariant, resetSettings)
+                      }
+                    }}
+                    qualitySettings={qualitySettings}
+                    onQualityChange={setQualitySettings}
+                    activeVariant={activeVariant}
+                    onVariantChange={handleVariantChange}
+                  />
+                </div>
+              )}
             </div>
           )}
 

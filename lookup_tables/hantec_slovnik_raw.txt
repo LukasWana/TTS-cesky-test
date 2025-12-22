@@ -1,0 +1,988 @@
+# Vlož sem celý slovník hantecu ve formátu "HANTEC ~ význam".
+# Potom spusť:
+#   python scripts/convert_hantec_raw_to_json.py --in lookup_tables/hantec_slovnik_raw.txt --out lookup_tables/hantec_slovnik.json
+#
+# Příklad:
+# aloše ~ alimenty
+# bahno ~ pivo
+# balit kramle ~ odejít, utéct
+
+A
+aloše ~ alimenty
+ance ~ drobný mince
+ánunk ~ vědomost, znalost
+Augec ~ Lužánky ( brněnský park )
+augle ~ oči
+aus ~ ven, pryč
+aušus ~ nekvalitní výrobek
+B
+babáč ~ holka, žena
+bagrovat ~ jíst
+bahno ~ pivo
+bakeliťák ~ černoch
+bakule ~ peníze
+balda ~ nevychovanec, vesničan, kyj, pohlavní úd
+balit kramle ~ odejít, utéct
+barva ~ ulevit si (prdnout)
+bas ~ autobus
+basa ~ zásobník na nápoje, vězení
+Bástr ~ Bystrc ( část Brna )
+baštit ~ jíst
+baterka ~ modřina pod okem
+baterky ~ oči
+bauch; bauchec ~ břicho
+bazmek ~ krám, nekvalitní výrobek
+bedna ~ televizor, hlava
+befel ~ potvrzení nečeho, oznámení, příkaz
+békat ~ zpívat
+beneli ~ benzín
+bengy ~ policisté
+bergl ~ kopec
+betálné šnicl ~ pěkná dívka
+betelný, betálný ~ výborný
+betla ~ postel
+betlém ~ dům, budova
+beton (častěji nabeton) ~ doopravdy? určitě?
+bévák ~ byt, bydlení
+biflovat ~ učit se
+bimz ~ chleba
+binec ~ nepořádek
+blajchec ~ Na Bělidle
+Blajkec ~ Modřice
+blča ~ polévka
+Blekfild ~ Černá Pole (Část Brna)
+bočmen ~ pod rukou, mít něco jiného
+boční šorfka ~ pod rukou, mít něco jiného
+bóda ~ škola
+bóchačka ~ práce, pistole
+bóchat ~ pracovat, chodit do práce, mít práci
+bóchnót ~ prodat
+bokovka ~ pod rukou, mít něco jiného
+bomba ~ láhev
+bomz; bonz ~ udání
+bomzák; bonzák ~ udavač
+bomzovat; bonzovat ~ udávat
+bóračka ~ havárie, demolice
+bórák ~ automobil, havárie
+brajgl ~ nepořádek, hluk
+brát glajze ~ utíkat
+brázda ~ řada
+bresty ~ prsa (ňadra)
+bretle ~ lyže
+brko ~ pohlavní úd, slámka, noha
+bruslák ~ kluziště za Lužánkami
+brzda ~ chleba
+budka ~ hlava
+bugr ~ rachot, hluk
+buk; bukál; bukva; bukvica ~ homosexuál
+bůra ~ pětikoruna
+burgla ~ motorka
+bušit ~ pracovat
+buzna; buzík; buzuluk ~ homosexuál
+být grogy ~ vyčerpán
+C
+cajdák ~ pomalá vlezlá hudba
+cajky ~ věci
+cajtunk ~ noviny
+cajzl ~ pražák
+cálovat ~ platit
+camrat se ~ chlubit se, vytahovat se
+canc ~ list, listina
+cancat ~ hloupě mluvit
+cancy; cány ~ hloupé řeči
+casnovat ~ třást, třepat
+cavyky ~ okolky
+céčko ~ taneční citový kousek
+cédačka ~ koupání
+cédák ~ koupaliště
+cech ~ útrata, účet
+cemr ~ účet, zadek, záda ( kříž )
+cetl ~ potvrzení
+cibule ~ hodinky
+cicmat se ~ líbat se, mazlit se
+ciferník ~ obličej
+cimra ~ místnost, pokoj
+co to fachčí ~ kolik platím
+cólčit ~ platit
+córák ~ pomalý osobní vlak
+córat ~ chodit
+córese ~ opletačky
+cund ~ zpráva, tip
+cunda ~ míč, balón
+cvaknót ~ zaplatit; vypít menší množství tekutiny
+Č
+čachrovat ~ vyměňovat
+čajznout ~ úkrást
+čapnout ~ chytit
+čapy ~ nohy
+Čára ~ Česká ulice v Brně
+čára ~ státní hranice
+Čárlí plac ~ Karlovo náměstí v Praze
+čau ~ pozdrav
+čauec ~ pozdrav
+čechr ~ pivo
+čechrovat ~ pít pivo
+čechrovat bahno ~ pít pivo
+červ ~ červené víno
+čmajznout ~ úkrást
+čočky; čočmeny ~ brýle
+čoch ~ vesnická zábava, soukromá oslava
+čokl ~ pes
+čóraři ~ zloději
+čórka ~ krádež
+čórmen; čórkař ~ zloděj
+čórnout ~ ukrást
+čórovat ~ krást
+čubrnět ~ dívat se
+čurina ~ legrace
+čvaňhák ~ cigareta, nedopalek
+D
+ď ~ děkuji
+dacan ~ darebák
+dacka ~ rána
+dát cunt ~ oznámit (z něm. zunden)
+dát deku ~ namlátit
+dát do hefta ~ namlátit někomu
+dát do šlicu ~ vysouložit
+dát fóra ~ dát náskok
+dát majzla ~ dávat pozor
+dát si věšák ~ oběsit se
+debrecinka ~ děvče
+dečmen ~ deka, (viz deka)
+dederón ~ němec ( vzniklo z DDR )
+dejchat ~ žít
+deka ~ zatažená obloha, zápach, dlouhé vlasy (dat někomu deku) namlátit někomu
+dekl ~ poklop, víko, dlouhé vlasy, klobouk
+deková fuska ~ smradlavá ponožka
+dekovat se / (to) ~ utíkat, připravovat ústup
+desatero ~ pivo 10%
+desítka ~ pivo 10%
+dlabat ( na něco nebo na někoho ) ~ nestarat se o něco
+dlabat ~ jíst
+dlachnit ~ mačkat, osahávat
+do holpecu ~ dohromady
+Dobrák ~ koupaliště na ulici Dobrovského
+dohantýrovat ~ domluvit
+dohókat ~ vyplašit, poplašit
+dohóknót ~ domluvit
+dojet ~ sníst po někom zbytky
+dojížďák ~ zbytky jídla
+Doktor Špína ~ brněnský somrák - známá postava
+dolcky ~ dolary
+domáknout se ~ dozvědět se, zjistit
+domášov ~ bydlení, jít domů
+dopařit ~ dopít
+dotlačit; dovalit ~ donést
+dózna ~ hlava
+drek ~ šmejd
+držkatá ~ hubatá
+du pali ~ odcházím
+dudy ~ prsa, ňadra
+Duksna ~ restaurace Dukát na Lesné
+duna ~ rána
+durchčit ~ spát
+dvanáctka ~ pivo 12%
+dvorce ~ prsa
+dýnstman ~ sluha
+džanky; džeksny ~ kalhoty z JEANSoviny (džíny)
+džek ~ chlap
+džekyl ~ chlápek, detektiv, policista
+džig ~ bum
+džignót ~ úkrást, bouchnout
+Džungla ~ osada pod Stránskou skálou v Líšni
+džusblues ~ pozdrav
+džuzna ~ jáma
+E
+ekl ~ roh
+eklovat se ~ nelíbit se
+erbit; erbovat ~ dědit
+erteple ~ brambory
+F
+fabala ~ továrna
+fagan ~ dítě
+facha; fachna; fachačka ~ práce
+fachčit ~ pracovat
+fachmon ~ odborník
+faja, fajka ~ noha
+fajer ~ oheň
+fajfčit ~ spát
+fajrák ~ oheň
+fajrovat ~ hořet
+fajrunk ~ rychlost
+fáro ~ auto
+fčil ~ teď
+fecat; fecovat ~ pumpovat (duši)
+fecna ~ pumpa, tisícikoruna
+fedry ~ strach
+fechtl; fichtl ~ motocykl PIONÝR
+fela ~ rána vedle
+felit se ~ netrefit se
+fenstr ~ okno
+ferbl ~ potvrzení
+ferblovat ~ zapisovat
+fet ~ oslava, pijatika
+fetingr ~ piják, alkoholik
+fetoš ~ piják, alkoholik, narkoman
+fetoši ~ narkomani
+fikslovat ~ sledovat, podvádět
+filc ~ policista
+filci ~ policisté
+filcky ~ policisté, cizopasníci v ochlupení
+filcovat ~ osahávat
+fišla ~ ryba
+fízl ~ policista, špión
+fízlárna ~ policejní služebna
+flastr ~ náplast, trest, pokuta
+fléda ~ flákání, nicnedělání
+Fléda ~ tančírna "Kabaret u netopýra"
+flek ~ místo, peněženka
+flétna ~ občanský průkaz
+flígl ~ lest, křídlo
+fligna ~ lest
+flok ~ minimální peněžní obnos
+flósek ~ vstupenka, lístek, tiket
+flusat ~ plivat
+fofr ~ rychle!
+fógl ~ pták, kluk (malý)
+fókačka ~ cigareta
+fóknót ~ utéct, někam něco dát
+foršus ~ záloha, zástava
+fošna ~ žena s malým poprsím ( "plochá")
+fošnové hmyz ~ diskotéka
+fotr ~ táta
+frajla ~ dívka, mladá žena, úřednice
+frc ~ zastavárna, bazar
+frk ~ vtip
+ftruknót ~ vstoupit, vtrhnout
+fuchtla; fuchtle ~ pochybná žena, nadávka
+furt ~ stále
+fuska; fusekla ~ ponožka
+futrovačka ~ žranice
+futrovat ~ jíst, cpát se
+G
+gábl ~ jídlo
+Gampl ~ stánek na nám. Svobody ve tvaru houby
+gampl ~ žampión, hřib
+gample ~ žampióny, hřiby, houby
+gebeňa ~ hlava
+gebír ~ právo
+gébiš ~ zadek
+gébit ~ dělat obličeje
+gecnót ~ sednout, jídlo
+Gelbec ~ Žlutý kopec ( část Brna )
+giňál ~ chleba
+glajze ~ koleje
+glét; glejt ~ úřední listina
+glgačka ~ pijatika, pití
+glgat ~ pít
+glocna ~ hlava
+goldna ~ zlato
+goldnové fógl ~ zlatý slavík
+goldnový ~ zlatý
+gólka ~ svatba
+gólka ~ svatba
+gólovat se ~ ženit se
+gómat ~ chápat, vědět
+gómat války ~ vědět, znát
+gómnót ~ uvidět, poznat
+grátis ~ zadarmo
+grilka ~ svatba
+grilovat se ~ ženit se, vdávat se
+gróňat; grónčit ~ spát
+grupa ~ skupina
+gryml ~ kámen
+guldík; gulin ~ guláš
+guma ~ voják z povolání, nadávka
+H
+habaďůra ~ podfuk
+habrůvka ~ noha
+háček; hák ~ práce
+hadr ~ tisícikoruna
+hafo ~ mnoho
+hajfa ~ děvče
+hajfeci ~ děvčata
+hajfy ~ děvčata
+hajtry ~ koně
+hakl krén ~ špatná práce
+haksna ~ noha
+háky ~ peníze
+haluz ~ náhoda, větev
+haluza ~ ruka, vysoký člověk
+haluza ~ větev
+hamovat ~ brzdit
+hamznout ~ šlápnout
+hangár ~ stan
+hantec ~ brněnská hantýrka
+hantýrovat ~ mluvit, rozprávět
+hára ~ vlasy
+harizony ~ vlasy
+hašek ~ hašiš
+haubna ~ kufr
+házet čůz (házet baterky) ~ dívat se
+házet do plácu ~ říkat, dát všem
+házet kakáč ~ kašlat na to
+hecovat ~ provokovat, přesvědčovat
+helfnót ~ pomoci
+hémon ~ policista
+hémoni ~ policie
+hemznout ~ sešlápnout
+henkle ~ kolena
+herberk ~ nepořádek
+hercna ~ srdce
+herfón ~ vlivná osoba (Velký zvíře)
+hic ~ vedro
+hicna ~ vedro
+hlásit ~ říkat
+hlásit loď ~ odejít
+hnědka ~ skvrna na spodním prádle
+hodit blesk ~ zapálit
+hodit cund ~ dát tip
+hodit čučku / čuz ~ podívat se
+hodit do placu ~ dát k dispozici
+hodit hantec ~ popovídat si
+hodit kakáč ~ vykašlat se na něco
+hodit kukačku ~ podívat se
+hodit mašlu ~ oběsit se
+hodit močku ~ jít se vymočit
+hodit sicnu ~ sednout si
+hodit sranec ~ vykonat velkou potřebu, na něco se vykašlat
+hodit stopku ~ zastavit se
+hodit špizuňk ~ podívat se
+hodit voko ~ podívat se
+hofírek ~ mladý hoch
+hókat pecky ~ zpívat písničky
+hoknit ~ pracovat
+hóknót ~ sdělit
+hóknót válku ~ sdělit
+holpec ~ dohromady
+holpecová ~ společná
+hópance z fenstru ~ skoky z okna
+hópat ~ lhát
+hópat ~ skákat
+hoša ~ homosexuál
+hotel Hilton ~ blázinec, záchytka
+hózny ~ kalhoty
+hrabat krtkem ~ jet metrem
+hradčany ~ stokoruna
+hrča ~ boule, nadávka ženě
+hrnót ~ jet, jít
+hrnót krtkem ~ jet metrem
+hřbet ~ venkovan
+hučet ~ nadávat, klít
+hulit ~ kouřit, rychle se pohybovat
+hůlka ~ mužský pohlavní úd
+hyn ~ vyčerpán
+CH
+chálka; chalka ~ jídlo
+chalovat ~ jíst
+chechtáče ~ peníze
+chechtáky ~ peníze
+chlemtat ~ pít
+chrchel ~ odkašlaná slina
+chrchla ~ motocykl
+chrchlat ~ kašlat
+chrupna ~ spaní
+chytat bronz ~ opalovat se
+I
+idiotbox ~ televizor
+imrvére ~ neustále
+ingóst ~ úředník
+J
+jár ~ rok
+jařiny ~ roky
+jasňačka ~ samozřejmě
+je to malina ~ je to jednoduché
+je to v kakáču ~ je to pryč
+je to v kopru ~ je to ztracené
+jet na někoho serpentiny ~ lhát, podvádět
+jít na jedničku ~ jít na pivo
+Jóbsko ~ městská část "Jundrov"
+jodovky ~ oči
+K
+ká ~ koruny, peníze
+kábr ~ chlap
+kačák ~ malý rybník
+kačáky ~ peníze
+kačeny ~ peníze
+kafábl; kafec ~ kavárna
+Kachláče ~ pomník na Moravském náměstí v Brně
+kajlař ~ mámič
+kajlovat ~ mámit
+kalit ~ jet (rychle)
+kalit škopky ~ pít pivo
+kalósek ~ mladík
+kaltna ~ zima
+kameň ~ vězení
+kanagom lepička ~ platit
+kanál ~ sprosťák
+Kanáry ~ Kanárské ostrovy
+kancl ~ kancelář
+kandelábr ~ lampa pouličního osvětlení
+Kápéeska ~ koupaliště v Králově Poli, naproti KPS
+kapela ~ kapavka
+kapelník ~ kapavka
+kapric ~ naschvál
+kára ~ automobil
+kartáč ~ pokárání, ostuda
+kartágo ~ pokárání, ostuda
+kásnót ~ sebrat
+kastl ~ skřín, zásobník na nápoje
+kaštec ~ skvrna na spodním prádle
+kefa ~ hlava
+kelcny ~ zuby
+kéma; kema ~ kamarád
+Kénig, Kénik ~ Královo Pole
+kér ~ byt
+kérka ~ tetování
+kérovat ~ nadávat
+Kchajzec ~ Wilsonův les (park pod Masarykovou čtvrtí - bývalou Úřednickou čtvrtí)
+kchán ~ nůž
+kiby ~ karty
+kila; kilka ~ zima
+kilián ~ stokoruna, zima
+kilo ~ sto, stokoruna
+kirch ~ byt
+kisna ~ krabice, objemná bedna
+kisňa ~ tlustá žena
+kláda ~ zima, výkal
+klapat ~ jít
+klavírovat ~ mluvit do někoho, do něčeho
+klendra ~ zima
+klepat ~ pracovat
+klepat kosu ~ zima
+klepeta ~ ruce, pouta
+klepky ~ silné léky na bolesti
+klofna ~ kytara
+klofnót ~ ukrást, sebrat, sbalit holku
+klohnit ~ vařit
+kó ~ děvče
+kobáč ~ boule, kupka, lejno
+koc; kocór ~ děvče
+kočár ~ automobil
+kódr ~ prsten
+kolčit ~ tancovat
+kolky ~ ruce
+komanč; komár ~ komunista
+kómat ~ myslet
+koňa ~ děvče
+konečná ~ domluvil sem
+konópek ~ hoch
+kontyš; kontoš ~ popelnice, kontejner
+kóřit ~ znát
+kóřka ~ cigareta
+kosa ~ zima; zvracení
+kostra country ~ tělo na zemi
+kozy ~ poprsí
+kramlavý kolky ~ špatný prsty
+kramle ~ útěk
+krcál ~ malý, malý obchod
+krén ~ špatný
+krchov ~ hřbitov
+krópy ~ peníze
+krpa ~ chyba
+krtek ~ metro
+krumple; krumle ~ brambory
+krupica ~ peníze
+kruta ~ zima
+krygl ~ půllitr na pivo (težký skleněný s uchem - nikoli sklenice tzv. věžák)
+krym ~ vězení
+křivá válka ~ podraz, podfuk
+křivé ~ podrazník, podfukář
+ksicht ~ obličej, tvář
+ksindl ~ darebák, lump
+kšeft ~ obchod
+kšír ~ nádobí
+kšteld ~ vzhled
+kukajda ~ blázen
+kule ~ varlata
+kůň ~ děvče
+kundolog ~ ženský lékař
+kůža ~ děvče
+kvelb ~ obchod
+kysat ~ spát
+L
+lajsnót ~ dovolit si
+lajvont ~ dobrý, správný
+lampa ~ láhev
+lampa červa ~ láhev červeného
+lampas ~ důstojník
+lampasák ~ důstojník
+lampión ~ láhev, důstojník
+lapat bronz ~ opalovat se
+Latrína ~ ulice Koliště
+lebeda ~ klid, pohoda
+lepička pas ~ netlač se na mne
+levandula ~ špatně
+levingstón ~ vlevo
+lifrovat ~ vyhazovat
+litr ~ tisíc korun
+lódna ~ bedna
+lógr ~ sedlina po kávě
+lochčit se ~ smát se
+lochec ~ smích
+lochna ~ díra
+londoni ~ vesničani (viz strup, lonťák)
+lont ~ vesnice
+lonťák ~ vesničan (viz strup, londoni)
+love; lováče ~ peníze
+luft ~ vzduch
+lupeň ~ lístek
+M
+machl ~ zavřeno
+Majlont ~ Maloměřice ( část Brna )
+makačka na budku ~ těžký přemýšlení
+malér ~ průšvih, nepříjemnost
+malíčkový záležitosti ~ jednoduchost
+mapsnót ~ zatknout
+maso story ~ výborné povídky
+mastit kiby ~ hrát karty
+mašla v Lužecu ~ oběšení v Lužánkách
+mergle ~ meruňky
+mešita ~ kostel
+metr ~ měsíc (datum)
+micna ~ čepec
+mít blato na hřišti ~ posrat se
+mít v merku ~ sledovat, znát
+mixna ~ rvačka
+mlata ~ rvačka
+mlén ~ soud
+mlíkaři ~ policie
+módr ~ hlad
+MonteBu ~ Kraví hora ( část Brna )
+moráč ~ morový sloup
+morgoš ~ cikán
+mutra ~ matka
+N
+na sólovku ~ sám
+na tuty ~ určitě
+nabagrovat se ~ najíst se
+nabeton ~ určitě
+nafučenej ~ nafoukanej, naštvanej
+nahodit drát ~ zatelefonovat
+naklapat ~ přijít
+nakóřit ~ trefit někoho
+nakóřit se ~ opít se, pomnět se
+nasomrovat se ~ vetřít se
+nastražit ovar ~ poslouchat
+navalit ~ dát
+negómat ~ neumět
+negómnót ~ nerozumět, nevědět, neuvidět
+négrové ~ bez peněz
+noty ~ řidičský průkaz, doklady
+novodur ~ nové, čerstvé
+O
+olšovky ~ nohy
+Oltec ~ Staré Brno ( část Brna )
+origoš ~ originální
+oskar ~ slunce
+ovar ~ ucho
+P
+Padovec ~ bufet Padovec ( naproti Role ( budova hlavního nádraží ))
+pajtlovat ~ krást (hlavně ovoce v zahradě)
+pakl ~ velké množství
+pali ~ pryč
+paluša ~ hospoda
+papaláš ~ Vlivná osoba (Velký zvíře)
+papula ~ pusa
+pařba ~ pitka
+pasový ~ špatný
+Passingl ~ Hotel Passage - Slovan
+pastelky ~ nohy
+pašky ~ peníze
+patriot ~ rodilý Brňák
+pecen ~ slunce
+pecnit se ~ smát se
+pekáč ~ malý motocykl zn. "Pionýr", vedro
+perfekt ~ dobře
+perník ~ domek
+perutě ~ ruce
+pětibába; pětikvalt; pětikilo ~ 500Kč
+pětka ~ 10Kč
+pila ~ rychle
+pincek ~ malý motocykl zn. "Pionýr"
+pinďour ~ malý motocykl zn. "Pionýr", pohlavní úd
+pindy ~ hloupý řeči
+pípnout ~ říct
+písknout si ~ dát si (něco)
+platfusák ~ nadávka, ploché nohy
+plnotučný ~ pivo 12%
+plonkový ~ samotný, přebytečný
+plotna ~ skupina lidí
+plotňák ~ brněnské flákač
+plótva ~ noha
+pobóchanec ~ nadávka, blázen
+podělávka ~ podraz
+pošuk ~ nadávka, blázen
+potróblé ~ nadávka, hloupý
+potróblenec ~ nadávka, hlupák
+Prágl ~ Praha
+pravingstón ~ vpravo
+prda ~ rána
+Prigl ~ Brněnská přehrada ( z německého Brückl )
+prodrbat ~ promarnit, utratit
+prolátnót ~ prozradit
+pugét ~ kytice
+R
+ráčmeny, ráčna ~ hodinky
+rachota ~ práce, zaměstnání
+raky ~ hodiny
+rantále ~ peníze
+rathaus ~ radnice
+razit ~ jít, jet
+répat ~ pošťuchovat, napadat
+repete ~ jěště jednou, znovu
+retich ~ záchod
+Rivec ~ Riviéra ( koupaliště na Svratce )
+Rola ~ budova Hl. nádraží v Brně
+rola ~ nádraží
+rolaři ~ nádražní flákači
+róry ~ kalhoty
+rovnoběh ~ rovně
+rovnoběžka ~ rovně
+rozhodit sandál ~ rozbít obličej
+rychna ~ smrad
+Ř
+řacha ~ rána
+řemeň ~ opasek
+řepa ~ hlava
+S
+s kým dejcháš ? ~ s kým momentálně žiješ ?
+sajtna ~ parta, skupina
+sandál ~ obličej
+savana hokna ~ pozdrav
+sedmičky; sedmera ~ autobus č. 77
+sejmót - zabít, shodit
+sekačka ~ soulož
+sekat ~ souložit
+sesla ~ židle
+sigr ~ darebák
+sichr ~ jistota
+silbrovat ~ prodávat
+skásnót ~ vzít, zbít, srazit k zemi, potrestat
+skoba ~ nos
+smegat ~ jít, jet
+smykovat ~ jít
+sólovka ~ garsoniéra, samostatná akce
+somrák ~ mámič
+somrovat ~ mámit
+spářka ~ pitka
+splašený trubky ~ malý motocykl zn."Stadión"
+splašit ~ sehnat
+společný sajdkáry ~ společný výlet
+Spuťál ~ bufet Sputnik
+stlačit ~ sníst
+story ~ příběh
+strup; strupka ~ obyvatelé vesnice (viz londoni, lonťák)
+studénka ~ studený
+svišť ~ dítě
+svištět ~ jet
+sypat ~ jít
+sysel ~ dítě
+Š
+šáhlej ~ duševně chorý člověk
+šáhnót ~ sáhnout
+šajn ~ ponětí
+šalina ~ tramvaj, elektřina
+Šanghaj; Šanc ~ Divišova čtvrť
+šaškec ~ blázinec, nepořádek
+šavla ~ zvracení
+šestky ~ autobus č. 66
+ševelit ~ mluvit
+šilci ~ policie
+Šimice ~ Židenice
+škopek ~ hlava, pivo
+šlajfka ~ kravata
+šlajzna ~ žízeň
+šlehy ~ písně, řeči
+šlic ~ díra
+šlichta ~ sračka, hnus
+šlinda ~ klouzačka ( namrzlá silnice, chodník )
+šlofčit ~ spát
+šlofík ~ spánek
+šlohnót ~ ukrást
+šluk ~ natáhnutí z cigarety
+šlukna ~ dýmka na marihuanu
+šlukovat ~ kouřit cigaretu
+šlukovka ~ dýmka na marihuanu
+šlupky ~ boty
+šlus ~ konec
+šmé; šméčko ~ podraz, finta
+šmirgl ~ tramvaj
+šmrncnót se štatlem ~ projít městem
+šnicl ~ řízek
+šolna ~ společenský oblek
+šórem ~ pěšky
+šórfka ~ podraz, myšlenka, trik
+Špéna ~ hrad Špilberk
+špérovaný ~ zamčený
+špica ~ výborný
+špiclovat ~ sledovat
+špicová ~ výborná
+špicovej den ~ výbornej den
+Špilas ~ hrad Špilberk
+špinky ~ cigarety
+špiznót ~ podívat se
+špórovat ~ šetřit
+Šrajbec ~ Pisárky ( část Brna )
+šrajtofla ~ peněženka
+šropi ~ děti
+šrotit se ~ učit se
+štaca; štace ~ zastávka, cíl, pozastavení
+štatl ~ město ( jeho centrum )
+štatlař ~ městský flákač
+štatlit ~ jít
+štengrovat ~ provokovat
+štikl ~ kousek
+štok ~ poschodí, patro stolku
+štokrdle ~ stolička
+štricla ~ bochník chleba; (hlava)
+štricna ~ bochník chleba
+šuflata ~ boty (polobotky)
+šufle ~ zásuvka (ve stole)
+šuft ~ nadávka
+šukat ~ souložit
+šunt ~ zmetek
+šuntat ~ souložit
+šupy ~ peníze
+šutr ~ kámen
+šutr ~ vězení
+Švédi ~ Pražáci
+Švédsko ~ Praha
+švestky ~ policajti
+švica ~ sestra
+T
+tác ~ tisíc korun
+tatra studénka ~ studené
+taxál ~ taxi
+telefonovat ~ zvracet
+teplotechna ~ teplo, teplárna
+tintili ~ peníze
+tlačenka ~ protekce
+tlačit ~ jíst
+topr ~ klobouk
+trajf; trajfl ~ trolejbus
+tratec ~ chodník
+traťůvka ~ cesta
+tráva ~ marihuana
+trsnót ~ tančit
+truskavec ~ cigareta
+tucha ~ tušení
+tuml ~ spěch
+tunel ~ podfuk
+tyčka ~ zvracení, zvratky
+tympl ~ místo
+U
+U Medvídka (u méďana) ~ bývalá brněnská fotografická provozovna na Joštové - místo častých srazů
+ufachčit ranu ~ udělat podraz
+úmak ~ výtvor
+ušit tunel ~ udělat podraz
+uvařit ~ udělat
+uvařit svišťa ~ udělat dítě
+V
+vágen ~ automobil
+válec ~ cigareta
+vana ~ břicho
+Vančák ~ obyvatel Ivančic
+vandrovat se ~ navážet se
+vařit ~ do někoho mluvit, hrát nahlas
+vařit svišťa ~ souložit
+vasr ~ voda
+vasrůvka ~ voda
+vegáč ~ dobré bydlení, pohoda
+veget ~ dobré bydlení, pohoda
+vegetit ~ žít
+vegetovat na sólovce ~ bydlet ve svobodárně
+Vekson ~ vysokoškolský klub
+véška ~ policie
+věžák ~ vysoká sklenice na pivo (0,5l) bez ucha, vícepatrový úzký dům
+vidla ~ krádež
+viset ~ dlužit
+vo tym žádná ~ to je bez řečí
+vodkráglovat ~ zavraždit
+vodlepit se ~ vstát
+vodmašt'ovna ~ léčebna pro závislé
+vohoz ~ oděv
+vosolit ~ bouchnout, zmlátit, přidat rychlost
+vošastlich ~ nadávka (doprčic)
+vošolnót ~ obléct
+vošplóchnót se ~ umýt se
+vrany ~ peníze
+všecko kóřit ~ všechno znát
+vtruknout ~ vstoupit, přijít, vtrhnout
+vybořit ~ pomilovat
+vyfajfčit ~ vyspat se
+vyflusnót ~ vyplivnout, vypovědět službu
+vygómat ~ vymyslet
+vychrupčit se ~ vyspat se
+vyklátit ~ pomilovat
+vyklesnót ~ sednout si
+vykropit hrobku ~ pomilovat
+vysolit ~ vydat
+vyšit bóřku ~ dělat problémy
+vyvětrat kostru ~ projít se
+vzít kramle ~ utéct
+Z
+zacálovat; zacólovat ~ zaplatit
+zacvakat ~ zaplatit
+zadara; zadarmiko; zadax ~ zadarmo
+zaeklovat ~ zatočit (zahnout za roh)
+zagrebovat ~ umřít
+zalepit ~ zaplatit
+zamachlovat ~ zavřít
+zašít ~ schovat, zavřít do vězení
+zašmírovat ~ podívat se
+zavařit ~ zahrát
+zbalit ~ namluvit si (děvče)
+zbliknót ~ uvidět
+zbor ~ nabourané auto, zničená věc, zdevastovaný dům
+zdekovat se ~ utéci
+ze startu ~ ze začátku, ihned
+zelí ~ marihuana
+zfajrovat ~ zhořet
+zgarb ~ krám, nedodělek
+zgebnót ~ zemřít
+zgómnót ~ uvidět, zjistit, pochopit
+zichr ~ jistě
+zkalit ~ umřít, opít(se)
+zmerčit ~ spatřit
+zoncna rumpluje ~ slunce pálí
+zoncna vaří ~ slunce pálí
+zonka ~ písnička
+zpeckovat ~ zbít
+zramovat se ~ zřídit se, mít havárii
+zvonek ~ vtip, legrace
+Ž
+žaba; žabka ~ malé děvče
+žabák ~ zanedbaná vodní nádrž
+žabikuch ~ nůž
+Žabiny ~ Žabovřesky ( část Brna )
+žgryndy ~ blbé řeči
+židlochovice ~ místo na sezení
+Žluťák ~ Žlutý kopec ( část Brna )
+
+Slovní spojení a vazby
+balit dekle ~ utéct
+bedna kytu ~ tlustá osoba
+bílá balda, bílá hůl ~ po domácku vyrobené pití
+bordel v řepě ~ zmatek v hlavě
+bude véplata ~ bude rvačka, dostanete natlučeno
+být country ~ být opilý (z angl. country - země)
+dostat kopny ~ být vyhozen
+dostat mixnu ~ být zbit
+fet jak deka ~ značně opilý
+hlásit kachnu ~ ulevit si (prdnout)
+hlava mapa ~ vidět, znát, zapomenout
+hodit brka ~ podrazit nohy
+hodit cunt ~ dát tip
+hodit čuz na raky ~ podívat se na hodinky
+hodit drát ~ telefonovat
+hodit eště bombu ~ dát si ještě láhev
+hodit myslivnu ~ přemýšlet
+hodit skobu ~ spadnout
+hodit špíl ~ hrát (z něm Spielen)
+hodit tyčku, šavlu, kosu ~ zvracet
+hóknót do placu ~ něco veřejně říct
+hrnót krtkem na Slintáč ~ jet metrem na náměstí I.P.Pavlova
+chytnót slinu ~ dostat žízeň
+já na to mastím ~ kašlu na to
+je to béčko ~ je to náhradník, dvojka
+je to klap ~ je to dobré
+je to krén ~ je to špatné
+je to old ~ je to dobré
+je to putna ~ je to jedno
+je to špica, v ažůru, v cajku ~ je to výborné
+je to v gébišu ~ je to v zadku
+je to v pikách ~ je to v pořádku
+je to v ponoru ~ je to špatné
+kalit vodu ~ otravovat, zavazet
+klíny do štricle ~ brouky do hlavy
+klofnót kapelníka, muziku ~ dostat kapavku
+kolik (to) sype ~ (kolik za to dostanu), jaký je čas
+kolik lepím ~ kolik platím
+kolik ti sypó raky (kolik ti sype ráčna) ~ kolik máš hodin
+kopnót do sebe ~ vypít
+kósnót škopek ~ vypít pivo
+má to grády ~ je to silné
+makačka na bednu ~ přemýšlení
+mít na to grif ~ umět to (z něm. Griff - chmat)
+mít peřinu, fedry ~ mít strach
+mít scuka ~ mít sraz, schůzku
+mít v merku ~ sledovat
+mlátit vo zem ~ lhát
+na kajf ~ na dluh
+nechat trauf ~ nechat spropitné
+nechat ve štychu ~ nechat v problémech, nepomoci
+nemít šajnu ~ nevědět
+nésu štond ~ nemohu, nejsem schopen
+nevař křivý války ~ nelži, nedělej podrazy
+obtáhnót prut ~ onanovat
+oplodnit kóřku ~ zapálit cigaretu
+pakl lovů ~ hromada peněz
+pecen háže hicnu ~ slunce pálí
+pila pali ~ rychle pryč
+prolepit celé tah ~ zaplatit celou oslavu
+přirazit na raku ~ přijet na kole
+rákosníci čachrujó ~ Vietnamci prodávají, vyměňují
+sežrat flignu ~ nepřijít na podraz, uvěřit lži
+správný zvonky ~ dobré vykládání
+stará šochtla, štroncna ~ stará škaredá žena
+staré pedál ~ starý muž
+su sólo ~ jsem sám
+šulda mě klofl v pedách ~ školník mě chytil v botech
+těžká mlata ~ velká rvačka
+těžká rychna ~ velký smrad
+trhnót kó ~ sehnat dívku
+tu válku kóřím ~ znám to
+tvrdá klika ~ být zavřený
+udělat terno ~ dobře pořídit
+ušít bódu ~ nachystat podfuk
+už mě z teho jebe v řepě ~ jsem z toho blázen
+vobtáhnót vo love ~ připravit o peníze
+všechno sem sežral ~ podraz jsem neprokoukl
+vylepené na cédáku ~ být na koupališti
+vylepené na škopku ~ sedět v restauraci na pivu
+vymlasknót čechr ~ vypít pivo
+vyplázni rantále ~ zaplať, dej peníze
+vzít vzorek ~ ochutnat
+za kolečkem ~ za volantem
+žádná křeč ~ jen klid, proběhlo to dobře, bez námahy
+zazvonit na klofnu ~ zahrát na kytaru
+zglgat se na šrot ~ opít se do němoty
+
+Kam v Brně (Jak se neztratit)
+Augec ~ Lužánky
+Bastr ~ Bystrc
+Blajchec ~ Na Bělidle
+Blajkec ~ Modřice
+Blekfild ~ Černá Pole
+Čára ~ Česká ulice
+Džungle ~ domky pod Stránskou skálou
+Gelbec ~ Žlutý kopec
+Jóbsko ~ Jundrov
+Kachláče ~ pomník na Moravském nám.
+Kénig, (Kénik) ~ Královo Pole
+Kchajzec ~ Wilsonův les
+Latrína ~ ulice Koliště
+Majlont ~ Maloměřice
+Monté bú ~ Kraví hora
+Monte cap ~ Kozí horka
+Oltec ~ Staré Brno
+Pasingl ~ hotel Slovan
+Pavec ~ Pavilón
+Prygl ~ Brněnská přehrada
+Rivec ~ Riviéra
+Rola ~ hlavní vlakové nádraží
+Rotec ~ Červený kopec
+Sobůlky ~ Soběšice
+Statek ~ Stadión na Kounicově ulici
+Šanghaj ~ Hybešova čtvrť
+Šanc ~ Divišova čtvrť
+Šimice ~ Židenice
+Špéna, Špilas, Špilec ~ hrad Špilberk
+Šrajbec ~ Pisárky
+Vystec ~ Výstaviště
+Zarybec ~ za nádražím v Kr. Poli (ulice Myslínova)
+Zvonec ~ Zvonařka
+Žabiny ~ Žabovřesky
+
+

@@ -1,32 +1,33 @@
 .voice-selector {
-  margin-bottom: 32px;
+  margin-bottom: 20px;
 }
 
 .voice-selector h2 {
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   color: #fff;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 600;
 }
 
 .voice-options {
   display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
 .voice-option {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
-  padding: 12px 20px;
+  padding: 8px 16px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.2s ease;
   color: rgba(255, 255, 255, 0.7);
+  font-size: 0.95rem;
 }
 
 .voice-option:hover {
@@ -37,8 +38,8 @@
 
 .voice-option input[type="radio"] {
   accent-color: #6366f1;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .voice-option span {
@@ -46,7 +47,7 @@
 }
 
 .demo-voices {
-  margin-top: 20px;
+  margin-top: 12px;
 }
 
 .demo-voice-select-wrapper {
@@ -57,12 +58,12 @@
 
 .demo-voice-select {
   width: 100%;
-  padding: 14px 16px;
+  padding: 12px 16px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-family: inherit;
   cursor: pointer;
   appearance: none;
@@ -88,7 +89,7 @@
 /* Custom arrow for select */
 .demo-voice-select-wrapper::after {
   content: '▼';
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.5);
   position: absolute;
   right: 16px;
@@ -98,19 +99,19 @@
 }
 
 .no-demo-voices {
-  padding: 16px;
+  padding: 12px;
   background: rgba(255, 193, 7, 0.1);
   border: 1px solid rgba(255, 193, 7, 0.2);
   border-radius: 12px;
   color: #ffd54f;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .upload-section,
 .record-section,
 .youtube-section {
-  margin-top: 20px;
-  padding: 24px;
+  margin-top: 16px;
+  padding: 16px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 16px;
@@ -120,14 +121,14 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 28px;
+  padding: 12px 24px;
   background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: white;
   border-radius: 12px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.3s ease;
-  box-shadow: 0 10px 20px rgba(79, 70, 229, 0.2);
+  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
 }
 
 .upload-button:hover {

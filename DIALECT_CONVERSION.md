@@ -153,6 +153,19 @@ Pravidla lze snadno rozšířit úpravou `lookup_tables/ceska_nareci.json`:
 }
 ```
 
+## Brněnský hantec – velký slovník (doporučené)
+
+Pro brněnské nářečí (`brnenske`) je praktické držet velký slovník mimo `ceska_nareci.json` (kvůli velikosti a údržbě) v samostatném souboru:
+
+- `lookup_tables/hantec_slovnik_raw.txt` – zdrojový text ve formátu `HANTEC ~ význam`
+- `scripts/convert_hantec_raw_to_json.py` – převod do JSON (standardní → hantec)
+- `lookup_tables/hantec_slovnik.json` – výstupní lookup tabulka, kterou runtime načítá
+
+V konvertoru se pro `brnenske` aplikuje:
+- nejdřív **fráze** (delší shody mají přednost),
+- potom **jednotlivá slova**,
+- a nakonec existující pravidla z `ceska_nareci.json` (místopis, činnosti, specifická slova…).
+
 ## Intenzita převodu
 
 Parametr `intensity` (0.0-1.0) určuje, jak silně se pravidla aplikují:

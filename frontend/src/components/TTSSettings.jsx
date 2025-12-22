@@ -18,27 +18,9 @@ const DEFAULT_TTS_SETTINGS = {
 
 function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityChange, activeVariant, onVariantChange }) {
   const [isExpanded, setIsExpanded] = useState(true) // Hlavní panel otevřený
-  const [variantsExpanded, setVariantsExpanded] = useState(true)
   const [ttsParamsExpanded, setTtsParamsExpanded] = useState(true)
   const [qualityExpanded, setQualityExpanded] = useState(true)
   const [advancedExpanded, setAdvancedExpanded] = useState(false)
-  const wasExpandedRef = useRef(false)
-
-  // Zajistit, že se komponenta nezavře při změně varianty
-  // Pokud byla otevřená, zůstane otevřená
-  useEffect(() => {
-    if (wasExpandedRef.current && !isExpanded) {
-      // Pokud byla otevřená před změnou varianty, zůstane otevřená
-      setIsExpanded(true)
-    }
-  }, [activeVariant, isExpanded])
-
-  // Sledovat, zda byla komponenta otevřená
-  useEffect(() => {
-    if (isExpanded) {
-      wasExpandedRef.current = true
-    }
-  }, [isExpanded])
 
   const variants = [
     { id: 'variant1', label: 'Varianta 1' },
@@ -92,24 +74,6 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
         isExpanded={isExpanded}
         onToggle={() => setIsExpanded(!isExpanded)}
       >
-        {/* Záložky pro varianty */}
-        <Section
-          title="Varianty nastavení"
-          icon="📋"
-          isExpanded={variantsExpanded}
-          onToggle={() => setVariantsExpanded(!variantsExpanded)}
-        >
-          <div className="variants-tabs-container">
-            <SegmentedControl
-              options={variants.map(v => ({ value: v.id, label: v.label.replace('Varianta ', 'V') }))}
-              value={activeVariant}
-              onChange={(val) => onVariantChange && onVariantChange(val)}
-              className="variants-segmented-control"
-            />
-          </div>
-        </Section>
-
-        {/* TTS parametry */}
         <Section
           title="TTS parametry"
           icon="🎛️"
@@ -119,6 +83,19 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
             onChange({ ...settings, ...DEFAULT_TTS_SETTINGS })
           }}
         >
+          {/* Záložky pro profily přímo v TTS parametrech */}
+          <div className="variants-tabs-in-params" style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <div style={{ marginBottom: '10px', fontSize: '11px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Slot nastavení (Profil)
+            </div>
+            <SegmentedControl
+              options={variants.map(v => ({ value: v.id, label: v.label.replace('Varianta ', 'P') }))}
+              value={activeVariant}
+              onChange={(val) => onVariantChange && onVariantChange(val)}
+              className="variants-segmented-control"
+            />
+          </div>
+
           <div className="settings-grid">
             {/* Rychlost řeči - zobrazit pro meditative/whisper nebo pokud je explicitně v Advanced */}
             {(quality.qualityMode === 'meditative' || quality.qualityMode === 'whisper') && (

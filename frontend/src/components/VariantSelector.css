@@ -114,26 +114,30 @@
 }
 
 .play-button {
-  background: var(--color-accent);
-  color: var(--color-text-primary);
-  border: none;
+  background: transparent;
+  color: var(--color-accent);
+  border: 2px solid var(--color-accent);
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-base);
-  transition: all var(--transition-fast);
+  font-size: 1.2rem;
+  transition: all 0.2s ease;
+  padding-left: 3px; /* Optické vycentrování */
 }
 
 .play-button:hover {
-  background: var(--color-accent-hover);
+  background: rgba(99, 102, 241, 0.1);
+  transform: scale(1.1);
 }
 
 .play-button.playing {
-  background: rgba(239, 68, 68, 0.8);
+  color: #ef4444;
+  border-color: #ef4444;
+  padding-left: 0;
 }
 
 .select-button {

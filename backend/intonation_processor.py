@@ -44,9 +44,9 @@ class IntonationProcessor:
         'FALL': [
             (0.0, 0.0),      # Začátek: žádná změna
             (0.5, 0.0),      # První polovina: žádná změna
-            (0.7, -0.5),     # Začátek poklesu: mírný pokles
-            (0.85, -2.0),    # Střed poklesu: střední pokles
-            (1.0, -4.5)      # Konec: výrazný pokles o 4.5 semitonu (zvýšeno pro lepší slyšitelnost)
+            (0.7, -0.4),     # Začátek poklesu: mírný pokles
+            (0.85, -1.0),    # Střed poklesu: střední pokles
+            (1.0, -1.8)      # Konec: přirozený pokles o 1.8 semitonu (sníženo pro konzistentní barvu hlasu)
         ],
         'RISE': [
             (0.0, 0.0),      # Začátek: žádná změna

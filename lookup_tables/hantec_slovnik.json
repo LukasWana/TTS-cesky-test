@@ -1,0 +1,2840 @@
+{
+  "description": "Slovník brněnského hantecu (standardní čeština -> hantec). Vygenerováno ze zdrojového textu.",
+  "version": "1.0",
+  "generated_at": "2025-12-22T14:48:41Z",
+  "standard_to_hantec": {
+    "alimenty": [
+      "aloše"
+    ],
+    "drobný mince": [
+      "ance"
+    ],
+    "vědomost": [
+      "ánunk"
+    ],
+    "znalost": [
+      "ánunk"
+    ],
+    "lužánky": [
+      "Augec"
+    ],
+    "oči": [
+      "augle",
+      "baterky",
+      "jodovky"
+    ],
+    "ven": [
+      "aus"
+    ],
+    "pryč": [
+      "aus",
+      "pali"
+    ],
+    "nekvalitní výrobek": [
+      "aušus",
+      "bazmek"
+    ],
+    "holka": [
+      "babáč"
+    ],
+    "žena": [
+      "babáč"
+    ],
+    "jíst": [
+      "bagrovat",
+      "baštit",
+      "dlabat",
+      "futrovat",
+      "chalovat",
+      "tlačit"
+    ],
+    "pivo": [
+      "bahno",
+      "čechr",
+      "škopek"
+    ],
+    "černoch": [
+      "bakeliťák"
+    ],
+    "peníze": [
+      "bakule",
+      "háky",
+      "chechtáče",
+      "chechtáky",
+      "ká",
+      "kačáky",
+      "kačeny",
+      "krópy",
+      "krupica",
+      "love",
+      "lováče",
+      "pašky",
+      "rantále",
+      "šupy",
+      "tintili",
+      "vrany"
+    ],
+    "nevychovanec": [
+      "balda"
+    ],
+    "vesničan": [
+      "balda",
+      "lonťák"
+    ],
+    "kyj": [
+      "balda"
+    ],
+    "pohlavní úd": [
+      "balda",
+      "brko",
+      "pinďour"
+    ],
+    "odejít": [
+      "balit kramle",
+      "hlásit loď"
+    ],
+    "utéct": [
+      "balit kramle",
+      "fóknót",
+      "vzít kramle",
+      "balit dekle"
+    ],
+    "ulevit si": [
+      "barva",
+      "hlásit kachnu"
+    ],
+    "autobus": [
+      "bas"
+    ],
+    "zásobník na nápoje": [
+      "basa",
+      "kastl"
+    ],
+    "vězení": [
+      "basa",
+      "kameň",
+      "krym",
+      "šutr"
+    ],
+    "bystrc": [
+      "Bástr",
+      "Bastr"
+    ],
+    "modřina pod okem": [
+      "baterka"
+    ],
+    "břicho": [
+      "bauch",
+      "bauchec",
+      "vana"
+    ],
+    "krám": [
+      "bazmek",
+      "zgarb"
+    ],
+    "televizor": [
+      "bedna",
+      "idiotbox"
+    ],
+    "hlava": [
+      "bedna",
+      "budka",
+      "dózna",
+      "gebeňa",
+      "glocna",
+      "kefa",
+      "řepa",
+      "škopek"
+    ],
+    "potvrzení nečeho": [
+      "befel"
+    ],
+    "oznámení": [
+      "befel"
+    ],
+    "příkaz": [
+      "befel"
+    ],
+    "zpívat": [
+      "békat"
+    ],
+    "benzín": [
+      "beneli"
+    ],
+    "policisté": [
+      "bengy",
+      "filci",
+      "filcky"
+    ],
+    "kopec": [
+      "bergl"
+    ],
+    "pěkná dívka": [
+      "betálné šnicl"
+    ],
+    "výborný": [
+      "betelný, betálný",
+      "špica"
+    ],
+    "postel": [
+      "betla"
+    ],
+    "dům": [
+      "betlém"
+    ],
+    "budova": [
+      "betlém"
+    ],
+    "doopravdy? určitě?": [
+      "beton"
+    ],
+    "byt": [
+      "bévák",
+      "kér",
+      "kirch"
+    ],
+    "bydlení": [
+      "bévák",
+      "domášov"
+    ],
+    "učit se": [
+      "biflovat",
+      "šrotit se"
+    ],
+    "chleba": [
+      "bimz",
+      "brzda",
+      "giňál"
+    ],
+    "nepořádek": [
+      "binec",
+      "brajgl",
+      "herberk",
+      "šaškec"
+    ],
+    "na bělidle": [
+      "blajchec"
+    ],
+    "modřice": [
+      "Blajkec"
+    ],
+    "polévka": [
+      "blča"
+    ],
+    "černá pole": [
+      "Blekfild"
+    ],
+    "pod rukou": [
+      "bočmen",
+      "boční šorfka",
+      "bokovka"
+    ],
+    "mít něco jiného": [
+      "bočmen",
+      "boční šorfka",
+      "bokovka"
+    ],
+    "škola": [
+      "bóda"
+    ],
+    "práce": [
+      "bóchačka",
+      "facha",
+      "fachna",
+      "fachačka",
+      "háček",
+      "hák",
+      "rachota"
+    ],
+    "pistole": [
+      "bóchačka"
+    ],
+    "pracovat": [
+      "bóchat",
+      "bušit",
+      "fachčit",
+      "hoknit",
+      "klepat"
+    ],
+    "chodit do práce": [
+      "bóchat"
+    ],
+    "mít práci": [
+      "bóchat"
+    ],
+    "prodat": [
+      "bóchnót"
+    ],
+    "láhev": [
+      "bomba",
+      "lampa",
+      "lampión"
+    ],
+    "udání": [
+      "bomz",
+      "bonz"
+    ],
+    "udavač": [
+      "bomzák",
+      "bonzák"
+    ],
+    "udávat": [
+      "bomzovat",
+      "bonzovat"
+    ],
+    "havárie": [
+      "bóračka",
+      "bórák"
+    ],
+    "demolice": [
+      "bóračka"
+    ],
+    "automobil": [
+      "bórák",
+      "kára",
+      "kočár",
+      "vágen"
+    ],
+    "hluk": [
+      "brajgl",
+      "bugr"
+    ],
+    "utíkat": [
+      "brát glajze",
+      "dekovat se /"
+    ],
+    "řada": [
+      "brázda"
+    ],
+    "prsa": [
+      "bresty",
+      "dudy",
+      "dvorce"
+    ],
+    "lyže": [
+      "bretle"
+    ],
+    "slámka": [
+      "brko"
+    ],
+    "noha": [
+      "brko",
+      "faja, fajka",
+      "habrůvka",
+      "haksna",
+      "plótva"
+    ],
+    "kluziště za lužánkami": [
+      "bruslák"
+    ],
+    "rachot": [
+      "bugr"
+    ],
+    "homosexuál": [
+      "buk",
+      "bukál",
+      "bukva",
+      "bukvica",
+      "buzna",
+      "buzík",
+      "buzuluk",
+      "hoša"
+    ],
+    "pětikoruna": [
+      "bůra"
+    ],
+    "motorka": [
+      "burgla"
+    ],
+    "vyčerpán": [
+      "být grogy",
+      "hyn"
+    ],
+    "pomalá vlezlá hudba": [
+      "cajdák"
+    ],
+    "věci": [
+      "cajky"
+    ],
+    "noviny": [
+      "cajtunk"
+    ],
+    "pražák": [
+      "cajzl"
+    ],
+    "platit": [
+      "cálovat",
+      "cólčit",
+      "kanagom lepička"
+    ],
+    "chlubit se": [
+      "camrat se"
+    ],
+    "vytahovat se": [
+      "camrat se"
+    ],
+    "list": [
+      "canc"
+    ],
+    "listina": [
+      "canc"
+    ],
+    "hloupě mluvit": [
+      "cancat"
+    ],
+    "hloupé řeči": [
+      "cancy",
+      "cány"
+    ],
+    "třást": [
+      "casnovat"
+    ],
+    "třepat": [
+      "casnovat"
+    ],
+    "okolky": [
+      "cavyky"
+    ],
+    "taneční citový kousek": [
+      "céčko"
+    ],
+    "koupání": [
+      "cédačka"
+    ],
+    "koupaliště": [
+      "cédák"
+    ],
+    "útrata": [
+      "cech"
+    ],
+    "účet": [
+      "cech",
+      "cemr"
+    ],
+    "zadek": [
+      "cemr",
+      "gébiš"
+    ],
+    "záda": [
+      "cemr"
+    ],
+    "potvrzení": [
+      "cetl",
+      "ferbl"
+    ],
+    "hodinky": [
+      "cibule",
+      "ráčmeny, ráčna"
+    ],
+    "líbat se": [
+      "cicmat se"
+    ],
+    "mazlit se": [
+      "cicmat se"
+    ],
+    "obličej": [
+      "ciferník",
+      "ksicht",
+      "sandál"
+    ],
+    "místnost": [
+      "cimra"
+    ],
+    "pokoj": [
+      "cimra"
+    ],
+    "kolik platím": [
+      "co to fachčí",
+      "kolik lepím"
+    ],
+    "pomalý osobní vlak": [
+      "córák"
+    ],
+    "chodit": [
+      "córat"
+    ],
+    "opletačky": [
+      "córese"
+    ],
+    "zpráva": [
+      "cund"
+    ],
+    "tip": [
+      "cund"
+    ],
+    "míč": [
+      "cunda"
+    ],
+    "balón": [
+      "cunda"
+    ],
+    "zaplatit": [
+      "cvaknót",
+      "zacálovat",
+      "zacólovat",
+      "zacvakat",
+      "zalepit"
+    ],
+    "vypít menší množství tekutiny": [
+      "cvaknót"
+    ],
+    "vyměňovat": [
+      "čachrovat"
+    ],
+    "úkrást": [
+      "čajznout",
+      "čmajznout",
+      "džignót"
+    ],
+    "chytit": [
+      "čapnout"
+    ],
+    "nohy": [
+      "čapy",
+      "olšovky",
+      "pastelky"
+    ],
+    "česká ulice v brně": [
+      "Čára"
+    ],
+    "státní hranice": [
+      "čára"
+    ],
+    "karlovo náměstí v praze": [
+      "Čárlí plac"
+    ],
+    "pozdrav": [
+      "čau",
+      "čauec",
+      "džusblues",
+      "savana hokna"
+    ],
+    "pít pivo": [
+      "čechrovat",
+      "čechrovat bahno",
+      "kalit škopky"
+    ],
+    "červené víno": [
+      "červ"
+    ],
+    "brýle": [
+      "čočky",
+      "čočmeny"
+    ],
+    "vesnická zábava": [
+      "čoch"
+    ],
+    "soukromá oslava": [
+      "čoch"
+    ],
+    "pes": [
+      "čokl"
+    ],
+    "zloději": [
+      "čóraři"
+    ],
+    "krádež": [
+      "čórka",
+      "vidla"
+    ],
+    "zloděj": [
+      "čórmen",
+      "čórkař"
+    ],
+    "ukrást": [
+      "čórnout",
+      "klofnót",
+      "šlohnót"
+    ],
+    "krást": [
+      "čórovat",
+      "pajtlovat"
+    ],
+    "dívat se": [
+      "čubrnět",
+      "házet čůz"
+    ],
+    "legrace": [
+      "čurina",
+      "zvonek"
+    ],
+    "cigareta": [
+      "čvaňhák",
+      "fókačka",
+      "kóřka",
+      "truskavec",
+      "válec"
+    ],
+    "nedopalek": [
+      "čvaňhák"
+    ],
+    "děkuji": [
+      "ď"
+    ],
+    "darebák": [
+      "dacan",
+      "ksindl",
+      "sigr"
+    ],
+    "rána": [
+      "dacka",
+      "duna",
+      "prda",
+      "řacha"
+    ],
+    "oznámit": [
+      "dát cunt"
+    ],
+    "namlátit": [
+      "dát deku"
+    ],
+    "namlátit někomu": [
+      "dát do hefta"
+    ],
+    "vysouložit": [
+      "dát do šlicu"
+    ],
+    "dát náskok": [
+      "dát fóra"
+    ],
+    "dávat pozor": [
+      "dát majzla"
+    ],
+    "oběsit se": [
+      "dát si věšák",
+      "hodit mašlu"
+    ],
+    "děvče": [
+      "debrecinka",
+      "hajfa",
+      "kó",
+      "koc",
+      "kocór",
+      "koňa",
+      "kůň",
+      "kůža"
+    ],
+    "deka": [
+      "dečmen"
+    ],
+    "němec": [
+      "dederón"
+    ],
+    "žít": [
+      "dejchat",
+      "vegetit"
+    ],
+    "zatažená obloha": [
+      "deka"
+    ],
+    "zápach": [
+      "deka"
+    ],
+    "dlouhé vlasy namlátit někomu": [
+      "deka"
+    ],
+    "poklop": [
+      "dekl"
+    ],
+    "víko": [
+      "dekl"
+    ],
+    "dlouhé vlasy": [
+      "dekl"
+    ],
+    "klobouk": [
+      "dekl",
+      "topr"
+    ],
+    "smradlavá ponožka": [
+      "deková fuska"
+    ],
+    "připravovat ústup": [
+      "dekovat se /"
+    ],
+    "pivo 10%": [
+      "desatero",
+      "desítka"
+    ],
+    "nestarat se o něco": [
+      "dlabat"
+    ],
+    "mačkat": [
+      "dlachnit"
+    ],
+    "osahávat": [
+      "dlachnit",
+      "filcovat"
+    ],
+    "dohromady": [
+      "do holpecu",
+      "holpec"
+    ],
+    "koupaliště na ulici dobrovského": [
+      "Dobrák"
+    ],
+    "domluvit": [
+      "dohantýrovat",
+      "dohóknót"
+    ],
+    "vyplašit": [
+      "dohókat"
+    ],
+    "poplašit": [
+      "dohókat"
+    ],
+    "sníst po někom zbytky": [
+      "dojet"
+    ],
+    "zbytky jídla": [
+      "dojížďák"
+    ],
+    "brněnský somrák - známá postava": [
+      "Doktor Špína"
+    ],
+    "dolary": [
+      "dolcky"
+    ],
+    "dozvědět se": [
+      "domáknout se"
+    ],
+    "zjistit": [
+      "domáknout se",
+      "zgómnót"
+    ],
+    "jít domů": [
+      "domášov"
+    ],
+    "dopít": [
+      "dopařit"
+    ],
+    "donést": [
+      "dotlačit",
+      "dovalit"
+    ],
+    "šmejd": [
+      "drek"
+    ],
+    "hubatá": [
+      "držkatá"
+    ],
+    "odcházím": [
+      "du pali"
+    ],
+    "ňadra": [
+      "dudy"
+    ],
+    "restaurace dukát na lesné": [
+      "Duksna"
+    ],
+    "spát": [
+      "durchčit",
+      "fajfčit",
+      "gróňat",
+      "grónčit",
+      "kysat",
+      "šlofčit"
+    ],
+    "pivo 12%": [
+      "dvanáctka",
+      "plnotučný"
+    ],
+    "sluha": [
+      "dýnstman"
+    ],
+    "kalhoty z jeansoviny": [
+      "džanky",
+      "džeksny"
+    ],
+    "chlap": [
+      "džek",
+      "kábr"
+    ],
+    "chlápek": [
+      "džekyl"
+    ],
+    "detektiv": [
+      "džekyl"
+    ],
+    "policista": [
+      "džekyl",
+      "filc",
+      "fízl",
+      "hémon"
+    ],
+    "bum": [
+      "džig"
+    ],
+    "bouchnout": [
+      "džignót",
+      "vosolit"
+    ],
+    "osada pod stránskou skálou v líšni": [
+      "Džungla"
+    ],
+    "jáma": [
+      "džuzna"
+    ],
+    "roh": [
+      "ekl"
+    ],
+    "nelíbit se": [
+      "eklovat se"
+    ],
+    "dědit": [
+      "erbit",
+      "erbovat"
+    ],
+    "brambory": [
+      "erteple",
+      "krumple",
+      "krumle"
+    ],
+    "továrna": [
+      "fabala"
+    ],
+    "dítě": [
+      "fagan",
+      "svišť",
+      "sysel"
+    ],
+    "odborník": [
+      "fachmon"
+    ],
+    "oheň": [
+      "fajer",
+      "fajrák"
+    ],
+    "hořet": [
+      "fajrovat"
+    ],
+    "rychlost": [
+      "fajrunk"
+    ],
+    "auto": [
+      "fáro"
+    ],
+    "teď": [
+      "fčil"
+    ],
+    "pumpovat": [
+      "fecat",
+      "fecovat"
+    ],
+    "pumpa": [
+      "fecna"
+    ],
+    "tisícikoruna": [
+      "fecna",
+      "hadr"
+    ],
+    "strach": [
+      "fedry"
+    ],
+    "motocykl pionýr": [
+      "fechtl",
+      "fichtl"
+    ],
+    "rána vedle": [
+      "fela"
+    ],
+    "netrefit se": [
+      "felit se"
+    ],
+    "okno": [
+      "fenstr"
+    ],
+    "zapisovat": [
+      "ferblovat"
+    ],
+    "oslava": [
+      "fet"
+    ],
+    "pijatika": [
+      "fet",
+      "glgačka"
+    ],
+    "piják": [
+      "fetingr",
+      "fetoš"
+    ],
+    "alkoholik": [
+      "fetingr",
+      "fetoš"
+    ],
+    "narkoman": [
+      "fetoš"
+    ],
+    "narkomani": [
+      "fetoši"
+    ],
+    "sledovat": [
+      "fikslovat",
+      "mít v merku",
+      "špiclovat"
+    ],
+    "podvádět": [
+      "fikslovat",
+      "jet na někoho serpentiny"
+    ],
+    "cizopasníci v ochlupení": [
+      "filcky"
+    ],
+    "ryba": [
+      "fišla"
+    ],
+    "špión": [
+      "fízl"
+    ],
+    "policejní služebna": [
+      "fízlárna"
+    ],
+    "náplast": [
+      "flastr"
+    ],
+    "trest": [
+      "flastr"
+    ],
+    "pokuta": [
+      "flastr"
+    ],
+    "flákání": [
+      "fléda"
+    ],
+    "nicnedělání": [
+      "fléda"
+    ],
+    "tančírna \"kabaret u netopýra\"": [
+      "Fléda"
+    ],
+    "místo": [
+      "flek",
+      "tympl"
+    ],
+    "peněženka": [
+      "flek",
+      "šrajtofla"
+    ],
+    "občanský průkaz": [
+      "flétna"
+    ],
+    "lest": [
+      "flígl",
+      "fligna"
+    ],
+    "křídlo": [
+      "flígl"
+    ],
+    "minimální peněžní obnos": [
+      "flok"
+    ],
+    "vstupenka": [
+      "flósek"
+    ],
+    "lístek": [
+      "flósek",
+      "lupeň"
+    ],
+    "tiket": [
+      "flósek"
+    ],
+    "plivat": [
+      "flusat"
+    ],
+    "rychle!": [
+      "fofr"
+    ],
+    "pták": [
+      "fógl"
+    ],
+    "kluk": [
+      "fógl"
+    ],
+    "někam něco dát": [
+      "fóknót"
+    ],
+    "záloha": [
+      "foršus"
+    ],
+    "zástava": [
+      "foršus"
+    ],
+    "žena s malým poprsím": [
+      "fošna"
+    ],
+    "diskotéka": [
+      "fošnové hmyz"
+    ],
+    "táta": [
+      "fotr"
+    ],
+    "dívka": [
+      "frajla"
+    ],
+    "mladá žena": [
+      "frajla"
+    ],
+    "úřednice": [
+      "frajla"
+    ],
+    "zastavárna": [
+      "frc"
+    ],
+    "bazar": [
+      "frc"
+    ],
+    "vtip": [
+      "frk",
+      "zvonek"
+    ],
+    "vstoupit": [
+      "ftruknót",
+      "vtruknout"
+    ],
+    "vtrhnout": [
+      "ftruknót",
+      "vtruknout"
+    ],
+    "pochybná žena": [
+      "fuchtla",
+      "fuchtle"
+    ],
+    "nadávka": [
+      "fuchtla",
+      "fuchtle",
+      "guma",
+      "platfusák",
+      "pobóchanec",
+      "pošuk",
+      "potróblé",
+      "potróblenec",
+      "šuft",
+      "vošastlich"
+    ],
+    "stále": [
+      "furt"
+    ],
+    "ponožka": [
+      "fuska",
+      "fusekla"
+    ],
+    "žranice": [
+      "futrovačka"
+    ],
+    "cpát se": [
+      "futrovat"
+    ],
+    "jídlo": [
+      "gábl",
+      "gecnót",
+      "chálka",
+      "chalka"
+    ],
+    "stánek na nám. svobody ve tvaru houby": [
+      "Gampl"
+    ],
+    "žampión": [
+      "gampl"
+    ],
+    "hřib": [
+      "gampl"
+    ],
+    "žampióny": [
+      "gample"
+    ],
+    "hřiby": [
+      "gample"
+    ],
+    "houby": [
+      "gample"
+    ],
+    "právo": [
+      "gebír"
+    ],
+    "dělat obličeje": [
+      "gébit"
+    ],
+    "sednout": [
+      "gecnót"
+    ],
+    "žlutý kopec": [
+      "Gelbec",
+      "Žluťák"
+    ],
+    "koleje": [
+      "glajze"
+    ],
+    "úřední listina": [
+      "glét",
+      "glejt"
+    ],
+    "pití": [
+      "glgačka"
+    ],
+    "pít": [
+      "glgat",
+      "chlemtat"
+    ],
+    "zlato": [
+      "goldna"
+    ],
+    "zlatý slavík": [
+      "goldnové fógl"
+    ],
+    "zlatý": [
+      "goldnový"
+    ],
+    "svatba": [
+      "gólka",
+      "grilka"
+    ],
+    "ženit se": [
+      "gólovat se",
+      "grilovat se"
+    ],
+    "chápat": [
+      "gómat"
+    ],
+    "vědět": [
+      "gómat",
+      "gómat války"
+    ],
+    "znát": [
+      "gómat války",
+      "kóřit",
+      "mít v merku",
+      "hlava mapa"
+    ],
+    "uvidět": [
+      "gómnót",
+      "zbliknót",
+      "zgómnót"
+    ],
+    "poznat": [
+      "gómnót"
+    ],
+    "zadarmo": [
+      "grátis",
+      "zadara",
+      "zadarmiko",
+      "zadax"
+    ],
+    "vdávat se": [
+      "grilovat se"
+    ],
+    "skupina": [
+      "grupa",
+      "sajtna"
+    ],
+    "kámen": [
+      "gryml",
+      "šutr"
+    ],
+    "guláš": [
+      "guldík",
+      "gulin"
+    ],
+    "voják z povolání": [
+      "guma"
+    ],
+    "podfuk": [
+      "habaďůra",
+      "křivá válka",
+      "tunel"
+    ],
+    "mnoho": [
+      "hafo"
+    ],
+    "děvčata": [
+      "hajfeci",
+      "hajfy"
+    ],
+    "koně": [
+      "hajtry"
+    ],
+    "špatná práce": [
+      "hakl krén"
+    ],
+    "náhoda": [
+      "haluz"
+    ],
+    "větev": [
+      "haluz",
+      "haluza"
+    ],
+    "ruka": [
+      "haluza"
+    ],
+    "vysoký člověk": [
+      "haluza"
+    ],
+    "brzdit": [
+      "hamovat"
+    ],
+    "šlápnout": [
+      "hamznout"
+    ],
+    "stan": [
+      "hangár"
+    ],
+    "brněnská hantýrka": [
+      "hantec"
+    ],
+    "mluvit": [
+      "hantýrovat",
+      "ševelit"
+    ],
+    "rozprávět": [
+      "hantýrovat"
+    ],
+    "vlasy": [
+      "hára",
+      "harizony"
+    ],
+    "hašiš": [
+      "hašek"
+    ],
+    "kufr": [
+      "haubna"
+    ],
+    "říkat": [
+      "házet do plácu",
+      "hlásit"
+    ],
+    "dát všem": [
+      "házet do plácu"
+    ],
+    "kašlat na to": [
+      "házet kakáč"
+    ],
+    "provokovat": [
+      "hecovat",
+      "štengrovat"
+    ],
+    "přesvědčovat": [
+      "hecovat"
+    ],
+    "pomoci": [
+      "helfnót"
+    ],
+    "policie": [
+      "hémoni",
+      "mlíkaři",
+      "šilci",
+      "véška"
+    ],
+    "sešlápnout": [
+      "hemznout"
+    ],
+    "kolena": [
+      "henkle"
+    ],
+    "srdce": [
+      "hercna"
+    ],
+    "vlivná osoba": [
+      "herfón",
+      "papaláš"
+    ],
+    "vedro": [
+      "hic",
+      "hicna",
+      "pekáč"
+    ],
+    "skvrna na spodním prádle": [
+      "hnědka",
+      "kaštec"
+    ],
+    "zapálit": [
+      "hodit blesk"
+    ],
+    "dát tip": [
+      "hodit cund",
+      "hodit cunt"
+    ],
+    "podívat se": [
+      "hodit čučku / čuz",
+      "hodit kukačku",
+      "hodit špizuňk",
+      "hodit voko",
+      "špiznót",
+      "zašmírovat"
+    ],
+    "dát k dispozici": [
+      "hodit do placu"
+    ],
+    "popovídat si": [
+      "hodit hantec"
+    ],
+    "vykašlat se na něco": [
+      "hodit kakáč"
+    ],
+    "jít se vymočit": [
+      "hodit močku"
+    ],
+    "sednout si": [
+      "hodit sicnu",
+      "vyklesnót"
+    ],
+    "vykonat velkou potřebu": [
+      "hodit sranec"
+    ],
+    "na něco se vykašlat": [
+      "hodit sranec"
+    ],
+    "zastavit se": [
+      "hodit stopku"
+    ],
+    "mladý hoch": [
+      "hofírek"
+    ],
+    "zpívat písničky": [
+      "hókat pecky"
+    ],
+    "sdělit": [
+      "hóknót",
+      "hóknót válku"
+    ],
+    "společná": [
+      "holpecová"
+    ],
+    "skoky z okna": [
+      "hópance z fenstru"
+    ],
+    "lhát": [
+      "hópat",
+      "jet na někoho serpentiny",
+      "mlátit vo zem"
+    ],
+    "skákat": [
+      "hópat"
+    ],
+    "blázinec": [
+      "hotel Hilton",
+      "šaškec"
+    ],
+    "záchytka": [
+      "hotel Hilton"
+    ],
+    "kalhoty": [
+      "hózny",
+      "róry"
+    ],
+    "jet metrem": [
+      "hrabat krtkem",
+      "hrnót krtkem"
+    ],
+    "stokoruna": [
+      "hradčany",
+      "kilián",
+      "kilo"
+    ],
+    "boule": [
+      "hrča",
+      "kobáč"
+    ],
+    "nadávka ženě": [
+      "hrča"
+    ],
+    "jet": [
+      "hrnót",
+      "kalit",
+      "razit",
+      "smegat",
+      "svištět"
+    ],
+    "jít": [
+      "hrnót",
+      "klapat",
+      "razit",
+      "smegat",
+      "smykovat",
+      "sypat",
+      "štatlit"
+    ],
+    "venkovan": [
+      "hřbet"
+    ],
+    "nadávat": [
+      "hučet",
+      "kérovat"
+    ],
+    "klít": [
+      "hučet"
+    ],
+    "kouřit": [
+      "hulit"
+    ],
+    "rychle se pohybovat": [
+      "hulit"
+    ],
+    "mužský pohlavní úd": [
+      "hůlka"
+    ],
+    "odkašlaná slina": [
+      "chrchel"
+    ],
+    "motocykl": [
+      "chrchla"
+    ],
+    "kašlat": [
+      "chrchlat"
+    ],
+    "spaní": [
+      "chrupna"
+    ],
+    "opalovat se": [
+      "chytat bronz",
+      "lapat bronz"
+    ],
+    "neustále": [
+      "imrvére"
+    ],
+    "úředník": [
+      "ingóst"
+    ],
+    "rok": [
+      "jár"
+    ],
+    "roky": [
+      "jařiny"
+    ],
+    "samozřejmě": [
+      "jasňačka"
+    ],
+    "je to jednoduché": [
+      "je to malina"
+    ],
+    "je to pryč": [
+      "je to v kakáču"
+    ],
+    "je to ztracené": [
+      "je to v kopru"
+    ],
+    "jít na pivo": [
+      "jít na jedničku"
+    ],
+    "městská část \"jundrov\"": [
+      "Jóbsko"
+    ],
+    "koruny": [
+      "ká"
+    ],
+    "malý rybník": [
+      "kačák"
+    ],
+    "kavárna": [
+      "kafábl",
+      "kafec"
+    ],
+    "pomník na moravském náměstí v brně": [
+      "Kachláče"
+    ],
+    "mámič": [
+      "kajlař",
+      "somrák"
+    ],
+    "mámit": [
+      "kajlovat",
+      "somrovat"
+    ],
+    "mladík": [
+      "kalósek"
+    ],
+    "zima": [
+      "kaltna",
+      "kila",
+      "kilka",
+      "kilián",
+      "kláda",
+      "klendra",
+      "klepat kosu",
+      "kosa",
+      "kruta"
+    ],
+    "sprosťák": [
+      "kanál"
+    ],
+    "kanárské ostrovy": [
+      "Kanáry"
+    ],
+    "kancelář": [
+      "kancl"
+    ],
+    "lampa pouličního osvětlení": [
+      "kandelábr"
+    ],
+    "koupaliště v králově poli": [
+      "Kápéeska"
+    ],
+    "naproti kps": [
+      "Kápéeska"
+    ],
+    "kapavka": [
+      "kapela",
+      "kapelník"
+    ],
+    "naschvál": [
+      "kapric"
+    ],
+    "pokárání": [
+      "kartáč",
+      "kartágo"
+    ],
+    "ostuda": [
+      "kartáč",
+      "kartágo"
+    ],
+    "sebrat": [
+      "kásnót",
+      "klofnót"
+    ],
+    "skřín": [
+      "kastl"
+    ],
+    "zuby": [
+      "kelcny"
+    ],
+    "kamarád": [
+      "kéma",
+      "kema"
+    ],
+    "královo pole": [
+      "Kénig, Kénik",
+      "Kénig,"
+    ],
+    "tetování": [
+      "kérka"
+    ],
+    "wilsonův les": [
+      "Kchajzec"
+    ],
+    "nůž": [
+      "kchán",
+      "žabikuch"
+    ],
+    "karty": [
+      "kiby"
+    ],
+    "sto": [
+      "kilo"
+    ],
+    "krabice": [
+      "kisna"
+    ],
+    "objemná bedna": [
+      "kisna"
+    ],
+    "tlustá žena": [
+      "kisňa"
+    ],
+    "výkal": [
+      "kláda"
+    ],
+    "mluvit do někoho": [
+      "klavírovat"
+    ],
+    "do něčeho": [
+      "klavírovat"
+    ],
+    "ruce": [
+      "klepeta",
+      "kolky",
+      "perutě"
+    ],
+    "pouta": [
+      "klepeta"
+    ],
+    "silné léky na bolesti": [
+      "klepky"
+    ],
+    "kytara": [
+      "klofna"
+    ],
+    "sbalit holku": [
+      "klofnót"
+    ],
+    "vařit": [
+      "klohnit"
+    ],
+    "kupka": [
+      "kobáč"
+    ],
+    "lejno": [
+      "kobáč"
+    ],
+    "prsten": [
+      "kódr"
+    ],
+    "tancovat": [
+      "kolčit"
+    ],
+    "komunista": [
+      "komanč",
+      "komár"
+    ],
+    "myslet": [
+      "kómat"
+    ],
+    "domluvil sem": [
+      "konečná"
+    ],
+    "hoch": [
+      "konópek"
+    ],
+    "popelnice": [
+      "kontyš",
+      "kontoš"
+    ],
+    "kontejner": [
+      "kontyš",
+      "kontoš"
+    ],
+    "zvracení": [
+      "kosa",
+      "šavla",
+      "tyčka"
+    ],
+    "tělo na zemi": [
+      "kostra country"
+    ],
+    "poprsí": [
+      "kozy"
+    ],
+    "špatný prsty": [
+      "kramlavý kolky"
+    ],
+    "útěk": [
+      "kramle"
+    ],
+    "malý": [
+      "krcál"
+    ],
+    "malý obchod": [
+      "krcál"
+    ],
+    "špatný": [
+      "krén",
+      "pasový"
+    ],
+    "hřbitov": [
+      "krchov"
+    ],
+    "chyba": [
+      "krpa"
+    ],
+    "metro": [
+      "krtek"
+    ],
+    "půllitr na pivo": [
+      "krygl"
+    ],
+    "podraz": [
+      "křivá válka",
+      "podělávka",
+      "šmé",
+      "šméčko",
+      "šórfka"
+    ],
+    "podrazník": [
+      "křivé"
+    ],
+    "podfukář": [
+      "křivé"
+    ],
+    "tvář": [
+      "ksicht"
+    ],
+    "lump": [
+      "ksindl"
+    ],
+    "obchod": [
+      "kšeft",
+      "kvelb"
+    ],
+    "nádobí": [
+      "kšír"
+    ],
+    "vzhled": [
+      "kšteld"
+    ],
+    "blázen": [
+      "kukajda",
+      "pobóchanec",
+      "pošuk"
+    ],
+    "varlata": [
+      "kule"
+    ],
+    "ženský lékař": [
+      "kundolog"
+    ],
+    "dovolit si": [
+      "lajsnót"
+    ],
+    "dobrý": [
+      "lajvont"
+    ],
+    "správný": [
+      "lajvont"
+    ],
+    "láhev červeného": [
+      "lampa červa"
+    ],
+    "důstojník": [
+      "lampas",
+      "lampasák",
+      "lampión"
+    ],
+    "ulice koliště": [
+      "Latrína"
+    ],
+    "klid": [
+      "lebeda"
+    ],
+    "pohoda": [
+      "lebeda",
+      "vegáč",
+      "veget"
+    ],
+    "netlač se na mne": [
+      "lepička pas"
+    ],
+    "špatně": [
+      "levandula"
+    ],
+    "vlevo": [
+      "levingstón"
+    ],
+    "vyhazovat": [
+      "lifrovat"
+    ],
+    "tisíc korun": [
+      "litr",
+      "tác"
+    ],
+    "bedna": [
+      "lódna"
+    ],
+    "sedlina po kávě": [
+      "lógr"
+    ],
+    "smát se": [
+      "lochčit se",
+      "pecnit se"
+    ],
+    "smích": [
+      "lochec"
+    ],
+    "díra": [
+      "lochna",
+      "šlic"
+    ],
+    "vesničani": [
+      "londoni"
+    ],
+    "vesnice": [
+      "lont"
+    ],
+    "vzduch": [
+      "luft"
+    ],
+    "zavřeno": [
+      "machl"
+    ],
+    "maloměřice": [
+      "Majlont"
+    ],
+    "těžký přemýšlení": [
+      "makačka na budku"
+    ],
+    "průšvih": [
+      "malér"
+    ],
+    "nepříjemnost": [
+      "malér"
+    ],
+    "jednoduchost": [
+      "malíčkový záležitosti"
+    ],
+    "zatknout": [
+      "mapsnót"
+    ],
+    "výborné povídky": [
+      "maso story"
+    ],
+    "hrát karty": [
+      "mastit kiby"
+    ],
+    "oběšení v lužánkách": [
+      "mašla v Lužecu"
+    ],
+    "meruňky": [
+      "mergle"
+    ],
+    "kostel": [
+      "mešita"
+    ],
+    "měsíc": [
+      "metr"
+    ],
+    "čepec": [
+      "micna"
+    ],
+    "posrat se": [
+      "mít blato na hřišti"
+    ],
+    "rvačka": [
+      "mixna",
+      "mlata"
+    ],
+    "soud": [
+      "mlén"
+    ],
+    "hlad": [
+      "módr"
+    ],
+    "kraví hora": [
+      "MonteBu",
+      "Monté bú"
+    ],
+    "morový sloup": [
+      "moráč"
+    ],
+    "cikán": [
+      "morgoš"
+    ],
+    "matka": [
+      "mutra"
+    ],
+    "sám": [
+      "na sólovku"
+    ],
+    "určitě": [
+      "na tuty",
+      "nabeton"
+    ],
+    "najíst se": [
+      "nabagrovat se"
+    ],
+    "nafoukanej": [
+      "nafučenej"
+    ],
+    "naštvanej": [
+      "nafučenej"
+    ],
+    "zatelefonovat": [
+      "nahodit drát"
+    ],
+    "přijít": [
+      "naklapat",
+      "vtruknout"
+    ],
+    "trefit někoho": [
+      "nakóřit"
+    ],
+    "opít se": [
+      "nakóřit se"
+    ],
+    "pomnět se": [
+      "nakóřit se"
+    ],
+    "vetřít se": [
+      "nasomrovat se"
+    ],
+    "poslouchat": [
+      "nastražit ovar"
+    ],
+    "dát": [
+      "navalit"
+    ],
+    "neumět": [
+      "negómat"
+    ],
+    "nerozumět": [
+      "negómnót"
+    ],
+    "nevědět": [
+      "negómnót",
+      "nemít šajnu"
+    ],
+    "neuvidět": [
+      "negómnót"
+    ],
+    "bez peněz": [
+      "négrové"
+    ],
+    "řidičský průkaz": [
+      "noty"
+    ],
+    "doklady": [
+      "noty"
+    ],
+    "nové": [
+      "novodur"
+    ],
+    "čerstvé": [
+      "novodur"
+    ],
+    "staré brno": [
+      "Oltec"
+    ],
+    "originální": [
+      "origoš"
+    ],
+    "slunce": [
+      "oskar",
+      "pecen"
+    ],
+    "ucho": [
+      "ovar"
+    ],
+    "bufet padovec )": [
+      "Padovec"
+    ],
+    "velké množství": [
+      "pakl"
+    ],
+    "hospoda": [
+      "paluša"
+    ],
+    "pusa": [
+      "papula"
+    ],
+    "pitka": [
+      "pařba",
+      "spářka"
+    ],
+    "hotel passage - slovan": [
+      "Passingl"
+    ],
+    "rodilý brňák": [
+      "patriot"
+    ],
+    "malý motocykl zn. \"pionýr\"": [
+      "pekáč",
+      "pincek",
+      "pinďour"
+    ],
+    "dobře": [
+      "perfekt"
+    ],
+    "domek": [
+      "perník"
+    ],
+    "500kč": [
+      "pětibába",
+      "pětikvalt",
+      "pětikilo"
+    ],
+    "10kč": [
+      "pětka"
+    ],
+    "rychle": [
+      "pila"
+    ],
+    "hloupý řeči": [
+      "pindy"
+    ],
+    "říct": [
+      "pípnout"
+    ],
+    "dát si": [
+      "písknout si"
+    ],
+    "ploché nohy": [
+      "platfusák"
+    ],
+    "samotný": [
+      "plonkový"
+    ],
+    "přebytečný": [
+      "plonkový"
+    ],
+    "skupina lidí": [
+      "plotna"
+    ],
+    "brněnské flákač": [
+      "plotňák"
+    ],
+    "hloupý": [
+      "potróblé"
+    ],
+    "hlupák": [
+      "potróblenec"
+    ],
+    "praha": [
+      "Prágl",
+      "Švédsko"
+    ],
+    "vpravo": [
+      "pravingstón"
+    ],
+    "brněnská přehrada": [
+      "Prigl",
+      "Prygl"
+    ],
+    "promarnit": [
+      "prodrbat"
+    ],
+    "utratit": [
+      "prodrbat"
+    ],
+    "prozradit": [
+      "prolátnót"
+    ],
+    "kytice": [
+      "pugét"
+    ],
+    "zaměstnání": [
+      "rachota"
+    ],
+    "hodiny": [
+      "raky"
+    ],
+    "radnice": [
+      "rathaus"
+    ],
+    "pošťuchovat": [
+      "répat"
+    ],
+    "napadat": [
+      "répat"
+    ],
+    "jěště jednou": [
+      "repete"
+    ],
+    "znovu": [
+      "repete"
+    ],
+    "záchod": [
+      "retich"
+    ],
+    "riviéra": [
+      "Rivec"
+    ],
+    "budova hl. nádraží v brně": [
+      "Rola"
+    ],
+    "nádraží": [
+      "rola"
+    ],
+    "nádražní flákači": [
+      "rolaři"
+    ],
+    "rovně": [
+      "rovnoběh",
+      "rovnoběžka"
+    ],
+    "rozbít obličej": [
+      "rozhodit sandál"
+    ],
+    "smrad": [
+      "rychna"
+    ],
+    "opasek": [
+      "řemeň"
+    ],
+    "s kým momentálně žiješ ?": [
+      "s kým dejcháš ?"
+    ],
+    "parta": [
+      "sajtna"
+    ],
+    "autobus č. 77": [
+      "sedmičky",
+      "sedmera"
+    ],
+    "zabít": [
+      "sejmót"
+    ],
+    "shodit": [
+      "sejmót"
+    ],
+    "soulož": [
+      "sekačka"
+    ],
+    "souložit": [
+      "sekat",
+      "šukat",
+      "šuntat",
+      "vařit svišťa"
+    ],
+    "židle": [
+      "sesla"
+    ],
+    "jistota": [
+      "sichr"
+    ],
+    "prodávat": [
+      "silbrovat"
+    ],
+    "vzít": [
+      "skásnót"
+    ],
+    "zbít": [
+      "skásnót",
+      "zpeckovat"
+    ],
+    "srazit k zemi": [
+      "skásnót"
+    ],
+    "potrestat": [
+      "skásnót"
+    ],
+    "nos": [
+      "skoba"
+    ],
+    "garsoniéra": [
+      "sólovka"
+    ],
+    "samostatná akce": [
+      "sólovka"
+    ],
+    "malý motocykl zn.\"stadión\"": [
+      "splašený trubky"
+    ],
+    "sehnat": [
+      "splašit"
+    ],
+    "společný výlet": [
+      "společný sajdkáry"
+    ],
+    "bufet sputnik": [
+      "Spuťál"
+    ],
+    "sníst": [
+      "stlačit"
+    ],
+    "příběh": [
+      "story"
+    ],
+    "obyvatelé vesnice": [
+      "strup",
+      "strupka"
+    ],
+    "studený": [
+      "studénka"
+    ],
+    "duševně chorý člověk": [
+      "šáhlej"
+    ],
+    "sáhnout": [
+      "šáhnót"
+    ],
+    "ponětí": [
+      "šajn"
+    ],
+    "tramvaj": [
+      "šalina",
+      "šmirgl"
+    ],
+    "elektřina": [
+      "šalina"
+    ],
+    "divišova čtvrť": [
+      "Šanghaj",
+      "Šanc"
+    ],
+    "autobus č. 66": [
+      "šestky"
+    ],
+    "židenice": [
+      "Šimice"
+    ],
+    "kravata": [
+      "šlajfka"
+    ],
+    "žízeň": [
+      "šlajzna"
+    ],
+    "písně": [
+      "šlehy"
+    ],
+    "řeči": [
+      "šlehy"
+    ],
+    "sračka": [
+      "šlichta"
+    ],
+    "hnus": [
+      "šlichta"
+    ],
+    "klouzačka": [
+      "šlinda"
+    ],
+    "spánek": [
+      "šlofík"
+    ],
+    "natáhnutí z cigarety": [
+      "šluk"
+    ],
+    "dýmka na marihuanu": [
+      "šlukna",
+      "šlukovka"
+    ],
+    "kouřit cigaretu": [
+      "šlukovat"
+    ],
+    "boty": [
+      "šlupky",
+      "šuflata"
+    ],
+    "konec": [
+      "šlus"
+    ],
+    "finta": [
+      "šmé",
+      "šméčko"
+    ],
+    "projít městem": [
+      "šmrncnót se štatlem"
+    ],
+    "řízek": [
+      "šnicl"
+    ],
+    "společenský oblek": [
+      "šolna"
+    ],
+    "pěšky": [
+      "šórem"
+    ],
+    "myšlenka": [
+      "šórfka"
+    ],
+    "trik": [
+      "šórfka"
+    ],
+    "hrad špilberk": [
+      "Špéna",
+      "Špilas",
+      "Špéna, Špilas, Špilec"
+    ],
+    "zamčený": [
+      "špérovaný"
+    ],
+    "výborná": [
+      "špicová"
+    ],
+    "výbornej den": [
+      "špicovej den"
+    ],
+    "cigarety": [
+      "špinky"
+    ],
+    "šetřit": [
+      "špórovat"
+    ],
+    "pisárky": [
+      "Šrajbec"
+    ],
+    "děti": [
+      "šropi"
+    ],
+    "zastávka": [
+      "štaca",
+      "štace"
+    ],
+    "cíl": [
+      "štaca",
+      "štace"
+    ],
+    "pozastavení": [
+      "štaca",
+      "štace"
+    ],
+    "město": [
+      "štatl"
+    ],
+    "městský flákač": [
+      "štatlař"
+    ],
+    "kousek": [
+      "štikl"
+    ],
+    "poschodí": [
+      "štok"
+    ],
+    "patro stolku": [
+      "štok"
+    ],
+    "stolička": [
+      "štokrdle"
+    ],
+    "bochník chleba": [
+      "štricla",
+      "štricna"
+    ],
+    "zásuvka": [
+      "šufle"
+    ],
+    "zmetek": [
+      "šunt"
+    ],
+    "pražáci": [
+      "Švédi"
+    ],
+    "policajti": [
+      "švestky"
+    ],
+    "sestra": [
+      "švica"
+    ],
+    "studené": [
+      "tatra studénka"
+    ],
+    "taxi": [
+      "taxál"
+    ],
+    "zvracet": [
+      "telefonovat",
+      "hodit tyčku, šavlu, kosu"
+    ],
+    "teplo": [
+      "teplotechna"
+    ],
+    "teplárna": [
+      "teplotechna"
+    ],
+    "protekce": [
+      "tlačenka"
+    ],
+    "trolejbus": [
+      "trajf",
+      "trajfl"
+    ],
+    "chodník": [
+      "tratec"
+    ],
+    "cesta": [
+      "traťůvka"
+    ],
+    "marihuana": [
+      "tráva",
+      "zelí"
+    ],
+    "tančit": [
+      "trsnót"
+    ],
+    "tušení": [
+      "tucha"
+    ],
+    "spěch": [
+      "tuml"
+    ],
+    "zvratky": [
+      "tyčka"
+    ],
+    "bývalá brněnská fotografická provozovna na joštové - místo častých srazů": [
+      "U Medvídka"
+    ],
+    "udělat podraz": [
+      "ufachčit ranu",
+      "ušit tunel"
+    ],
+    "výtvor": [
+      "úmak"
+    ],
+    "udělat": [
+      "uvařit"
+    ],
+    "udělat dítě": [
+      "uvařit svišťa"
+    ],
+    "obyvatel ivančic": [
+      "Vančák"
+    ],
+    "navážet se": [
+      "vandrovat se"
+    ],
+    "do někoho mluvit": [
+      "vařit"
+    ],
+    "hrát nahlas": [
+      "vařit"
+    ],
+    "voda": [
+      "vasr",
+      "vasrůvka"
+    ],
+    "dobré bydlení": [
+      "vegáč",
+      "veget"
+    ],
+    "bydlet ve svobodárně": [
+      "vegetovat na sólovce"
+    ],
+    "vysokoškolský klub": [
+      "Vekson"
+    ],
+    "vysoká sklenice na pivo bez ucha": [
+      "věžák"
+    ],
+    "vícepatrový úzký dům": [
+      "věžák"
+    ],
+    "dlužit": [
+      "viset"
+    ],
+    "to je bez řečí": [
+      "vo tym žádná"
+    ],
+    "zavraždit": [
+      "vodkráglovat"
+    ],
+    "vstát": [
+      "vodlepit se"
+    ],
+    "léčebna pro závislé": [
+      "vodmašt'ovna"
+    ],
+    "oděv": [
+      "vohoz"
+    ],
+    "zmlátit": [
+      "vosolit"
+    ],
+    "přidat rychlost": [
+      "vosolit"
+    ],
+    "obléct": [
+      "vošolnót"
+    ],
+    "umýt se": [
+      "vošplóchnót se"
+    ],
+    "všechno znát": [
+      "všecko kóřit"
+    ],
+    "pomilovat": [
+      "vybořit",
+      "vyklátit",
+      "vykropit hrobku"
+    ],
+    "vyspat se": [
+      "vyfajfčit",
+      "vychrupčit se"
+    ],
+    "vyplivnout": [
+      "vyflusnót"
+    ],
+    "vypovědět službu": [
+      "vyflusnót"
+    ],
+    "vymyslet": [
+      "vygómat"
+    ],
+    "vydat": [
+      "vysolit"
+    ],
+    "dělat problémy": [
+      "vyšit bóřku"
+    ],
+    "projít se": [
+      "vyvětrat kostru"
+    ],
+    "zatočit": [
+      "zaeklovat"
+    ],
+    "umřít": [
+      "zagrebovat",
+      "zkalit"
+    ],
+    "zavřít": [
+      "zamachlovat"
+    ],
+    "schovat": [
+      "zašít"
+    ],
+    "zavřít do vězení": [
+      "zašít"
+    ],
+    "zahrát": [
+      "zavařit"
+    ],
+    "namluvit si": [
+      "zbalit"
+    ],
+    "nabourané auto": [
+      "zbor"
+    ],
+    "zničená věc": [
+      "zbor"
+    ],
+    "zdevastovaný dům": [
+      "zbor"
+    ],
+    "utéci": [
+      "zdekovat se"
+    ],
+    "ze začátku": [
+      "ze startu"
+    ],
+    "ihned": [
+      "ze startu"
+    ],
+    "zhořet": [
+      "zfajrovat"
+    ],
+    "nedodělek": [
+      "zgarb"
+    ],
+    "zemřít": [
+      "zgebnót"
+    ],
+    "pochopit": [
+      "zgómnót"
+    ],
+    "jistě": [
+      "zichr"
+    ],
+    "opít": [
+      "zkalit"
+    ],
+    "spatřit": [
+      "zmerčit"
+    ],
+    "slunce pálí": [
+      "zoncna rumpluje",
+      "zoncna vaří",
+      "pecen háže hicnu"
+    ],
+    "písnička": [
+      "zonka"
+    ],
+    "zřídit se": [
+      "zramovat se"
+    ],
+    "mít havárii": [
+      "zramovat se"
+    ],
+    "malé děvče": [
+      "žaba",
+      "žabka"
+    ],
+    "zanedbaná vodní nádrž": [
+      "žabák"
+    ],
+    "žabovřesky": [
+      "Žabiny"
+    ],
+    "blbé řeči": [
+      "žgryndy"
+    ],
+    "místo na sezení": [
+      "židlochovice"
+    ],
+    "tlustá osoba": [
+      "bedna kytu"
+    ],
+    "po domácku vyrobené pití": [
+      "bílá balda, bílá hůl"
+    ],
+    "zmatek v hlavě": [
+      "bordel v řepě"
+    ],
+    "bude rvačka": [
+      "bude véplata"
+    ],
+    "dostanete natlučeno": [
+      "bude véplata"
+    ],
+    "být opilý": [
+      "být country"
+    ],
+    "být vyhozen": [
+      "dostat kopny"
+    ],
+    "být zbit": [
+      "dostat mixnu"
+    ],
+    "značně opilý": [
+      "fet jak deka"
+    ],
+    "vidět": [
+      "hlava mapa"
+    ],
+    "zapomenout": [
+      "hlava mapa"
+    ],
+    "podrazit nohy": [
+      "hodit brka"
+    ],
+    "podívat se na hodinky": [
+      "hodit čuz na raky"
+    ],
+    "telefonovat": [
+      "hodit drát"
+    ],
+    "dát si ještě láhev": [
+      "hodit eště bombu"
+    ],
+    "přemýšlet": [
+      "hodit myslivnu"
+    ],
+    "spadnout": [
+      "hodit skobu"
+    ],
+    "hrát": [
+      "hodit špíl"
+    ],
+    "něco veřejně říct": [
+      "hóknót do placu"
+    ],
+    "jet metrem na náměstí i.p.pavlova": [
+      "hrnót krtkem na Slintáč"
+    ],
+    "dostat žízeň": [
+      "chytnót slinu"
+    ],
+    "kašlu na to": [
+      "já na to mastím"
+    ],
+    "je to náhradník": [
+      "je to béčko"
+    ],
+    "dvojka": [
+      "je to béčko"
+    ],
+    "je to dobré": [
+      "je to klap",
+      "je to old"
+    ],
+    "je to špatné": [
+      "je to krén",
+      "je to v ponoru"
+    ],
+    "je to jedno": [
+      "je to putna"
+    ],
+    "je to výborné": [
+      "je to špica, v ažůru, v cajku"
+    ],
+    "je to v zadku": [
+      "je to v gébišu"
+    ],
+    "je to v pořádku": [
+      "je to v pikách"
+    ],
+    "otravovat": [
+      "kalit vodu"
+    ],
+    "zavazet": [
+      "kalit vodu"
+    ],
+    "brouky do hlavy": [
+      "klíny do štricle"
+    ],
+    "dostat kapavku": [
+      "klofnót kapelníka, muziku"
+    ],
+    "jaký je čas": [
+      "kolik sype"
+    ],
+    "kolik máš hodin": [
+      "kolik ti sypó raky"
+    ],
+    "vypít": [
+      "kopnót do sebe"
+    ],
+    "vypít pivo": [
+      "kósnót škopek",
+      "vymlasknót čechr"
+    ],
+    "je to silné": [
+      "má to grády"
+    ],
+    "přemýšlení": [
+      "makačka na bednu"
+    ],
+    "umět to": [
+      "mít na to grif"
+    ],
+    "mít strach": [
+      "mít peřinu, fedry"
+    ],
+    "mít sraz": [
+      "mít scuka"
+    ],
+    "schůzku": [
+      "mít scuka"
+    ],
+    "na dluh": [
+      "na kajf"
+    ],
+    "nechat spropitné": [
+      "nechat trauf"
+    ],
+    "nechat v problémech": [
+      "nechat ve štychu"
+    ],
+    "nepomoci": [
+      "nechat ve štychu"
+    ],
+    "nemohu": [
+      "nésu štond"
+    ],
+    "nejsem schopen": [
+      "nésu štond"
+    ],
+    "nelži": [
+      "nevař křivý války"
+    ],
+    "nedělej podrazy": [
+      "nevař křivý války"
+    ],
+    "onanovat": [
+      "obtáhnót prut"
+    ],
+    "zapálit cigaretu": [
+      "oplodnit kóřku"
+    ],
+    "hromada peněz": [
+      "pakl lovů"
+    ],
+    "rychle pryč": [
+      "pila pali"
+    ],
+    "zaplatit celou oslavu": [
+      "prolepit celé tah"
+    ],
+    "přijet na kole": [
+      "přirazit na raku"
+    ],
+    "vietnamci prodávají": [
+      "rákosníci čachrujó"
+    ],
+    "vyměňují": [
+      "rákosníci čachrujó"
+    ],
+    "nepřijít na podraz": [
+      "sežrat flignu"
+    ],
+    "uvěřit lži": [
+      "sežrat flignu"
+    ],
+    "dobré vykládání": [
+      "správný zvonky"
+    ],
+    "stará škaredá žena": [
+      "stará šochtla, štroncna"
+    ],
+    "starý muž": [
+      "staré pedál"
+    ],
+    "jsem sám": [
+      "su sólo"
+    ],
+    "školník mě chytil v botech": [
+      "šulda mě klofl v pedách"
+    ],
+    "velká rvačka": [
+      "těžká mlata"
+    ],
+    "velký smrad": [
+      "těžká rychna"
+    ],
+    "sehnat dívku": [
+      "trhnót kó"
+    ],
+    "znám to": [
+      "tu válku kóřím"
+    ],
+    "být zavřený": [
+      "tvrdá klika"
+    ],
+    "dobře pořídit": [
+      "udělat terno"
+    ],
+    "nachystat podfuk": [
+      "ušít bódu"
+    ],
+    "jsem z toho blázen": [
+      "už mě z teho jebe v řepě"
+    ],
+    "připravit o peníze": [
+      "vobtáhnót vo love"
+    ],
+    "podraz jsem neprokoukl": [
+      "všechno sem sežral"
+    ],
+    "být na koupališti": [
+      "vylepené na cédáku"
+    ],
+    "sedět v restauraci na pivu": [
+      "vylepené na škopku"
+    ],
+    "zaplať": [
+      "vyplázni rantále"
+    ],
+    "dej peníze": [
+      "vyplázni rantále"
+    ],
+    "ochutnat": [
+      "vzít vzorek"
+    ],
+    "za volantem": [
+      "za kolečkem"
+    ],
+    "jen klid": [
+      "žádná křeč"
+    ],
+    "proběhlo to dobře": [
+      "žádná křeč"
+    ],
+    "bez námahy": [
+      "žádná křeč"
+    ],
+    "zahrát na kytaru": [
+      "zazvonit na klofnu"
+    ],
+    "opít se do němoty": [
+      "zglgat se na šrot"
+    ],
+    "česká ulice": [
+      "Čára"
+    ],
+    "domky pod stránskou skálou": [
+      "Džungle"
+    ],
+    "jundrov": [
+      "Jóbsko"
+    ],
+    "pomník na moravském nám.": [
+      "Kachláče"
+    ],
+    "kozí horka": [
+      "Monte cap"
+    ],
+    "hotel slovan": [
+      "Pasingl"
+    ],
+    "pavilón": [
+      "Pavec"
+    ],
+    "hlavní vlakové nádraží": [
+      "Rola"
+    ],
+    "červený kopec": [
+      "Rotec"
+    ],
+    "soběšice": [
+      "Sobůlky"
+    ],
+    "stadión na kounicově ulici": [
+      "Statek"
+    ],
+    "hybešova čtvrť": [
+      "Šanghaj"
+    ],
+    "výstaviště": [
+      "Vystec"
+    ],
+    "za nádražím v kr. poli": [
+      "Zarybec"
+    ],
+    "zvonařka": [
+      "Zvonec"
+    ]
+  }
+}

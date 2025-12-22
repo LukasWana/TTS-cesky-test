@@ -24,6 +24,7 @@ class LookupTablesLoader:
         self.raz_pozice: Optional[Dict] = None
         self.souhlsakove_skupiny: Optional[Dict] = None
         self.ceska_nareci: Optional[Dict] = None
+        self.hantec_slovnik: Optional[Dict] = None
         self.english_phonetic: Optional[Dict] = None
         self._load_all_tables()
 
@@ -50,6 +51,9 @@ class LookupTablesLoader:
 
             # Načtení pravidel pro česká nářečí
             self.ceska_nareci = self._load_json("ceska_nareci.json")
+
+            # Načtení slovníku brněnského hantecu (volitelné rozšíření)
+            self.hantec_slovnik = self._load_json("hantec_slovnik.json")
 
             # Načtení anglické fonetiky
             self.english_phonetic = self._load_json("english_phonetic.json")
@@ -185,6 +189,15 @@ class LookupTablesLoader:
             return {}
 
         return self.ceska_nareci
+
+    def get_hantec_slovnik(self) -> Dict:
+        """
+        Vrátí slovník brněnského hantecu (standardní -> hantec).
+
+        Returns:
+            Slovník s mapováním pro hantec nebo {} pokud není k dispozici.
+        """
+        return self.hantec_slovnik or {}
 
     def get_english_phonetic(self) -> Dict[str, str]:
         """

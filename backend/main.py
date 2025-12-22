@@ -223,6 +223,50 @@ async def generate_speech(
                     "endpoint": "/api/tts/generate",
                 },
             )
+
+        # --- Získání a validace všech parametrů na začátku ---
+
+        # 1. Základní TTS parametry
+        if speed is not None:
+            try:
+                tts_speed = float(speed) if isinstance(speed, str) else float(speed)
+            except (ValueError, TypeError):
+                tts_speed = TTS_SPEED
+        else:
+            tts_speed = TTS_SPEED
+
+        tts_temperature = float(temperature) if temperature is not None else TTS_TEMPERATURE
+        tts_length_penalty = float(length_penalty) if length_penalty is not None else TTS_LENGTH_PENALTY
+        tts_repetition_penalty = float(repetition_penalty) if repetition_penalty is not None else TTS_REPETITION_PENALTY
+        tts_top_k = int(top_k) if top_k is not None else TTS_TOP_K
+        tts_top_p = float(top_p) if top_p is not None else TTS_TOP_P
+
+        # 2. Nové parametry (Multi-pass, VAD, HiFi-GAN, atd.)
+        use_multi_pass = (multi_pass.lower() == "true") if isinstance(multi_pass, str) else bool(multi_pass)
+        multi_pass_count_value = int(multi_pass_count) if multi_pass_count is not None else 3
+
+        enable_enh_flag = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
+        enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
+        use_batch_flag = (enable_batch.lower() == "true") if isinstance(enable_batch, str) else None
+        use_hifigan_flag = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
+
+        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
+        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
+        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
+        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
+        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
+        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+
+        # 3. Dialect conversion
+        use_dialect = (enable_dialect_conversion.lower() == "true") if isinstance(enable_dialect_conversion, str) else False
+        dialect_code_value = dialect_code if dialect_code and dialect_code != "standardni" else None
+        try:
+            dialect_intensity_value = float(dialect_intensity) if dialect_intensity else 1.0
+        except (ValueError, TypeError):
+            dialect_intensity_value = 1.0
+
+        # --- Konec získávání parametrů ---
+
         # Validace textu
         if not text or len(text.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text je prázdný")
@@ -234,7 +278,7 @@ async def generate_speech(
 
         if has_multi_lang_annotations:
             # Přesměruj na multi-lang zpracování
-            print(f"🔍 Detekovány multi-lang/speaker anotace v textu, používám multi-lang generování")
+            print(f"🔍 Detekovány multi-lang/speaker anotace v textu, používám multi-lang generování (multi_pass={use_multi_pass})")
             # Zpracuj výchozího mluvčího (stejný kód jako níže)
             default_speaker_wav = None
             if voice_file:
@@ -249,9 +293,9 @@ async def generate_speech(
                     raise HTTPException(status_code=400, detail=error)
                 default_speaker_wav = processed_path
             elif demo_voice:
-                demo_path = DEMO_VOICES_DIR / f"{demo_voice}.wav"
-                if demo_path.exists():
-                    default_speaker_wav = str(demo_path)
+                demo_path = get_demo_voice_path(demo_voice)
+                if demo_path:
+                    default_speaker_wav = demo_path
                 else:
                     available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
                     if available_voices:
@@ -266,7 +310,6 @@ async def generate_speech(
                     raise HTTPException(status_code=400, detail="Musí být zadán voice_file nebo demo_voice")
 
             # Parsuj speaker mapping z textu (extrahuj všechny speaker_id)
-            # Automaticky mapuj demo hlasy podle jejich názvů
             speaker_ids = set()
             for match in multi_lang_pattern.finditer(text):
                 speaker_id = match.group(2)
@@ -277,50 +320,70 @@ async def generate_speech(
             speaker_map = {}
             if speaker_ids:
                 for sid in speaker_ids:
-                    # Zkus najít demo hlas podle názvu
                     demo_path = get_demo_voice_path(sid)
                     if demo_path:
                         speaker_map[sid] = demo_path
-                        print(f"🎤 Speaker '{sid}' mapován na demo hlas: {demo_path}")
                     elif Path(sid).exists():
-                        # Je to cesta k souboru
                         speaker_map[sid] = sid
-                        print(f"🎤 Speaker '{sid}' mapován na soubor: {sid}")
                     else:
-                        # Použij výchozího mluvčího
                         speaker_map[sid] = default_speaker_wav
-                        print(f"🎤 Speaker '{sid}' mapován na výchozí hlas (demo hlas '{sid}' neexistuje)")
 
-            # Nastavení parametrů
-            if speed is not None:
-                try:
-                    tts_speed = float(speed) if isinstance(speed, str) else float(speed)
-                except (ValueError, TypeError):
-                    tts_speed = TTS_SPEED
-            else:
-                tts_speed = TTS_SPEED
+            if use_multi_pass:
+                # Podpora multi-pass pro multi-lang
+                print(f"🔄 Generuji {multi_pass_count_value} variant pro multi-lang")
+                variants = []
+                for i in range(multi_pass_count_value):
+                    if job_id:
+                        ProgressManager.update(job_id, percent=2 + (90 * i / multi_pass_count_value), message=f"Generuji variantu {i+1}/{multi_pass_count_value} (multi-lang)…")
 
-            tts_temperature = temperature if temperature is not None else TTS_TEMPERATURE
-            tts_length_penalty = length_penalty if length_penalty is not None else TTS_LENGTH_PENALTY
-            tts_repetition_penalty = repetition_penalty if repetition_penalty is not None else TTS_REPETITION_PENALTY
-            tts_top_k = top_k if top_k is not None else TTS_TOP_K
-            tts_top_p = top_p if top_p is not None else TTS_TOP_P
+                    v_seed = (seed or 42) + i
+                    output_path = await tts_engine.generate_multi_lang_speaker(
+                        text=text,
+                        default_speaker_wav=default_speaker_wav,
+                        default_language="cs",
+                        speaker_map=speaker_map if speaker_map else None,
+                        speed=tts_speed,
+                        temperature=tts_temperature + (0.05 * (i % 3 - 1)),
+                        length_penalty=tts_length_penalty,
+                        repetition_penalty=tts_repetition_penalty,
+                        top_k=tts_top_k,
+                        top_p=tts_top_p,
+                        quality_mode=quality_mode,
+                        enhancement_preset=enhancement_preset,
+                        seed=v_seed,
+                        enable_vad=enable_vad_flag,
+                        enable_normalization=enable_norm,
+                        enable_denoiser=enable_den,
+                        enable_compressor=enable_comp,
+                        enable_deesser=enable_deess,
+                        enable_eq=enable_eq_flag,
+                        enable_trim=enable_trim_flag,
+                        job_id=job_id
+                    )
+                    filename = Path(output_path).name
+                    variants.append({
+                        "audio_url": f"/api/audio/{filename}",
+                        "filename": filename,
+                        "seed": v_seed,
+                        "temperature": tts_temperature + (0.05 * (i % 3 - 1)),
+                        "index": i + 1
+                    })
 
-            enable_enh = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
-            enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
-            enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
-            enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
-            enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
-            enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
-            enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
-            enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+                if job_id:
+                    ProgressManager.done(job_id)
 
-            # Generuj pomocí multi-lang metody
-            # Výchozí jazyk je čeština (cs)
+                return {
+                    "variants": variants,
+                    "success": True,
+                    "multi_pass": True,
+                    "multi_lang": True
+                }
+
+            # Standardní single multi-lang generování
             output_path = await tts_engine.generate_multi_lang_speaker(
                 text=text,
                 default_speaker_wav=default_speaker_wav,
-                default_language="cs",  # Výchozí jazyk je čeština
+                default_language="cs",
                 speaker_map=speaker_map if speaker_map else None,
                 speed=tts_speed,
                 temperature=tts_temperature,
@@ -359,19 +422,18 @@ async def generate_speech(
         text_length = len(text)
         if text_length > MAX_TEXT_LENGTH:
             print(f"⚠️ Text je delší než {MAX_TEXT_LENGTH} znaků ({text_length} znaků), automaticky zapínám batch processing")
-            # Automaticky zapnout batch pokud není explicitně zakázán
-            if enable_batch is None or (isinstance(enable_batch, str) and enable_batch.lower() != "false"):
+            if use_batch_flag is None or use_batch_flag is True:
                 use_batch = True
             else:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Text je příliš dlouhý ({text_length} znaků, max {MAX_TEXT_LENGTH}). Pro delší texty zapněte batch processing (enable_batch=true)."
                 )
-        elif text_length > 2000:  # Pro středně dlouhé texty doporučit batch
+        elif text_length > 2000:
             print(f"ℹ️ Text je dlouhý ({text_length} znaků), doporučuji zapnout batch processing pro lepší kvalitu")
-            use_batch = (enable_batch.lower() == "true" if isinstance(enable_batch, str) else None) if enable_batch else ENABLE_BATCH_PROCESSING
+            use_batch = use_batch_flag if use_batch_flag is not None else ENABLE_BATCH_PROCESSING
         else:
-            use_batch = (enable_batch.lower() == "true" if isinstance(enable_batch, str) else None) if enable_batch else None
+            use_batch = use_batch_flag if use_batch_flag is not None else False
 
         # Zpracování hlasu
         speaker_wav = None
@@ -459,28 +521,6 @@ async def generate_speech(
         except Exception as e:
             print(f"⚠️ Quality gate selhal (ignorováno): {e}")
 
-        # Nastavení TTS parametrů (použij výchozí hodnoty pokud nejsou zadány)
-        # Parsování speed - může být string z Form, takže převedeme na float
-        if speed is not None:
-            try:
-                if isinstance(speed, str):
-                    tts_speed = float(speed)
-                else:
-                    tts_speed = float(speed)
-            except (ValueError, TypeError):
-                print(f"⚠️ Warning: Neplatná hodnota speed '{speed}', použiji výchozí {TTS_SPEED}")
-                tts_speed = TTS_SPEED
-        else:
-            tts_speed = TTS_SPEED
-
-        # (bez debug logů)
-
-        tts_temperature = temperature if temperature is not None else TTS_TEMPERATURE
-        tts_length_penalty = length_penalty if length_penalty is not None else TTS_LENGTH_PENALTY
-        tts_repetition_penalty = repetition_penalty if repetition_penalty is not None else TTS_REPETITION_PENALTY
-        tts_top_k = top_k if top_k is not None else TTS_TOP_K
-        tts_top_p = top_p if top_p is not None else TTS_TOP_P
-
         # Validace parametrů
         if not (0.5 <= tts_speed <= 2.0):
             raise HTTPException(status_code=400, detail="Speed musí být mezi 0.5 a 2.0")
@@ -494,38 +534,9 @@ async def generate_speech(
         # Určení quality_mode a enhancement nastavení
         tts_quality_mode = quality_mode if quality_mode else None
 
-        # Pokud je zadán quality_mode, použij ho místo jednotlivých parametrů
-        if tts_quality_mode:
-            # Quality mode přepíše jednotlivé parametry
-            pass  # Parametry budou aplikovány v tts_engine pomocí presetu
-        else:
-            # Použij jednotlivé parametry nebo výchozí hodnoty
-            pass
-
         # Určení enhancement nastavení
-        use_enhancement = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
+        use_enhancement = enable_enh_flag
         enhancement_preset_value = enhancement_preset if enhancement_preset else (quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET)
-
-        # Nové parametry
-        use_multi_pass = (multi_pass.lower() == "true") if isinstance(multi_pass, str) else False
-        multi_pass_count_value = multi_pass_count if multi_pass_count is not None else 3
-        use_vad = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
-        # use_batch je už nastaveno výše podle délky textu - NEPŘEPISOVAT!
-        use_hifigan_value = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
-        use_normalization = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
-        use_denoiser = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
-        use_compressor = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
-        use_deesser = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
-        use_eq = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
-        use_trim = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
-
-        # Dialect conversion parametry
-        use_dialect = (enable_dialect_conversion.lower() == "true") if isinstance(enable_dialect_conversion, str) else False
-        dialect_code_value = dialect_code if dialect_code and dialect_code != "standardni" else None
-        try:
-            dialect_intensity_value = float(dialect_intensity) if dialect_intensity else 1.0
-        except (ValueError, TypeError):
-            dialect_intensity_value = 1.0
 
         # HiFi-GAN parametry
         try:
@@ -580,14 +591,14 @@ async def generate_speech(
             multi_pass=use_multi_pass,
             multi_pass_count=multi_pass_count_value,
             enable_batch=use_batch,
-            enable_vad=use_vad,
-            use_hifigan=use_hifigan_value,
-            enable_normalization=use_normalization,
-            enable_denoiser=use_denoiser,
-            enable_compressor=use_compressor,
-            enable_deesser=use_deesser,
-            enable_eq=use_eq,
-            enable_trim=use_trim,
+            enable_vad=enable_vad_flag,
+            use_hifigan=use_hifigan_flag,
+            enable_normalization=enable_norm,
+            enable_denoiser=enable_den,
+            enable_compressor=enable_comp,
+            enable_deesser=enable_deess,
+            enable_eq=enable_eq_flag,
+            enable_trim=enable_trim_flag,
             enable_dialect_conversion=use_dialect,
             dialect_code=dialect_code_value,
             dialect_intensity=dialect_intensity_value,

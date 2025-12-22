@@ -1,12 +1,12 @@
 .text-input-section {
-  margin-bottom: 32px;
+  margin-bottom: 20px;
 }
 
 .text-input-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
   gap: 12px;
 }
@@ -14,7 +14,7 @@
 .text-input-section h2 {
   margin-bottom: 0;
   color: #fff;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 600;
 }
 
@@ -194,16 +194,17 @@
 
 .text-input {
   width: 100%;
-  padding: 20px;
+  padding: 14px 16px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   color: #fff;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-family: inherit;
   resize: vertical;
   transition: all 0.3s ease;
-  line-height: 1.6;
+  line-height: 1.5;
+  min-height: 120px;
 }
 
 .text-input:focus {

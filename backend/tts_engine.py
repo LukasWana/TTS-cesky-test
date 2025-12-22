@@ -1312,12 +1312,12 @@ class XTTSEngine:
                                                         # Zkontroluj, jestli je to vykřičník (vyšší intenzita)
                                                         is_exclamation = inton.get('is_exclamation', False)
                                                         if is_exclamation:
-                                                            # Pro vykřičník použij ještě vyšší intenzitu
-                                                            fall_intensity = 1.8
+                                                            # Pro vykřičník použij mírně vyšší intenzitu
+                                                            fall_intensity = 1.4
                                                             print(f"      Auto-detekce FALL (vykřičník!): aplikuji na celou větu ({intonation_start}-{intonation_end}, 100% věty, intensity={fall_intensity})")
                                                         else:
-                                                            # Zvýšená intenzita pro běžný FALL
-                                                            fall_intensity = 1.3
+                                                            # Přirozená intenzita pro běžný FALL
+                                                            fall_intensity = 1.1
                                                             print(f"      Auto-detekce FALL: aplikuji na celou větu ({intonation_start}-{intonation_end}, 100% věty, intensity={fall_intensity})")
                                                     elif inton_type == 'RISE':
                                                         # Pro RISE stačí posledních 40% - stoupání je výraznější

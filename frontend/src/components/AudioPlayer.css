@@ -1,8 +1,8 @@
 .audio-player-section {
-  margin-top: 40px;
-  padding: 32px;
+  margin-top: 24px;
+  padding: 16px 24px;
   background: rgba(255, 255, 255, 0.03);
-  border-radius: 24px;
+  border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -10,106 +10,114 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .audio-player-section h2 {
   color: #fff;
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   font-weight: 600;
+  margin: 0;
 }
 
 .audio-time {
   font-family: monospace;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.85rem;
 }
 
 .audio-player-main {
   display: flex;
-  align-items: stretch;
-  gap: 16px;
-  margin-top: 24px;
+  align-items: center;
+  gap: 20px;
+  margin-top: 0;
 }
 
 .waveform-container {
   flex: 1;
   min-width: 0;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 12px;
-  padding: 10px;
-  min-height: 100px;
+  padding: 8px;
+  min-height: 60px;
 }
 
-.play-button-large,
-.download-button-large {
-  width: 100px;
-  height: 100px;
-  min-width: 100px;
-  min-height: 100px;
-  background: #6366f1;
-  color: white;
-  border: none;
-  border-radius: 12px;
+.play-button-large {
+  width: 54px;
+  height: 54px;
+  min-width: 54px;
+  min-height: 54px;
+  background: transparent;
+  color: #6366f1;
+  border: 2px solid #6366f1;
+  border-radius: 50%;
   cursor: pointer;
-  font-size: 2rem;
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding-left: 3px; /* Optické vycentrování trojúhelníku */
+}
+
+.play-button-large:hover {
+  background: rgba(99, 102, 241, 0.1);
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+}
+
+.play-button-large:active {
+  transform: scale(0.95);
+}
+
+.play-button-large.playing {
+  color: #ef4444;
+  border-color: #ef4444;
+  padding-left: 0;
+}
+
+.download-button-large {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1rem;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.play-button-large:hover {
-  background: #4f46e5;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
-}
-
-.play-button-large:active {
-  transform: translateY(0);
-}
-
-.download-button-large {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  margin-top: 0;
 }
 
 .download-button-large:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-}
-
-.download-button-large:active {
-  transform: translateY(0);
 }
 
 @media (max-width: 768px) {
   .audio-player-main {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .play-button-large,
-  .download-button-large {
-    width: 100%;
-    height: 80px;
-    min-height: 80px;
-  }
-
-  .waveform-container {
-    order: 2;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
   }
 
   .play-button-large {
-    order: 1;
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
   }
 
   .download-button-large {
-    order: 3;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
   }
 }
 

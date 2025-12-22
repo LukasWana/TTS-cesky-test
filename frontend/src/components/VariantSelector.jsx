@@ -73,7 +73,7 @@ function VariantSelector({ variants, onSelect, onClose }) {
                   className={`play-button ${playingIndex === index ? 'playing' : ''}`}
                   onClick={() => handlePlay(index, variant.audio_url)}
                 >
-                  {playingIndex === index ? '⏸️' : '▶️'}
+                  {playingIndex === index ? '⏸' : '▶'}
                 </button>
                 <button
                   className="select-button"

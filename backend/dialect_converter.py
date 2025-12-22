@@ -7,7 +7,7 @@ pomocí pravidel z lookup tabulek.
 import re
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from backend.lookup_tables_loader import get_lookup_loader
 from backend.config import BASE_DIR
 
@@ -22,6 +22,7 @@ class DialectConverter:
         self.lookup_loader = get_lookup_loader()
         self.nareci_pravidla = self._load_dialect_rules()
         self._compile_patterns()
+        self._hantec_cache = None
 
     def _load_dialect_rules(self) -> Optional[Dict]:
         """Načte pravidla nářečí z JSON souboru"""
@@ -111,11 +112,16 @@ class DialectConverter:
         nareci_data = self.nareci_pravidla.get("nareci", {}).get(dialect_code, {})
         pravidla = nareci_data.get("pravidla", {})
 
-        # Seznam slov, která se NEMĚNÍ (stopwords - krátké funkční slova)
-        # Tyto slova se obvykle nepřevádějí na nářečí
-        stopwords = {'pro', 'na', 'v', 's', 'z', 'k', 'o', 'u', 'se', 'si', 'je', 'jsem', 'jsme', 'jste', 'jsou'}
-
         processed_text = text
+
+        # 0. Brněnský hantec – volitelný rozšířený slovník (standardní -> hantec).
+        # Aplikujeme FRAZE nejdřív (delší shody), pak JEDNOTLIVÁ SLOVA.
+        if dialect_code == "brnenske":
+            hantec_rules = self._get_hantec_rules()
+            if hantec_rules:
+                phrase_map, word_map = self._split_phrase_word_maps(hantec_rules)
+                processed_text = self._apply_phrase_replacements(processed_text, phrase_map, intensity)
+                processed_text = self._apply_word_replacements(processed_text, word_map, intensity)
 
         # 1. Převod slovních základů (jsem -> sem, atd.)
         slovni_zaklad = pravidla.get("slovni_zaklad", {}).get("priklady", {})
@@ -147,7 +153,110 @@ class DialectConverter:
 
         return processed_text
 
-    def _apply_word_replacements(self, text: str, replacements: Dict[str, str], intensity: float) -> str:
+    def _get_hantec_rules(self) -> Dict[str, Union[str, List[str]]]:
+        """
+        Načte (a cachuje) slovník hantecu z lookup tabulek.
+        Očekávaný formát: {"standard_to_hantec": { "pivo": ["bahno", ...], ... }}
+        """
+        if self._hantec_cache is not None:
+            return self._hantec_cache
+
+        hantec = self.lookup_loader.get_hantec_slovnik() if self.lookup_loader else {}
+        rules = {}
+        if isinstance(hantec, dict):
+            std_to_han = hantec.get("standard_to_hantec", {})
+            if isinstance(std_to_han, dict):
+                rules = std_to_han
+
+        # Normalizace klíčů (lower) a hodnot (list[str])
+        normalized: Dict[str, Union[str, List[str]]] = {}
+        for k, v in rules.items():
+            if not isinstance(k, str):
+                continue
+            key = k.strip().lower()
+            if not key:
+                continue
+            if isinstance(v, str):
+                val = v.strip()
+                if val:
+                    normalized[key] = val
+            elif isinstance(v, list):
+                vals = [x.strip() for x in v if isinstance(x, str) and x.strip()]
+                if vals:
+                    # de-dup se zachováním pořadí
+                    seen = set()
+                    uniq = []
+                    for x in vals:
+                        lx = x.lower()
+                        if lx in seen:
+                            continue
+                        seen.add(lx)
+                        uniq.append(x)
+                    normalized[key] = uniq
+
+        self._hantec_cache = normalized
+        return self._hantec_cache
+
+    def _split_phrase_word_maps(self, mapping: Dict[str, Union[str, List[str]]]):
+        """Rozdělí mapování na fráze (obsahují mezeru) a jednotlivá slova."""
+        phrase_map: Dict[str, Union[str, List[str]]] = {}
+        word_map: Dict[str, Union[str, List[str]]] = {}
+        for k, v in mapping.items():
+            if " " in k:
+                phrase_map[k] = v
+            else:
+                word_map[k] = v
+        return phrase_map, word_map
+
+    def _pick_replacement(self, replacement: Union[str, List[str]]) -> str:
+        if isinstance(replacement, str):
+            return replacement
+        if isinstance(replacement, list) and replacement:
+            # deterministicky bereme první variantu; kdo chce náhodu, dá více variant a upraví sem choice
+            return replacement[0]
+        return ""
+
+    def _apply_case_like(self, src: str, repl: str) -> str:
+        """Zachová základní kapitalizaci podle nalezeného výrazu."""
+        if not src or not repl:
+            return repl
+        if src.isupper():
+            return repl.upper()
+        if src[0].isupper():
+            return repl[0].upper() + repl[1:]
+        return repl
+
+    def _apply_phrase_replacements(self, text: str, replacements: Dict[str, Union[str, List[str]]], intensity: float) -> str:
+        """
+        Aplikuje náhrady frází. Delší fráze mají přednost (aby se nerozbily na jednotlivá slova).
+        """
+        if intensity <= 0 or not replacements:
+            return text
+
+        import random
+        processed = text
+        # delší první
+        for standardni in sorted(replacements.keys(), key=len, reverse=True):
+            if standardni.lower() in {'pro', 'na', 'v', 's', 'z', 'k', 'o', 'u'}:
+                continue
+            replacement = self._pick_replacement(replacements[standardni])
+            if not replacement:
+                continue
+
+            pattern = r'\b' + re.escape(standardni) + r'\b'
+
+            def _repl(match):
+                return self._apply_case_like(match.group(0), replacement)
+
+            if intensity >= 1.0:
+                processed = re.sub(pattern, _repl, processed, flags=re.IGNORECASE)
+            else:
+                if random.random() < intensity:
+                    processed = re.sub(pattern, _repl, processed, flags=re.IGNORECASE)
+
+        return processed
+
+    def _apply_word_replacements(self, text: str, replacements: Dict[str, Union[str, List[str]]], intensity: float) -> str:
         """
         Aplikuje náhrady slov podle intenzity
 
@@ -159,24 +268,29 @@ class DialectConverter:
         Returns:
             Text s aplikovanými náhradami
         """
-        if intensity <= 0:
+        if intensity <= 0 or not replacements:
             return text
 
+        import random
         processed = text
         for standardni, narecni in replacements.items():
             # Přeskočit stopwords - krátká funkční slova se nemění
             if standardni.lower() in {'pro', 'na', 'v', 's', 'z', 'k', 'o', 'u'}:
                 continue
+            replacement = self._pick_replacement(narecni)
+            if not replacement:
+                continue
             # Použijeme word boundary pro přesné nahrazení celých slov
             pattern = r'\b' + re.escape(standardni) + r'\b'
+
+            def _repl(match):
+                return self._apply_case_like(match.group(0), replacement)
+
             if intensity >= 1.0:
-                # Plný převod
-                processed = re.sub(pattern, narecni, processed, flags=re.IGNORECASE)
+                processed = re.sub(pattern, _repl, processed, flags=re.IGNORECASE)
             else:
-                # Částečný převod - náhodně aplikujeme pouze část náhrad
-                import random
                 if random.random() < intensity:
-                    processed = re.sub(pattern, narecni, processed, flags=re.IGNORECASE)
+                    processed = re.sub(pattern, _repl, processed, flags=re.IGNORECASE)
 
         return processed
 
