@@ -5,6 +5,7 @@ import os
 import base64
 import uuid
 import time
+import re
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -206,7 +207,6 @@ async def generate_speech(
 
         # Automatická detekce multi-lang/speaker anotací
         # Pokud text obsahuje syntaxi [lang:speaker] nebo [lang], použij multi-lang endpoint
-        import re
         multi_lang_pattern = re.compile(r'\[(\w+)(?::([^\]]+))?\]')
         has_multi_lang_annotations = bool(multi_lang_pattern.search(text))
 
@@ -761,7 +761,6 @@ async def generate_speech_multi(
         # Parsuj speaker mapping
         # Nejdříve automaticky zkus najít demo hlasy podle názvů v textu
         speaker_map = {}
-        import re
         multi_lang_pattern = re.compile(r'\[(\w+)(?::([^\]]+))?\]')
         speaker_ids_from_text = set()
         for match in multi_lang_pattern.finditer(text):
@@ -1108,16 +1107,64 @@ async def get_demo_voices():
 
     for voice_file in DEMO_VOICES_DIR.glob("*.wav"):
         voice_id = voice_file.stem
+        voice_id_lower = voice_id.lower()
+
         # Zkus určit pohlaví z názvu
+        # Kontrolujeme nejdřív "female", protože má přednost pokud jsou obě přítomny
         gender = "unknown"
-        if "male" in voice_id.lower() or "muž" in voice_id.lower() or "demo1" in voice_id:
-            gender = "male"
-        elif "female" in voice_id.lower() or "žena" in voice_id.lower() or "demo2" in voice_id:
+        gender_keywords = []
+
+        has_female = "female" in voice_id_lower or "žena" in voice_id_lower or "demo2" in voice_id_lower
+        has_male = "male" in voice_id_lower or "muž" in voice_id_lower or "demo1" in voice_id_lower
+
+        if has_female:
             gender = "female"
+            # Přidej klíčová slova pro odstranění (v lowercase pro konzistenci)
+            if "female" in voice_id_lower:
+                gender_keywords.append("female")
+            if "žena" in voice_id_lower:
+                gender_keywords.append("žena")
+            if "demo2" in voice_id_lower:
+                gender_keywords.append("demo2")
+        elif has_male:
+            gender = "male"
+            # Přidej klíčová slova pro odstranění (v lowercase pro konzistenci)
+            if "male" in voice_id_lower:
+                gender_keywords.append("male")
+            if "muž" in voice_id_lower:
+                gender_keywords.append("muž")
+            if "demo1" in voice_id_lower:
+                gender_keywords.append("demo1")
+
+        # Vyčisti název od klíčových slov pohlaví (case-insensitive)
+        clean_name = voice_id
+        for keyword in gender_keywords:
+            # Odstraň klíčové slovo s podtržítky/pomlčkami kolem (case-insensitive pomocí regex)
+            keyword_escaped = re.escape(keyword)
+            # Pattern pro nalezení klíčového slova s okolními separátory nebo na začátku/konci
+            # Odstraní: _keyword_, -keyword-, _keyword, keyword_, -keyword, keyword-, keyword (na začátku/konci)
+            pattern = rf"[-_]?{keyword_escaped}[-_]?"
+            clean_name = re.sub(pattern, "", clean_name, flags=re.IGNORECASE)
+
+        # Vyčisti název od přebytečných podtržítků a pomlček
+        clean_name = re.sub(r"[-_]+", "_", clean_name)
+        clean_name = clean_name.strip("_-")
+
+        # Formátuj název
+        formatted_name = clean_name.replace("_", " ").title() if clean_name else voice_id.replace("_", " ").title()
+
+        # Vytvoř zobrazovaný název s pohlavím na začátku
+        if gender == "male":
+            display_name = f"Muž: {formatted_name}"
+        elif gender == "female":
+            display_name = f"Žena: {formatted_name}"
+        else:
+            display_name = formatted_name
 
         demo_voices.append({
             "id": voice_id,
-            "name": voice_id.replace("_", " ").title(),
+            "name": formatted_name,
+            "display_name": display_name,
             "gender": gender,
             "preview_url": f"/api/audio/demo/{voice_file.name}"
         })

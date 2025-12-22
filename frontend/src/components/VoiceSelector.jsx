@@ -87,7 +87,7 @@ function VoiceSelector({
               >
                 {demoVoices.map((voice) => (
                   <option key={voice.id} value={voice.id}>
-                    {voice.name} ({voice.gender === 'male' ? 'Muž' : voice.gender === 'female' ? 'Žena' : 'Neznámé'})
+                    {voice.display_name || voice.name}
                   </option>
                 ))}
               </select>
