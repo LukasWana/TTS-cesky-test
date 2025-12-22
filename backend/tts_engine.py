@@ -1368,17 +1368,28 @@ class XTTSEngine:
                     # Použít předaný enhancement_preset, nebo výchozí z configu
                     preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
 
-                    # Zkontroluj, jestli je whisper zapnutý v presetu a další enhancement nastavení
+                    # Načti enhancement nastavení z presetu (pokud je quality_mode nebo enhancement_preset quality preset)
+                    # Výchozí hodnoty z parametrů volání
+                    enable_eq_from_preset = enable_eq
+                    enable_denoiser_from_preset = enable_denoiser
+                    enable_compressor_from_preset = enable_compressor
+                    enable_deesser_from_preset = enable_deesser
                     enable_whisper = False
                     whisper_intensity = 1.0
                     whisper_normalization = True  # Výchozí: normalizace zapnutá
                     whisper_headroom = None  # Výchozí: použít globální headroom
+
                     try:
                         from backend.config import QUALITY_PRESETS
                         # Pokud je quality_mode nastaven, použij jeho enhancement config
                         if quality_mode and quality_mode in QUALITY_PRESETS:
                             preset_config = QUALITY_PRESETS.get(quality_mode, {})
                             enhancement_config = preset_config.get("enhancement", {})
+                            # Načti všechny enhancement parametry z presetu
+                            enable_eq_from_preset = enhancement_config.get("enable_eq", enable_eq)
+                            enable_denoiser_from_preset = enhancement_config.get("enable_noise_reduction", enable_denoiser)
+                            enable_compressor_from_preset = enhancement_config.get("enable_compression", enable_compressor)
+                            enable_deesser_from_preset = enhancement_config.get("enable_deesser", enable_deesser)
                             enable_whisper = enhancement_config.get("enable_whisper", False)
                             whisper_intensity = enhancement_config.get("whisper_intensity", 1.0)
                             whisper_normalization = enhancement_config.get("enable_normalization", True)
@@ -1387,12 +1398,23 @@ class XTTSEngine:
                         elif preset_to_use in QUALITY_PRESETS:
                             preset_config = QUALITY_PRESETS.get(preset_to_use, {})
                             enhancement_config = preset_config.get("enhancement", {})
+                            # Načti všechny enhancement parametry z presetu
+                            enable_eq_from_preset = enhancement_config.get("enable_eq", enable_eq)
+                            enable_denoiser_from_preset = enhancement_config.get("enable_noise_reduction", enable_denoiser)
+                            enable_compressor_from_preset = enhancement_config.get("enable_compression", enable_compressor)
+                            enable_deesser_from_preset = enhancement_config.get("enable_deesser", enable_deesser)
                             enable_whisper = enhancement_config.get("enable_whisper", False)
                             whisper_intensity = enhancement_config.get("whisper_intensity", 1.0)
                             whisper_normalization = enhancement_config.get("enable_normalization", True)
                             whisper_headroom = enhancement_config.get("target_headroom_db", None)
                     except Exception as e:
-                        print(f"⚠️ Warning: Failed to load whisper config from preset: {e}")
+                        print(f"⚠️ Warning: Failed to load enhancement config from preset: {e}")
+
+                    # Použij hodnoty z presetu (nebo výchozí z parametrů)
+                    enable_eq = enable_eq_from_preset
+                    enable_denoiser = enable_denoiser_from_preset
+                    enable_compressor = enable_compressor_from_preset
+                    enable_deesser = enable_deesser_from_preset
 
                     # Počítáme aktivní kroky pro správné rozložení procent
                     active_steps = []
