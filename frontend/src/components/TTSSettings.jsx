@@ -3,6 +3,7 @@ import './TTSSettings.css'
 import Section from './ui/Section'
 import SliderRow from './ui/SliderRow'
 import SelectRow from './ui/SelectRow'
+import SegmentedControl from './ui/SegmentedControl'
 
 // Výchozí hodnoty pro reset
 const DEFAULT_TTS_SETTINGS = {
@@ -98,16 +99,13 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
           isExpanded={variantsExpanded}
           onToggle={() => setVariantsExpanded(!variantsExpanded)}
         >
-          <div className="variants-tabs">
-            {variants.map((variant) => (
-              <button
-                key={variant.id}
-                className={`variant-tab ${activeVariant === variant.id ? 'active' : ''}`}
-                onClick={() => onVariantChange && onVariantChange(variant.id)}
-              >
-                {variant.label}
-              </button>
-            ))}
+          <div className="variants-tabs-container">
+            <SegmentedControl
+              options={variants.map(v => ({ value: v.id, label: v.label.replace('Varianta ', 'V') }))}
+              value={activeVariant}
+              onChange={(val) => onVariantChange && onVariantChange(val)}
+              className="variants-segmented-control"
+            />
           </div>
         </Section>
 
