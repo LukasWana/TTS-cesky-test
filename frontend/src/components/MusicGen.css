@@ -1,0 +1,107 @@
+.musicgen {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.musicgen-header h2 {
+  margin: 0;
+  color: #fff;
+}
+
+.musicgen-hint {
+  margin: 6px 0 0 0;
+  opacity: 0.75;
+  font-size: 0.95rem;
+}
+
+.musicgen-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.musicgen-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.musicgen-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.musicgen-textarea {
+  width: 100%;
+  resize: vertical;
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  transition: all 0.2s ease;
+}
+
+.musicgen-textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.musicgen-input {
+  width: 100%;
+  border-radius: 12px;
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.musicgen-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.musicgen-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-hint {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+  text-align: center;
+}
+
+.musicgen-empty {
+  opacity: 0.5;
+  padding: 40px 0;
+  text-align: center;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 1200px) {
+  .musicgen-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .musicgen-output {
+    order: -1; /* Výsledek nahoře na mobilu */
+  }
+}
+
+

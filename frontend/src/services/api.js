@@ -307,7 +307,6 @@ export async function downloadYouTubeVoice(url, startTime = null, duration = nul
   }
 
   return await response.json()
-  return data
 }
 
 /**
@@ -368,6 +367,133 @@ export async function clearHistory() {
   }
 
 
+  return await response.json()
+}
+
+/**
+ * Generuje hudbu pomocí MusicGen
+ * @param {string} prompt
+ * @param {Object} params
+ * @param {string|null} jobId
+ */
+export async function generateMusic(prompt, params = {}, jobId = null) {
+  const formData = new FormData()
+  formData.append('prompt', prompt)
+  if (jobId) formData.append('job_id', jobId)
+
+  if (params.model) formData.append('model', params.model) // small|medium|large
+  if (params.duration !== undefined && params.duration !== null) formData.append('duration', String(params.duration))
+  if (params.temperature !== undefined && params.temperature !== null) formData.append('temperature', String(params.temperature))
+  if (params.topK !== undefined && params.topK !== null) formData.append('top_k', String(params.topK))
+  if (params.topP !== undefined && params.topP !== null) formData.append('top_p', String(params.topP))
+  if (params.seed !== undefined && params.seed !== null && params.seed !== '') formData.append('seed', String(params.seed))
+  if (params.ambience !== undefined && params.ambience !== null) formData.append('ambience', String(params.ambience))
+  if (params.ambienceGainDb !== undefined && params.ambienceGainDb !== null) formData.append('ambience_gain_db', String(params.ambienceGainDb))
+  if (params.ambienceSeed !== undefined && params.ambienceSeed !== null && params.ambienceSeed !== '') formData.append('ambience_seed', String(params.ambienceSeed))
+  if (params.ambienceFileStream) formData.append('ambience_file_stream', params.ambienceFileStream)
+  if (params.ambienceFileBirds) formData.append('ambience_file_birds', params.ambienceFileBirds)
+
+  const response = await fetch(`${API_BASE_URL}/api/musicgen/generate`, {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při generování hudby')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Progress (polling) pro MusicGen
+ */
+export async function getMusicProgress(jobId) {
+  const response = await fetch(`${API_BASE_URL}/api/music/progress/${jobId}`)
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    const e = new Error(err.detail || 'Progress není dostupný')
+    e.status = response.status
+    throw e
+  }
+  return await response.json()
+}
+
+/**
+ * Progress (SSE) pro MusicGen
+ */
+export function subscribeToMusicProgress(jobId, onProgress, onError) {
+  const eventSource = new EventSource(`${API_BASE_URL}/api/music/progress/${jobId}/stream`)
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      onProgress(data)
+      if (data.status === 'done' || data.status === 'error') {
+        eventSource.close()
+      }
+    } catch (err) {
+      console.error('Chyba při parsování SSE dat:', err)
+      if (onError) onError(err)
+    }
+  }
+
+  eventSource.onerror = (error) => {
+    console.error('SSE chyba:', error)
+    if (onError) onError(error)
+  }
+
+  return eventSource
+}
+
+/**
+ * Samostatná historie MusicGen
+ */
+export async function getMusicHistory(limit = 50, offset = 0) {
+  const response = await fetch(`${API_BASE_URL}/api/music/history?limit=${limit}&offset=${offset}`)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při načítání hudební historie')
+  }
+  return await response.json()
+}
+
+export async function getMusicHistoryEntry(entryId) {
+  const response = await fetch(`${API_BASE_URL}/api/music/history/${entryId}`)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při načítání záznamu')
+  }
+  return await response.json()
+}
+
+export async function deleteMusicHistoryEntry(entryId) {
+  const response = await fetch(`${API_BASE_URL}/api/music/history/${entryId}`, { method: 'DELETE' })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při mazání záznamu')
+  }
+  return await response.json()
+}
+
+export async function clearMusicHistory() {
+  const response = await fetch(`${API_BASE_URL}/api/music/history`, { method: 'DELETE' })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při mazání hudební historie')
+  }
+  return await response.json()
+}
+
+/**
+ * Získá seznam dostupných ambience samplů
+ */
+export async function getAmbienceList() {
+  const response = await fetch(`${API_BASE_URL}/api/music/ambience/list`)
+  if (!response.ok) {
+    throw new Error('Chyba při načítání seznamu ambience')
+  }
   return await response.json()
 }
 

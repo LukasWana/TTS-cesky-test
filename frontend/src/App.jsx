@@ -7,6 +7,8 @@ import LoadingSpinner from './components/LoadingSpinner'
 import TTSSettings from './components/TTSSettings'
 import History from './components/History'
 import Tabs from './components/Tabs'
+import MusicGen from './components/MusicGen'
+import MusicHistory from './components/MusicHistory'
 import { generateSpeech, getDemoVoices, getModelStatus, getTtsProgress, subscribeToTtsProgress } from './services/api'
 import './App.css'
 
@@ -264,7 +266,7 @@ const loadVariantSettings = (voiceId, variantId) => {
 
 function App() {
   const [activeVariant, setActiveVariant] = useState('variant1') // 'variant1' | 'variant2' | ... | 'variant5'
-  const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'history'
+  const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'musicgen' | 'music_history' | 'history'
 
   // Nastavení hlasu
   const [selectedVoice, setSelectedVoice] = useState('demo1')
@@ -291,6 +293,8 @@ function App() {
 
   const tabs = [
     { id: 'generate', label: 'Generovat', icon: '🎤' },
+    { id: 'musicgen', label: 'MusicGen', icon: '🎵' },
+    { id: 'music_history', label: 'Historie (Music)', icon: '🧾' },
     { id: 'history', label: 'Historie', icon: '📜' }
   ]
 
@@ -891,8 +895,12 @@ function App() {
         <h1>🎤 XTTS-v2 Czech TTS Demo</h1>
         {modelStatus && (
           <div className="model-status">
-            <span className={`status-indicator ${modelStatus.loaded ? 'loaded' : 'loading'}`}>
-              {modelStatus.loaded ? '✓ Model načten' : '⏳ Načítání modelu...'}
+            <span className={`status-indicator ${modelStatus.loaded ? 'loaded' : modelStatus.loading ? 'loading' : 'idle'}`}>
+              {modelStatus.loaded
+                ? '✓ Model načten'
+                : modelStatus.loading
+                  ? '⏳ Načítání modelu...'
+                  : 'Připraven (On-Demand)'}
             </span>
             <span className="device-info">
               Device: <strong>{modelStatus.device.toUpperCase()}</strong>
@@ -1032,6 +1040,17 @@ function App() {
               setActiveTab('generate')
               // Scroll nahoru
               window.scrollTo({ top: 0, behavior: 'smooth' })
+            }} />
+          )}
+
+          {activeTab === 'musicgen' && (
+            <MusicGen prompt={text} setPrompt={setText} />
+          )}
+
+          {activeTab === 'music_history' && (
+            <MusicHistory onRestorePrompt={(p) => {
+              setText(p)
+              setActiveTab('musicgen')
             }} />
           )}
         </div>
