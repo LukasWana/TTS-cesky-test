@@ -25,7 +25,7 @@ class PhoneticTranslator:
         # (předložky, spojky, zájmena, pomocná slovesa, částice, atd.)
         self.czech_stopwords = {
             # Předložky
-            'za', 'na', 'v', 's', 'z', 'k', 'o', 'u', 'pro', 'před', 'pod', 'nad',
+            'za', 'na', 'v', 've', 's', 'z', 'k', 'o', 'u', 'pro', 'před', 'pod', 'nad',
             'přes', 'bez', 'od', 'do', 'po', 'při', 'mezi', 'kolem', 'okolo', 'přes',
             'kromě', 'mimo', 'vedle', 'blízko', 'daleko', 'před', 'za', 'podle',
             # Spojky
