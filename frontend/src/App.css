@@ -53,6 +53,12 @@
   color: #ffd54f;
 }
 
+.status-indicator.idle {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .device-info {
   color: rgba(255, 255, 255, 0.6);
   font-weight: 300;
