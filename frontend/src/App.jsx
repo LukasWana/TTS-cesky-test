@@ -8,7 +8,7 @@ import TTSSettings from './components/TTSSettings'
 import History from './components/History'
 import Tabs from './components/Tabs'
 import MusicGen from './components/MusicGen'
-import MusicHistory from './components/MusicHistory'
+import Bark from './components/Bark'
 import { generateSpeech, getDemoVoices, getModelStatus, getTtsProgress, subscribeToTtsProgress } from './services/api'
 import './App.css'
 
@@ -266,7 +266,7 @@ const loadVariantSettings = (voiceId, variantId) => {
 
 function App() {
   const [activeVariant, setActiveVariant] = useState('variant1') // 'variant1' | 'variant2' | ... | 'variant5'
-  const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'musicgen' | 'music_history' | 'history'
+  const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'musicgen' | 'bark' | 'history'
 
   // Nastavení hlasu
   const [selectedVoice, setSelectedVoice] = useState('demo1')
@@ -292,9 +292,9 @@ function App() {
   const [qualitySettings, setQualitySettings] = useState(defaultSlotForInit.qualitySettings)
 
   const tabs = [
-    { id: 'generate', label: 'Generovat', icon: '🎤' },
-    { id: 'musicgen', label: 'MusicGen', icon: '🎵' },
-    { id: 'music_history', label: 'Historie (Music)', icon: '🧾' },
+    { id: 'generate', label: 'mluvené slovo', icon: '🎤' },
+    { id: 'musicgen', label: 'hudba', icon: '🎵' },
+    { id: 'bark', label: 'FX & English', icon: '🔊' },
     { id: 'history', label: 'Historie', icon: '📜' }
   ]
 
@@ -1035,23 +1035,29 @@ function App() {
           )}
 
           {activeTab === 'history' && (
-            <History onRestoreText={(restoredText) => {
-              setText(restoredText)
-              setActiveTab('generate')
-              // Scroll nahoru
-              window.scrollTo({ top: 0, behavior: 'smooth' })
-            }} />
+            <History
+              onRestoreText={(restoredText) => {
+                setText(restoredText)
+                setActiveTab('generate')
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+              onRestorePrompt={(prompt) => {
+                setText(prompt)
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+              onSwitchTab={(tab) => {
+                setActiveTab(tab)
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+            />
           )}
 
           {activeTab === 'musicgen' && (
             <MusicGen prompt={text} setPrompt={setText} />
           )}
 
-          {activeTab === 'music_history' && (
-            <MusicHistory onRestorePrompt={(p) => {
-              setText(p)
-              setActiveTab('musicgen')
-            }} />
+          {activeTab === 'bark' && (
+            <Bark prompt={text} setPrompt={setText} />
           )}
         </div>
       </main>
