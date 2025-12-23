@@ -217,8 +217,12 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
                 </button>
               </div>
 
+              <div className="history-item-audio-preview">
+                <AudioPlayer audioUrl={`${API_BASE_URL}${entry.audio_url}`} />
+              </div>
+
               <div className="history-item-text">
-                "{formatText(historyType === 'tts' ? entry.text : entry.prompt, 120)}"
+                "{formatText(historyType === 'tts' ? entry.text : entry.prompt, 80)}"
               </div>
 
               {historyType === 'tts' && entry.tts_params && Object.keys(entry.tts_params).length > 0 && (
@@ -262,9 +266,6 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
 
               {selectedEntry?.id === entry.id && (
                 <div className="history-item-details" onClick={(e) => e.stopPropagation()}>
-                  <div className="history-item-audio">
-                    <AudioPlayer audioUrl={`${API_BASE_URL}${entry.audio_url}`} />
-                  </div>
                   <div className="history-item-actions">
                     {historyType === 'music' && entry.music_params?.ambience_files?.length > 0 && (
                       <div className="result-hint" style={{ marginBottom: '10px' }}>
