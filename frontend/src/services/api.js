@@ -497,4 +497,117 @@ export async function getAmbienceList() {
   return await response.json()
 }
 
+/**
+ * Generuje audio pomocí Bark modelu
+ * @param {string} text - Textový prompt
+ * @param {Object} params - Parametry generování
+ * @param {string} params.modelSize - Velikost modelu ("small" nebo "large")
+ * @param {number} params.temperature - Teplota (0.0-1.0)
+ * @param {number|null} params.seed - Seed pro reprodukovatelnost
+ * @param {number} params.duration - Délka v sekundách (1-120, None = výchozí ~14s)
+ * @param {string|null} jobId - ID jobu pro progress tracking
+ */
+export async function generateBark(text, params = {}, jobId = null) {
+  const formData = new FormData()
+  formData.append('text', text)
+  if (jobId) formData.append('job_id', jobId)
+
+  if (params.modelSize) formData.append('model_size', params.modelSize)
+  if (params.temperature !== undefined && params.temperature !== null) formData.append('temperature', String(params.temperature))
+  if (params.seed !== undefined && params.seed !== null && params.seed !== '') formData.append('seed', String(params.seed))
+  if (params.duration !== undefined && params.duration !== null) formData.append('duration', String(params.duration))
+
+  const response = await fetch(`${API_BASE_URL}/api/bark/generate`, {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při generování Bark audia')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Progress (polling) pro Bark
+ */
+export async function getBarkProgress(jobId) {
+  const response = await fetch(`${API_BASE_URL}/api/bark/progress/${jobId}`)
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    const e = new Error(err.detail || 'Progress není dostupný')
+    e.status = response.status
+    throw e
+  }
+  return await response.json()
+}
+
+/**
+ * Progress (SSE) pro Bark
+ */
+export function subscribeToBarkProgress(jobId, onProgress, onError) {
+  const eventSource = new EventSource(`${API_BASE_URL}/api/bark/progress/${jobId}/stream`)
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      onProgress(data)
+      if (data.status === 'done' || data.status === 'error') {
+        eventSource.close()
+      }
+    } catch (err) {
+      console.error('Chyba při parsování SSE dat:', err)
+      if (onError) onError(err)
+    }
+  }
+
+  eventSource.onerror = (error) => {
+    console.error('SSE chyba:', error)
+    if (onError) onError(error)
+  }
+
+  return eventSource
+}
+
+/**
+ * Samostatná historie Bark
+ */
+export async function getBarkHistory(limit = 50, offset = 0) {
+  const response = await fetch(`${API_BASE_URL}/api/bark/history?limit=${limit}&offset=${offset}`)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při načítání historie Bark')
+  }
+  return await response.json()
+}
+
+export async function getBarkHistoryEntry(entryId) {
+  const response = await fetch(`${API_BASE_URL}/api/bark/history/${entryId}`)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při načítání záznamu')
+  }
+  return await response.json()
+}
+
+export async function deleteBarkHistoryEntry(entryId) {
+  const response = await fetch(`${API_BASE_URL}/api/bark/history/${entryId}`, { method: 'DELETE' })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při mazání záznamu')
+  }
+  return await response.json()
+}
+
+export async function clearBarkHistory() {
+  const response = await fetch(`${API_BASE_URL}/api/bark/history`, { method: 'DELETE' })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při mazání historie Bark')
+  }
+  return await response.json()
+}
+
 
