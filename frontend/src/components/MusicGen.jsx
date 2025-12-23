@@ -26,6 +26,7 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
   const [ambienceFileBirds, setAmbienceFileBirds] = useState('random')
   const [ambienceList, setAmbienceList] = useState({ stream: [], birds: [] })
   const [preset, setPreset] = useState('med_stream')
+  const [presetCategory, setPresetCategory] = useState('meditation') // meditation | ambient | nature | urban | abstract
 
   // Stavy pro rozbalení sekcí (konzistence s TTS)
   const [mainExpanded, setMainExpanded] = useState(true)
@@ -186,48 +187,258 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
     }
   }
 
+  const ambientPresets = {
+    meditation: [
+      {
+        value: 'med_stream',
+        label: 'Meditace + potůček',
+        prompt: 'very calm meditative ambient drone, warm pads, slow evolution, no drums, no vocals, no melody hooks, relaxing',
+        temperature: 0.85,
+        topK: 180,
+        topP: 0.0,
+        duration: 18,
+        ambience: 'stream',
+        ambienceGainDb: -18
+      },
+      {
+        value: 'med_birds',
+        label: 'Meditace + ptáci',
+        prompt: 'calm airy ambient, gentle drones, soft harmonics, slow and spacious, no drums, no vocals, relaxing morning mood',
+        temperature: 0.9,
+        topK: 200,
+        topP: 0.0,
+        duration: 16,
+        ambience: 'birds',
+        ambienceGainDb: -20
+      },
+      {
+        value: 'forest_both',
+        label: 'Lesní ráno (voda + ptáci)',
+        prompt: 'peaceful forest meditation ambient, soft pads, subtle textures, very slow, no drums, no vocals, calming',
+        temperature: 0.9,
+        topK: 200,
+        topP: 0.0,
+        duration: 18,
+        ambience: 'both',
+        ambienceGainDb: -20
+      },
+      {
+        value: 'deep_drone',
+        label: 'Deep drone (bez ambience)',
+        prompt: 'deep meditation drone, extremely slow evolving, dark warm pads, no percussion, no vocals, minimal',
+        temperature: 0.75,
+        topK: 140,
+        topP: 0.0,
+        duration: 20,
+        ambience: 'none',
+        ambienceGainDb: -18
+      }
+    ],
+    ambient: [
+      {
+        value: 'rain_ambient',
+        label: 'Déšť a atmosféra',
+        prompt: 'gentle rain soundscape, ambient textures, soft atmospheric pads, no music, no melody, natural rain ambience',
+        temperature: 0.8,
+        topK: 160,
+        topP: 0.0,
+        duration: 15,
+        ambience: 'none',
+        ambienceGainDb: -18
+      },
+      {
+        value: 'wind_ambient',
+        label: 'Vítr a prostor',
+        prompt: 'windy atmospheric soundscape, airy textures, spacious ambient, no music, no melody, natural wind ambience',
+        temperature: 0.85,
+        topK: 180,
+        topP: 0.0,
+        duration: 16,
+        ambience: 'none',
+        ambienceGainDb: -18
+      },
+      {
+        value: 'ocean_ambient',
+        label: 'Oceánské vlny',
+        prompt: 'ocean waves, gentle water sounds, ambient textures, no music, no melody, natural ocean ambience',
+        temperature: 0.8,
+        topK: 170,
+        topP: 0.0,
+        duration: 18,
+        ambience: 'none',
+        ambienceGainDb: -18
+      },
+      {
+        value: 'fire_ambient',
+        label: 'Oheň a teplo',
+        prompt: 'crackling fire, warm ambient textures, cozy atmosphere, no music, no melody, natural fire ambience',
+        temperature: 0.75,
+        topK: 150,
+        topP: 0.0,
+        duration: 15,
+        ambience: 'none',
+        ambienceGainDb: -18
+      },
+      {
+        value: 'thunder_ambient',
+        label: 'Bouřka a déšť',
+        prompt: 'distant thunder, rain ambience, atmospheric textures, no music, no melody, natural storm ambience',
+        temperature: 0.85,
+        topK: 180,
+        topP: 0.0,
+        duration: 16,
+        ambience: 'none',
+        ambienceGainDb: -18
+      }
+    ],
+    nature: [
+      {
+        value: 'forest_deep',
+        label: 'Hluboký les',
+        prompt: 'deep forest ambience, natural sounds, organic textures, no music, no melody, immersive forest soundscape',
+        temperature: 0.9,
+        topK: 200,
+        topP: 0.0,
+        duration: 20,
+        ambience: 'both',
+        ambienceGainDb: -22
+      },
+      {
+        value: 'mountain_air',
+        label: 'Horský vzduch',
+        prompt: 'mountain air, high altitude ambience, crisp textures, no music, no melody, natural mountain soundscape',
+        temperature: 0.85,
+        topK: 180,
+        topP: 0.0,
+        duration: 18,
+        ambience: 'birds',
+        ambienceGainDb: -20
+      },
+      {
+        value: 'meadow_peace',
+        label: 'Klidná louka',
+        prompt: 'peaceful meadow, gentle nature sounds, soft textures, no music, no melody, natural meadow ambience',
+        temperature: 0.9,
+        topK: 200,
+        topP: 0.0,
+        duration: 16,
+        ambience: 'birds',
+        ambienceGainDb: -20
+      },
+      {
+        value: 'night_forest',
+        label: 'Noční les',
+        prompt: 'night forest ambience, nocturnal sounds, dark textures, no music, no melody, natural night soundscape',
+        temperature: 0.8,
+        topK: 170,
+        topP: 0.0,
+        duration: 18,
+        ambience: 'none',
+        ambienceGainDb: -18
+      }
+    ],
+    urban: [
+      {
+        value: 'city_rain',
+        label: 'Město v dešti',
+        prompt: 'urban rain ambience, city sounds, wet textures, no music, no melody, natural city rain soundscape',
+        temperature: 0.85,
+        topK: 180,
+        topP: 0.0,
+        duration: 15,
+        ambience: 'none',
+        ambienceGainDb: -18
+      },
+      {
+        value: 'cafe_ambient',
+        label: 'Kavárna',
+        prompt: 'cafe ambience, background chatter, warm textures, no music, no melody, natural cafe soundscape',
+        temperature: 0.9,
+        topK: 200,
+        topP: 0.0,
+        duration: 14,
+        ambience: 'none',
+        ambienceGainDb: -18
+      },
+      {
+        value: 'library_quiet',
+        label: 'Tichá knihovna',
+        prompt: 'library ambience, quiet atmosphere, soft textures, no music, no melody, natural library soundscape',
+        temperature: 0.75,
+        topK: 150,
+        topP: 0.0,
+        duration: 16,
+        ambience: 'none',
+        ambienceGainDb: -18
+      }
+    ],
+    abstract: [
+      {
+        value: 'space_void',
+        label: 'Vesmírná prázdnota',
+        prompt: 'space void ambience, cosmic textures, ethereal sounds, no music, no melody, abstract space soundscape',
+        temperature: 0.8,
+        topK: 170,
+        topP: 0.0,
+        duration: 18,
+        ambience: 'none',
+        ambienceGainDb: -18
+      },
+      {
+        value: 'digital_glitch',
+        label: 'Digitální textury',
+        prompt: 'digital glitch ambience, electronic textures, synthetic sounds, no music, no melody, abstract digital soundscape',
+        temperature: 0.9,
+        topK: 200,
+        topP: 0.0,
+        duration: 15,
+        ambience: 'none',
+        ambienceGainDb: -18
+      },
+      {
+        value: 'mechanical_hum',
+        label: 'Mechanický šum',
+        prompt: 'mechanical hum, industrial textures, machine sounds, no music, no melody, abstract industrial soundscape',
+        temperature: 0.85,
+        topK: 180,
+        topP: 0.0,
+        duration: 16,
+        ambience: 'none',
+        ambienceGainDb: -18
+      }
+    ]
+  }
+
   const applyPreset = (v) => {
     setPreset(v)
-    if (v === 'med_stream') {
-      setPrompt('very calm meditative ambient drone, warm pads, slow evolution, no drums, no vocals, no melody hooks, relaxing')
-      setTemperature(0.85)
-      setTopK(180)
-      setTopP(0.0)
-      setDuration(18)
-      setAmbience('stream')
-      setAmbienceGainDb(-18)
-    } else if (v === 'med_birds') {
-      setPrompt('calm airy ambient, gentle drones, soft harmonics, slow and spacious, no drums, no vocals, relaxing morning mood')
-      setTemperature(0.9)
-      setTopK(200)
-      setTopP(0.0)
-      setDuration(16)
-      setAmbience('birds')
-      setAmbienceGainDb(-20)
-    } else if (v === 'forest_both') {
-      setPrompt('peaceful forest meditation ambient, soft pads, subtle textures, very slow, no drums, no vocals, calming')
-      setTemperature(0.9)
-      setTopK(200)
-      setTopP(0.0)
-      setDuration(18)
-      setAmbience('both')
-      setAmbienceGainDb(-20)
-    } else if (v === 'deep_drone') {
-      setPrompt('deep meditation drone, extremely slow evolving, dark warm pads, no percussion, no vocals, minimal')
-      setTemperature(0.75)
-      setTopK(140)
-      setTopP(0.0)
-      setDuration(20)
-      setAmbience('none')
+    // Najdi preset ve všech kategoriích
+    for (const category of Object.keys(ambientPresets)) {
+      const found = ambientPresets[category].find(p => p.value === v)
+      if (found) {
+        setPresetCategory(category)
+        setPrompt(found.prompt)
+        setTemperature(found.temperature)
+        setTopK(found.topK)
+        setTopP(found.topP)
+        setDuration(found.duration)
+        setAmbience(found.ambience)
+        setAmbienceGainDb(found.ambienceGainDb)
+        break
+      }
     }
+  }
+
+  const getCurrentPresets = () => {
+    return ambientPresets[presetCategory] || []
   }
 
   return (
     <div className="musicgen">
       <div className="musicgen-header">
-        <h2>MusicGen (instrumentální hudba)</h2>
+        <h2>MusicGen (hudba a ambientní zvuky)</h2>
         <p className="musicgen-hint">
-          Specializace: klidný ambient/meditace + volitelně potůček/ptáci (mix z <code>assets/nature</code>).
+          Generování instrumentální hudby a ambientních zvukových scén. Presety pro meditaci, přírodu, město a abstraktní zvuky.
+          Volitelně lze přidat potůček/ptáci z <code>assets/nature</code>.
         </p>
       </div>
 
@@ -240,17 +451,57 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
           >
             <div className="settings-grid">
               <SelectRow
-                label="Hudební preset"
+                label="Kategorie presetů"
+                icon="📁"
+                value={presetCategory}
+                onChange={(v) => {
+                  setPresetCategory(v)
+                  // Reset preset na první z kategorie
+                  const presets = ambientPresets[v] || []
+                  if (presets.length > 0) {
+                    applyPreset(presets[0].value)
+                  }
+                }}
+                options={[
+                  { value: 'meditation', label: '🧘 Meditace' },
+                  { value: 'ambient', label: '🌧️ Atmosférické zvuky' },
+                  { value: 'nature', label: '🌲 Příroda' },
+                  { value: 'urban', label: '🏙️ Městské' },
+                  { value: 'abstract', label: '🌀 Abstraktní' }
+                ]}
+              />
+
+              <SelectRow
+                label="Ambientní preset"
                 icon="🪄"
                 value={preset}
                 onChange={applyPreset}
-                options={[
-                  { value: 'med_stream', label: 'Meditace + potůček' },
-                  { value: 'med_birds', label: 'Meditace + ptáci' },
-                  { value: 'forest_both', label: 'Lesní ráno (voda + ptáci)' },
-                  { value: 'deep_drone', label: 'Deep drone (bez ambience)' }
-                ]}
+                options={getCurrentPresets().map(p => ({
+                  value: p.value,
+                  label: p.label
+                }))}
               />
+
+              {(() => {
+                const currentPreset = getCurrentPresets().find(p => p.value === preset)
+                if (currentPreset) {
+                  return (
+                    <div className="preset-description">
+                      <div className="preset-description-label">📝 Popis presetu:</div>
+                      <div className="preset-description-text">{currentPreset.prompt}</div>
+                      <div className="preset-description-params">
+                        <span>Temp: {currentPreset.temperature}</span>
+                        <span>Top-K: {currentPreset.topK}</span>
+                        <span>Délka: {currentPreset.duration}s</span>
+                        {currentPreset.ambience !== 'none' && (
+                          <span>Ambience: {currentPreset.ambience === 'stream' ? 'Potůček' : currentPreset.ambience === 'birds' ? 'Ptáci' : 'Oboje'}</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+                return null
+              })()}
 
               <SliderRow
                 label="Délka skladby (s)"

@@ -1,8 +1,7 @@
 """
 MusicGen engine – generování instrumentální hudby lokálně.
 
-Implementace používá HuggingFace Transformers (facebook/musicgen-*) místo audiocraft,
-aby to šlo instalovat na Windows bez kompilace PyAV/FFmpeg knihoven.
+Implementace používá HuggingFace Transformers (facebook/musicgen-*).
 
 - Lazy import transformers (backend se spustí i bez toho; chyba až při použití).
 - Ukládá WAV do outputs/ (OUTPUTS_DIR), takže se dá přehrát přes existující /api/audio/{filename}.
