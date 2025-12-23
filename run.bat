@@ -87,6 +87,29 @@ if errorlevel 1 (
   echo Backend dependencies OK (skip pip install).
 )
 
+REM Bark instalace (volitelne, ale doporucene)
+echo.
+echo Checking Bark (Suno AI) installation...
+python -c "from bark import generate_audio, preload_models, SAMPLE_RATE" >nul 2>&1
+if errorlevel 1 (
+  echo Bark is not installed. Installing from GitHub...
+  pip install git+https://github.com/suno-ai/bark.git
+  if errorlevel 1 (
+    echo WARNING: Bark installation failed. Bark features will not be available.
+    echo You can install it later manually: pip install git+https://github.com/suno-ai/bark.git
+  ) else (
+    echo Verifying Bark installation...
+    python -c "from bark import generate_audio, preload_models, SAMPLE_RATE; print('Bark OK')" >nul 2>&1
+    if errorlevel 1 (
+      echo WARNING: Bark installation verification failed. Bark features may not work.
+    ) else (
+      echo Bark installed successfully.
+    )
+  )
+) else (
+  echo Bark is already installed.
+)
+
 REM Frontend deps jen kdyz chybi
 if not exist "frontend\node_modules" (
   echo Installing frontend dependencies...

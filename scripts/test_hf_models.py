@@ -1,3 +1,7 @@
+import warnings
+# Potlačení FutureWarning z huggingface_hub o resume_download
+warnings.filterwarnings("ignore", message=".*resume_download.*", category=FutureWarning)
+
 from huggingface_hub import snapshot_download
 from pathlib import Path
 

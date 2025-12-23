@@ -96,7 +96,7 @@ echo Virtual environment activated.
 echo.
 
 REM 4) Backend deps jen kdyz chybi (rychly check importu)
-echo [4/9] Checking backend dependencies...
+echo [4/10] Checking backend dependencies...
 python -c "import fastapi" >nul 2>&1
 if errorlevel 1 goto :install_backend_deps
 python -c "import TTS" >nul 2>&1
@@ -134,8 +134,31 @@ echo Backend dependencies installed.
 :backend_deps_done
 echo.
 
-REM 5) Frontend deps jen kdyz chybi
-echo [5/9] Checking frontend dependencies
+REM 4.5) Bark instalace (volitelne, ale doporucene)
+echo [5/10] Checking Bark (Suno AI) installation...
+python -c "from bark import generate_audio, preload_models, SAMPLE_RATE" >nul 2>&1
+if errorlevel 1 (
+  echo Bark is not installed. Installing from GitHub...
+  pip install git+https://github.com/suno-ai/bark.git
+  if errorlevel 1 (
+    echo WARNING: Bark installation failed. Bark features will not be available.
+    echo You can install it later manually: pip install git+https://github.com/suno-ai/bark.git
+  ) else (
+    echo Verifying Bark installation...
+    python -c "from bark import generate_audio, preload_models, SAMPLE_RATE; print('Bark OK')" >nul 2>&1
+    if errorlevel 1 (
+      echo WARNING: Bark installation verification failed. Bark features may not work.
+    ) else (
+      echo Bark installed successfully.
+    )
+  )
+) else (
+  echo Bark is already installed.
+)
+echo.
+
+REM 6) Frontend deps jen kdyz chybi
+echo [6/10] Checking frontend dependencies
 set "FRONTEND_DIR=%ROOT%frontend"
 if not exist "%FRONTEND_DIR%\node_modules" (
   echo Installing frontend dependencies (npm)
@@ -154,8 +177,8 @@ if not exist "%FRONTEND_DIR%\node_modules" (
 )
 echo.
 
-REM 6) Spust backend v novem okne
-echo [6/9] Starting backend...
+REM 7) Spust backend v novem okne
+echo [7/10] Starting backend...
 set "BACKEND_DIR=%ROOT%backend"
 set "VENV_ACTIVATE=%ROOT%venv\Scripts\activate.bat"
 
@@ -167,8 +190,8 @@ if defined FORCE_DEVICE (
   start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-9.0 && python main.py"
 )
 
-REM 7) Pockej az backend nabehne (max 60s)
-echo [7/9] Waiting for backend on http://localhost:8000 ...
+REM 8) Pockej az backend nabehne (max 60s)
+echo [8/10] Waiting for backend on http://localhost:8000 ...
 timeout /t 3 /nobreak >nul 2>&1
 powershell -NoProfile -Command "for($i=0;$i -lt 60;$i++){try{Invoke-WebRequest -UseBasicParsing http://localhost:8000/api/models/status | Out-Null; exit 0}catch{Start-Sleep -Seconds 1}}; exit 1" >nul 2>&1
 
@@ -179,12 +202,12 @@ if errorlevel 1 (
 )
 echo.
 
-REM 8) Spust frontend v novem okne
-echo [8/9] Starting frontend...
+REM 9) Spust frontend v novem okne
+echo [9/10] Starting frontend...
 start "XTTS Frontend" cmd /k "cd /d %FRONTEND_DIR% && npm run dev"
 
-REM 9) Otevri prohlizec
-echo [9/9] Opening browser...
+REM 10) Otevri prohlizec
+echo [10/10] Opening browser...
 timeout /t 2 /nobreak >nul 2>&1
 start "" "http://localhost:3000"
 
