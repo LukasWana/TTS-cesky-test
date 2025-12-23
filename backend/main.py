@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import uvicorn
 import aiofiles
+import anyio
 from functools import lru_cache
 from typing import Optional
 
@@ -65,6 +66,10 @@ try:
         AUDIO_ENHANCEMENT_PRESET,
         ENABLE_BATCH_PROCESSING
     )
+    from backend.musicgen_engine import MusicGenEngine
+    from backend.music_history_manager import MusicHistoryManager
+    from backend.ambience_library import pick_many
+    from backend.audio_mix_utils import load_audio, overlay as mix_overlay, save_wav, make_loopable
 except ImportError:
     # Fallback pro spuštění z backend/ adresáře
     from tts_engine import XTTSEngine
@@ -77,6 +82,10 @@ except ImportError:
         extract_video_id,
         sanitize_filename
     )
+    from musicgen_engine import MusicGenEngine
+    from music_history_manager import MusicHistoryManager
+    from ambience_library import pick_many
+    from audio_mix_utils import load_audio, overlay as mix_overlay, save_wav
     from config import (
         API_HOST,
         API_PORT,
@@ -98,6 +107,7 @@ except ImportError:
 
 # Inicializace engine
 tts_engine = XTTSEngine()
+music_engine = MusicGenEngine()
 
 
 @asynccontextmanager
@@ -105,11 +115,9 @@ async def lifespan(app: FastAPI):
     """Lifespan event handler pro startup a shutdown"""
     # Startup
     try:
-        await tts_engine.load_model()
-        # Warmup s demo hlasem pokud existuje
-        demo_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
-        if demo_voices:
-            await tts_engine.warmup(str(demo_voices[0]))
+        # XTTS model nyní načítáme "lazy" až při prvním požadavku v /api/tts/generate
+        # To šetří VRAM (zejména pro 6GB karty), pokud chce uživatel generovat jen hudbu.
+        print("Backend startup: ready (models will be loaded on demand)")
     except Exception as e:
         print(f"Startup error: {str(e)}")
 
@@ -223,6 +231,15 @@ async def generate_speech(
                     "endpoint": "/api/tts/generate",
                 },
             )
+
+        # Lazy loading modelu XTTS
+        if not tts_engine.is_loaded:
+            if job_id:
+                ProgressManager.update(job_id, percent=5, stage="load", message="Načítám XTTS model do VRAM…")
+            await tts_engine.load_model()
+        else:
+            if job_id:
+                ProgressManager.update(job_id, percent=10, stage="load", message="Model je připraven, začínám syntézu…")
 
         # --- Získání a validace všech parametrů na začátku ---
 
@@ -709,6 +726,306 @@ async def generate_speech(
         raise HTTPException(status_code=500, detail=f"Chyba při generování: {msg}")
 
 
+@app.get("/api/music/ambience/list")
+async def get_ambience_list():
+    """Vrátí seznam dostupných ambience samplů podle kategorií."""
+    try:
+        from backend.ambience_library import list_ambience
+        return {
+            "stream": [p.name for p in list_ambience("stream")],
+            "birds": [p.name for p in list_ambience("birds")]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/musicgen/generate")
+async def generate_music(
+    prompt: str = Form(...),
+    job_id: str = Form(None),
+    duration: float = Form(12.0),
+    temperature: float = Form(1.0),
+    top_k: int = Form(250),
+    top_p: float = Form(0.0),
+    seed: int = Form(None),
+    model: str = Form("small"),
+    ambience: str = Form("none"),  # none|stream|birds|both
+    ambience_gain_db: float = Form(-18.0),  # typicky -22 až -14
+    ambience_seed: int = Form(None),
+    ambience_file_stream: str = Form(None),  # konkrétní soubor pro stream
+    ambience_file_birds: str = Form(None),   # konkrétní soubor pro birds
+):
+    """
+    Generuje hudbu pomocí MusicGen (AudioCraft).
+
+    Body:
+        prompt: Textový prompt (doporučeno přidat "no vocals" pro instrumentál)
+        duration: délka v sekundách (1-30)
+        model: small|medium|large (pro 6GB VRAM doporučeno small)
+        job_id: volitelné pro progress (SSE/polling)
+    """
+    try:
+        if job_id:
+            ProgressManager.start(job_id, meta={"endpoint": "/api/musicgen/generate", "prompt_length": len(prompt or "")})
+
+        # Aby byla hudba plynule zacyklitelná (seamless loop), vygenerujeme o 3s více
+        # a pak tyto 3s použijeme pro crossfade konce se začátkem.
+        loop_crossfade_s = 3.0
+        gen_duration = min(30.0, float(duration) + loop_crossfade_s)
+
+        out_path = await anyio.to_thread.run_sync(
+            lambda: music_engine.generate(
+                prompt,
+                duration_s=gen_duration,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                seed=seed,
+                model_size=model,
+                job_id=job_id,
+            )
+        )
+
+        filename = Path(out_path).name
+        audio_url = f"/api/audio/{filename}"
+
+        # Načteme surovou hudbu a vytvoříme plynulou smyčku
+        base = load_audio(out_path)
+        if gen_duration > loop_crossfade_s:
+            base = make_loopable(base, crossfade_ms=int(loop_crossfade_s * 1000))
+            save_wav(base, out_path)
+
+        # --- Ambient layer (potůček / ptáci) ---
+        warning = None
+        ambience_clean = (ambience or "none").strip().lower()
+        kinds = []
+        if ambience_clean in ("stream", "birds"):
+            kinds = [ambience_clean]
+        elif ambience_clean == "both":
+            kinds = ["stream", "birds"]
+
+        ambience_files_list = []
+        if kinds:
+            # Nejprve zkusíme konkrétní soubory z Formy
+            from backend.config import BASE_DIR
+            nature_dir = (BASE_DIR / "assets" / "nature").resolve()
+
+            picked_anything = False
+            ambience_files_to_use = []
+
+            if "stream" in kinds and ambience_file_stream and ambience_file_stream != "random":
+                p = nature_dir / ambience_file_stream
+                if p.exists():
+                    ambience_files_to_use.append(p)
+                    picked_anything = True
+
+            if "birds" in kinds and ambience_file_birds and ambience_file_birds != "random":
+                p = nature_dir / ambience_file_birds
+                if p.exists():
+                    ambience_files_to_use.append(p)
+                    picked_anything = True
+
+            # Pokud pro daný druh nebyl vybrán konkrétní soubor, použijeme pick_many (seed)
+            if not picked_anything or len(ambience_files_to_use) < len(kinds):
+                # Musíme odfiltrovat druhy, které už mají konkrétní soubor
+                remaining_kinds = []
+                if "stream" in kinds and not any(f.name.startswith("stream_") for f in ambience_files_to_use):
+                    remaining_kinds.append("stream")
+                if "birds" in kinds and not any(f.name.startswith("birds_") for f in ambience_files_to_use):
+                    remaining_kinds.append("birds")
+
+                if remaining_kinds:
+                    picks = pick_many(remaining_kinds, seed=ambience_seed if ambience_seed is not None else seed)
+                    for p in picks:
+                        ambience_files_to_use.append(p.path)
+
+            if ambience_files_to_use:
+                try:
+                    print(f"[MusicGen] Mixuji ambience: {', '.join(p.name for p in ambience_files_to_use)} (gain: {ambience_gain_db} dB)")
+                    if job_id:
+                        ProgressManager.update(job_id, percent=95, stage="mix", message="Mixuji ambience (potůček/ptáci)…")
+
+                    mixed = base
+                    used = []
+                    for p in ambience_files_to_use:
+                        ov = load_audio(p)
+                        mixed = mix_overlay(mixed, ov, overlay_gain_db=float(ambience_gain_db), loop_overlay=True, overlay_crossfade_ms=30)
+                        used.append(p.name)
+
+                    save_wav(mixed, out_path)
+                    print("[MusicGen] Ambience namixováno a WAV přepsán.")
+                    if job_id:
+                        ProgressManager.update(job_id, percent=98, stage="mix", message="Ambience namixováno.")
+                    ambience_files_list = used
+                except Exception as e:
+                    print(f"[MusicGen] Chyba při mixování: {e}")
+                    # neblokuj výsledek – vrať hudbu bez ambience + warning
+                    warning = f"Ambience se nepodařilo namixovat ({str(e)}). Výstup je bez ambience vrstvy."
+                    ambience_files_list = []
+            else:
+                print("[MusicGen] Žádné ambience soubory nenalezeny v assets/nature.")
+                warning = "Chybí ambience samply. Přidej WAVy do assets/nature (stream_*.wav / birds_*.wav)."
+
+        # Samostatná music historie
+        print(f"[MusicGen] Ukládám do historie: {filename}")
+        MusicHistoryManager.add_entry(
+            audio_url=audio_url,
+            filename=filename,
+            prompt=prompt,
+            music_params={
+                "model": model,
+                "duration": duration,
+                "temperature": temperature,
+                "top_k": top_k,
+                "top_p": top_p,
+                "seed": seed,
+                "ambience": ambience_clean,
+                "ambience_gain_db": ambience_gain_db,
+                "ambience_files": ambience_files_list,
+            },
+        )
+
+        if job_id:
+            ProgressManager.update(job_id, percent=99, stage="final", message="Hotovo, posílám výsledek…")
+            ProgressManager.done(job_id)
+
+        print(f"[MusicGen] Hotovo. Odesílám audio_url: {audio_url}")
+        resp = {"success": True, "audio_url": audio_url, "filename": filename, "job_id": job_id}
+        if warning:
+            resp["warning"] = warning
+        return resp
+    except HTTPException:
+        if job_id:
+            ProgressManager.fail(job_id, "HTTPException")
+        raise
+    except Exception as e:
+        msg = str(e)
+        if job_id:
+            ProgressManager.fail(job_id, msg)
+        raise HTTPException(status_code=500, detail=f"Chyba při MusicGen: {msg}")
+
+
+@app.get("/api/music/progress/{job_id}")
+async def get_music_progress(job_id: str):
+    """Vrátí průběh generování hudby pro daný job_id (polling)."""
+    info = ProgressManager.get(job_id)
+    if not info:
+        return {
+            "job_id": job_id,
+            "status": "pending",
+            "percent": 0,
+            "stage": "pending",
+            "message": "Čekám na zahájení…",
+            "eta_seconds": None,
+            "error": None,
+        }
+    return info
+
+
+@app.get("/api/music/progress/{job_id}/stream")
+async def stream_music_progress(job_id: str):
+    """SSE stream pro real-time progress updates pro MusicGen."""
+    import json
+    import asyncio
+
+    async def event_generator():
+        last_percent = -1
+        last_updated = None
+
+        while True:
+            try:
+                info = ProgressManager.get(job_id)
+                if not info:
+                    pending_data = {
+                        "job_id": job_id,
+                        "status": "pending",
+                        "percent": 0,
+                        "stage": "pending",
+                        "message": "Čekám na zahájení…",
+                        "eta_seconds": None,
+                        "error": None,
+                    }
+                    yield f"data: {json.dumps(pending_data)}\n\n"
+                    await asyncio.sleep(0.5)
+                    continue
+
+                status = info.get("status", "running")
+                percent = info.get("percent", 0)
+                updated_at = info.get("updated_at")
+
+                if percent != last_percent or updated_at != last_updated:
+                    yield f"data: {json.dumps(info)}\n\n"
+                    last_percent = percent
+                    last_updated = updated_at
+
+                if status in ("done", "error"):
+                    yield f"data: {json.dumps(info)}\n\n"
+                    break
+
+                await asyncio.sleep(0.2)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                yield f"data: {json.dumps({'job_id': job_id, 'status': 'error', 'error': str(e)})}\n\n"
+                break
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/music/history")
+async def get_music_history(limit: int = 50, offset: int = 0):
+    """Samostatná historie MusicGen výstupů."""
+    try:
+        history = MusicHistoryManager.get_history(limit=limit, offset=offset)
+        stats = MusicHistoryManager.get_stats()
+        return {"history": history, "stats": stats, "limit": limit, "offset": offset}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při načítání music historie: {str(e)}")
+
+
+@app.get("/api/music/history/{entry_id}")
+async def get_music_history_entry(entry_id: str):
+    try:
+        entry = MusicHistoryManager.get_entry_by_id(entry_id)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Záznam nenalezen")
+        return entry
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při načítání záznamu: {str(e)}")
+
+
+@app.delete("/api/music/history/{entry_id}")
+async def delete_music_history_entry(entry_id: str):
+    try:
+        success = MusicHistoryManager.delete_entry(entry_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Záznam nenalezen")
+        return {"success": True, "message": "Záznam smazán"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při mazání: {str(e)}")
+
+
+@app.delete("/api/music/history")
+async def clear_music_history():
+    try:
+        count = MusicHistoryManager.clear_history()
+        return {"success": True, "message": f"Music historie vymazána ({count} záznamů)"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při mazání music historie: {str(e)}")
+
+
 def get_demo_voice_path(demo_voice_name: str) -> Optional[str]:
     """
     Vrátí cestu k demo hlasu nebo None pokud neexistuje
@@ -802,6 +1119,15 @@ async def generate_speech_multi(
                     "endpoint": "/api/tts/generate-multi",
                 },
             )
+
+        # Lazy loading modelu XTTS
+        if not tts_engine.is_loaded:
+            if job_id:
+                ProgressManager.update(job_id, percent=5, stage="load", message="Načítám XTTS model do VRAM…")
+            await tts_engine.load_model()
+        else:
+            if job_id:
+                ProgressManager.update(job_id, percent=10, stage="load", message="Model je připraven, začínám syntézu…")
 
         # Validace textu
         if not text or len(text.strip()) == 0:
