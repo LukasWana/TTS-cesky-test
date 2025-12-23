@@ -160,9 +160,9 @@ set "VENV_ACTIVATE=%ROOT%venv\Scripts\activate.bat"
 REM Předání FORCE_DEVICE do backend procesu (pokud je nastaveno)
 if defined FORCE_DEVICE (
   echo Device mode: %FORCE_DEVICE%
-  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set FORCE_DEVICE=%FORCE_DEVICE% && python main.py"
+  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-9.0 && set FORCE_DEVICE=%FORCE_DEVICE% && python main.py"
 ) else (
-  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && python main.py"
+  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-9.0 && python main.py"
 )
 
 REM 7) Pockej az backend nabehne (max 60s)

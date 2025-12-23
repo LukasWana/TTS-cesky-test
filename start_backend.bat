@@ -14,6 +14,8 @@ REM Kontrola Python verze v venv
 python --version
 
 set PYTHONPATH=%PYTHONPATH%;%CD%
+REM Výchozí headroom (pokud už není nastaven zvenku)
+if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-9.0
 
 cd backend
 python main.py
