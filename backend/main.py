@@ -461,11 +461,26 @@ async def generate_speech(
 
         elif demo_voice:
             # Použití demo hlasu
-            demo_path = DEMO_VOICES_DIR / f"{demo_voice}.wav"
+            # Extrahuj pouze název souboru, pokud demo_voice obsahuje cestu
+            demo_voice_clean = demo_voice.strip()
+            if os.path.sep in demo_voice_clean or '/' in demo_voice_clean:
+                # Je to cesta - extrahuj pouze název souboru bez přípony
+                demo_voice_clean = Path(demo_voice_clean).stem
+
+            demo_path = DEMO_VOICES_DIR / f"{demo_voice_clean}.wav"
             if not demo_path.exists():
-                # Zkus najít jakýkoliv WAV soubor v demo-voices
+                # Zkus najít soubor podle názvu (case-insensitive)
+                found = None
                 available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
-                if available_voices:
+                for voice_file in available_voices:
+                    if voice_file.stem.lower() == demo_voice_clean.lower():
+                        found = voice_file
+                        break
+
+                if found:
+                    speaker_wav = str(found)
+                    print(f"Demo voice '{demo_voice}' found as: {speaker_wav}")
+                elif available_voices:
                     # Použij první dostupný demo hlas
                     speaker_wav = str(available_voices[0])
                     print(f"Demo voice '{demo_voice}' not found, using: {speaker_wav}")
@@ -497,7 +512,24 @@ async def generate_speech(
                 request_allow = (allow_poor_voice.lower() == "true") if isinstance(allow_poor_voice, str) else None
 
                 do_auto = request_auto if request_auto is not None else ENABLE_REFERENCE_AUTO_ENHANCE
-                do_allow = request_allow if request_allow is not None else REFERENCE_ALLOW_POOR_BY_DEFAULT
+
+                # Demo hlasy (vybrané z demo-voices) nechceme blokovat quality gate,
+                # protože uživatel očekává, že "demo" půjde použít i když je vzorek šumový.
+                # Explicitní allow_poor_voice=true/false má přednost; pokud není zadáno a jde o demo hlas, povol.
+                is_demo_voice = False
+                try:
+                    is_demo_voice = Path(speaker_wav).resolve().is_relative_to(DEMO_VOICES_DIR.resolve())
+                except Exception:
+                    # fallback pro starší Python / edge případy
+                    try:
+                        is_demo_voice = str(Path(speaker_wav).resolve()).startswith(str(DEMO_VOICES_DIR.resolve()))
+                    except Exception:
+                        is_demo_voice = False
+
+                if request_allow is None and is_demo_voice:
+                    do_allow = True
+                else:
+                    do_allow = request_allow if request_allow is not None else REFERENCE_ALLOW_POOR_BY_DEFAULT
 
                 if do_auto:
                     enhanced_path = UPLOADS_DIR / f"enhanced_{uuid.uuid4().hex[:10]}.wav"
@@ -695,6 +727,10 @@ def get_demo_voice_path(demo_voice_name: str) -> Optional[str]:
 
     # Odstraň mezery na začátku/konci
     demo_voice_name = demo_voice_name.strip()
+
+    # Pokud je to cesta, extrahuj pouze název souboru bez přípony
+    if os.path.sep in demo_voice_name or '/' in demo_voice_name:
+        demo_voice_name = Path(demo_voice_name).stem
 
     # Nejdříve zkus přesný název (case-sensitive)
     demo_path = DEMO_VOICES_DIR / f"{demo_voice_name}.wav"
