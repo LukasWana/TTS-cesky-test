@@ -10,8 +10,8 @@ import Tabs from './components/Tabs'
 import { generateSpeech, getDemoVoices, getModelStatus, getTtsProgress, subscribeToTtsProgress } from './services/api'
 import './App.css'
 
-// Výchozí hodnoty TTS parametrů
-const DEFAULT_TTS_SETTINGS = {
+// Výchozí hodnoty TTS parametrů (základní)
+const BASE_TTS_SETTINGS = {
   speed: 1.0,
   temperature: 0.7,
   lengthPenalty: 1.0,
@@ -21,7 +21,7 @@ const DEFAULT_TTS_SETTINGS = {
   seed: null
 }
 
-const DEFAULT_QUALITY_SETTINGS = {
+const BASE_QUALITY_SETTINGS = {
   qualityMode: null,
   enhancementPreset: 'natural',
   enableEnhancement: true,
@@ -51,6 +51,192 @@ const DEFAULT_QUALITY_SETTINGS = {
   // Whisper efekt
   whisperIntensity: 1.0
 }
+
+// Defaultní nastavení pro sloty P1-P5
+const DEFAULT_SLOT_SETTINGS = {
+  variant1: { // P1 - Vysoká kvalita
+    ttsSettings: {
+      speed: 1.0,
+      temperature: 0.5,
+      lengthPenalty: 1.2,
+      repetitionPenalty: 2.5,
+      topK: 30,
+      topP: 0.8,
+      seed: null
+    },
+    qualitySettings: {
+      qualityMode: 'high_quality',
+      enhancementPreset: 'high_quality',
+      enableEnhancement: true,
+      multiPass: false,
+      multiPassCount: 3,
+      enableVad: true,
+      enableBatch: true,
+      useHifigan: false,
+      hifiganRefinementIntensity: 1.0,
+      hifiganNormalizeOutput: true,
+      hifiganNormalizeGain: 0.95,
+      enableNormalization: true,
+      enableDenoiser: true,
+      enableCompressor: true,
+      enableDeesser: true,
+      enableEq: true,
+      enableTrim: true,
+      enableDialectConversion: false,
+      dialectCode: null,
+      dialectIntensity: 1.0,
+      whisperIntensity: 1.0
+    }
+  },
+  variant2: { // P2 - Přirozený
+    ttsSettings: {
+      speed: 1.0,
+      temperature: 0.7,
+      lengthPenalty: 1.0,
+      repetitionPenalty: 2.0,
+      topK: 50,
+      topP: 0.85,
+      seed: null
+    },
+    qualitySettings: {
+      qualityMode: 'natural',
+      enhancementPreset: 'natural',
+      enableEnhancement: true,
+      multiPass: false,
+      multiPassCount: 3,
+      enableVad: true,
+      enableBatch: true,
+      useHifigan: false,
+      hifiganRefinementIntensity: 1.0,
+      hifiganNormalizeOutput: true,
+      hifiganNormalizeGain: 0.95,
+      enableNormalization: false,
+      enableDenoiser: false,
+      enableCompressor: true,
+      enableDeesser: true,
+      enableEq: true,
+      enableTrim: true,
+      enableDialectConversion: false,
+      dialectCode: null,
+      dialectIntensity: 1.0,
+      whisperIntensity: 1.0
+    }
+  },
+  variant3: { // P3 - Rychlý
+    ttsSettings: {
+      speed: 1.0,
+      temperature: 0.8,
+      lengthPenalty: 1.0,
+      repetitionPenalty: 2.0,
+      topK: 60,
+      topP: 0.9,
+      seed: null
+    },
+    qualitySettings: {
+      qualityMode: 'fast',
+      enhancementPreset: 'fast',
+      enableEnhancement: true,
+      multiPass: false,
+      multiPassCount: 3,
+      enableVad: true,
+      enableBatch: true,
+      useHifigan: false,
+      hifiganRefinementIntensity: 1.0,
+      hifiganNormalizeOutput: true,
+      hifiganNormalizeGain: 0.95,
+      enableNormalization: false,
+      enableDenoiser: false,
+      enableCompressor: true,
+      enableDeesser: false,
+      enableEq: false,
+      enableTrim: true,
+      enableDialectConversion: false,
+      dialectCode: null,
+      dialectIntensity: 1.0,
+      whisperIntensity: 1.0
+    }
+  },
+  variant4: { // P4 - Meditativní
+    ttsSettings: {
+      speed: 0.75,
+      temperature: 0.45,
+      lengthPenalty: 1.1,
+      repetitionPenalty: 2.2,
+      topK: 35,
+      topP: 0.75,
+      seed: null
+    },
+    qualitySettings: {
+      qualityMode: 'meditative',
+      enhancementPreset: 'high_quality',
+      enableEnhancement: true,
+      multiPass: false,
+      multiPassCount: 3,
+      enableVad: true,
+      enableBatch: true,
+      useHifigan: false,
+      hifiganRefinementIntensity: 1.0,
+      hifiganNormalizeOutput: true,
+      hifiganNormalizeGain: 0.95,
+      enableNormalization: true,
+      enableDenoiser: true,
+      enableCompressor: true,
+      enableDeesser: false,
+      enableEq: true,
+      enableTrim: true,
+      enableDialectConversion: false,
+      dialectCode: null,
+      dialectIntensity: 1.0,
+      whisperIntensity: 0.0
+    }
+  },
+  variant5: { // P5 - Šeptavý
+    ttsSettings: {
+      speed: 0.65,
+      temperature: 0.30,
+      lengthPenalty: 1.0,
+      repetitionPenalty: 2.0,
+      topK: 25,
+      topP: 0.7,
+      seed: null
+    },
+    qualitySettings: {
+      qualityMode: 'whisper',
+      enhancementPreset: 'high_quality',
+      enableEnhancement: true,
+      multiPass: false,
+      multiPassCount: 3,
+      enableVad: true,
+      enableBatch: true,
+      useHifigan: false,
+      hifiganRefinementIntensity: 1.0,
+      hifiganNormalizeOutput: true,
+      hifiganNormalizeGain: 0.95,
+      enableNormalization: true,
+      enableDenoiser: true,
+      enableCompressor: true,
+      enableDeesser: true,
+      enableEq: true,
+      enableTrim: true,
+      enableDialectConversion: false,
+      dialectCode: null,
+      dialectIntensity: 1.0,
+      whisperIntensity: 1.0
+    }
+  }
+}
+
+// Funkce pro získání defaultního nastavení pro slot
+const getDefaultSlotSettings = (variantId) => {
+  return DEFAULT_SLOT_SETTINGS[variantId] || {
+    ttsSettings: { ...BASE_TTS_SETTINGS },
+    qualitySettings: { ...BASE_QUALITY_SETTINGS }
+  }
+}
+
+// Pro zpětnou kompatibilitu
+const DEFAULT_TTS_SETTINGS = BASE_TTS_SETTINGS
+const DEFAULT_QUALITY_SETTINGS = BASE_QUALITY_SETTINGS
 
 // Klíče pro localStorage - varianty jsou vázané na konkrétní hlas (id)
 const getVariantStorageKey = (voiceId, variantId) => `xtts_voice_${voiceId}_variant_${variantId}`
@@ -98,8 +284,10 @@ function App() {
   const [showSettings, setShowSettings] = useState(true)
 
   // Nastavení pro aktuální variantu (vázané na vybraný hlas)
-  const [ttsSettings, setTtsSettings] = useState(DEFAULT_TTS_SETTINGS)
-  const [qualitySettings, setQualitySettings] = useState(DEFAULT_QUALITY_SETTINGS)
+  // Použij slot-specifické defaultní hodnoty pro variant1 (P1) jako výchozí
+  const defaultSlotForInit = getDefaultSlotSettings('variant1')
+  const [ttsSettings, setTtsSettings] = useState(defaultSlotForInit.ttsSettings)
+  const [qualitySettings, setQualitySettings] = useState(defaultSlotForInit.qualitySettings)
 
   const tabs = [
     { id: 'generate', label: 'Generovat', icon: '🎤' },
@@ -110,9 +298,11 @@ function App() {
   const isLoadingSettingsRef = useRef(false)
 
   // Ref pro aktuální nastavení - vždy obsahuje nejnovější hodnoty
+  // Použij slot-specifické defaultní hodnoty pro variant1 (P1) jako výchozí
+  const defaultSlotForRef = getDefaultSlotSettings('variant1')
   const currentSettingsRef = useRef({
-    ttsSettings: DEFAULT_TTS_SETTINGS,
-    qualitySettings: DEFAULT_QUALITY_SETTINGS
+    ttsSettings: defaultSlotForRef.ttsSettings,
+    qualitySettings: defaultSlotForRef.qualitySettings
   })
 
   // Ref pro progress SSE connection - pro cleanup při novém spuštění nebo unmount
@@ -180,6 +370,8 @@ function App() {
     if (isLoadingSettingsRef.current) return
 
     // Použít hodnoty z ref (vždy aktuální)
+    // Uložíme všechny aktuální hodnoty - pokud uživatel něco změnil, uloží se to
+    // Pokud uživatel nic nezměnil, uloží se defaultní hodnoty (což je v pořádku)
     const settings = {
       ttsSettings: { ...currentSettingsRef.current.ttsSettings },
       qualitySettings: { ...currentSettingsRef.current.qualitySettings }
@@ -260,102 +452,114 @@ function App() {
     const saved = loadVariantSettings(selectedVoice, activeVariant)
     console.log('📖 Načítám nastavení pro:', selectedVoice, activeVariant, saved) // Debug
 
+    // Získat slot-specifické defaultní hodnoty pro validaci (použijí se pouze jako fallback)
+    const defaultSlot = getDefaultSlotSettings(activeVariant)
+    const defaultTts = defaultSlot.ttsSettings
+    const defaultQuality = defaultSlot.qualitySettings
+
     // Validace a načtení nastavení atomicky
     let loadedTts, loadedQuality
 
+    // DŮLEŽITÉ: Pokud existuje uložené nastavení, použije se. Defaultní hodnoty se použijí pouze
+    // pokud není uložené nastavení nebo pokud některá hodnota chybí/je neplatná.
+    // Tím zajistíme, že uživatelské změny se nebudou přepisovat defaultními hodnotami.
     if (saved && saved.ttsSettings && saved.qualitySettings) {
-      // Validace a načtení TTS nastavení s fallback na výchozí hodnoty
+      // Validace a načtení TTS nastavení s fallback na slot-specifické výchozí hodnoty
       loadedTts = {
         speed: typeof saved.ttsSettings.speed === 'number' && !isNaN(saved.ttsSettings.speed)
           ? saved.ttsSettings.speed
-          : DEFAULT_TTS_SETTINGS.speed,
+          : defaultTts.speed,
         temperature: typeof saved.ttsSettings.temperature === 'number' && !isNaN(saved.ttsSettings.temperature) && saved.ttsSettings.temperature > 0
           ? saved.ttsSettings.temperature
-          : DEFAULT_TTS_SETTINGS.temperature,
+          : defaultTts.temperature,
         lengthPenalty: typeof saved.ttsSettings.lengthPenalty === 'number' && !isNaN(saved.ttsSettings.lengthPenalty)
           ? saved.ttsSettings.lengthPenalty
-          : DEFAULT_TTS_SETTINGS.lengthPenalty,
+          : defaultTts.lengthPenalty,
         repetitionPenalty: typeof saved.ttsSettings.repetitionPenalty === 'number' && !isNaN(saved.ttsSettings.repetitionPenalty)
           ? saved.ttsSettings.repetitionPenalty
-          : DEFAULT_TTS_SETTINGS.repetitionPenalty,
+          : defaultTts.repetitionPenalty,
         topK: typeof saved.ttsSettings.topK === 'number' && !isNaN(saved.ttsSettings.topK)
           ? saved.ttsSettings.topK
-          : DEFAULT_TTS_SETTINGS.topK,
+          : defaultTts.topK,
         topP: typeof saved.ttsSettings.topP === 'number' && !isNaN(saved.ttsSettings.topP)
           ? saved.ttsSettings.topP
-          : DEFAULT_TTS_SETTINGS.topP,
+          : defaultTts.topP,
         seed: saved.ttsSettings.seed !== undefined && saved.ttsSettings.seed !== null
           ? (typeof saved.ttsSettings.seed === 'number' ? saved.ttsSettings.seed : null)
-          : DEFAULT_TTS_SETTINGS.seed
+          : defaultTts.seed
       }
 
-      // Validace a načtení quality nastavení s fallback na výchozí hodnoty
+      // Validace a načtení quality nastavení s fallback na slot-specifické výchozí hodnoty
       loadedQuality = {
         qualityMode: saved.qualitySettings.qualityMode !== undefined
           ? saved.qualitySettings.qualityMode
-          : DEFAULT_QUALITY_SETTINGS.qualityMode,
+          : defaultQuality.qualityMode,
         enhancementPreset: typeof saved.qualitySettings.enhancementPreset === 'string'
           ? saved.qualitySettings.enhancementPreset
-          : DEFAULT_QUALITY_SETTINGS.enhancementPreset,
+          : defaultQuality.enhancementPreset,
         enableEnhancement: typeof saved.qualitySettings.enableEnhancement === 'boolean'
           ? saved.qualitySettings.enableEnhancement
-          : DEFAULT_QUALITY_SETTINGS.enableEnhancement,
+          : defaultQuality.enableEnhancement,
         enableNormalization: typeof saved.qualitySettings.enableNormalization === 'boolean'
           ? saved.qualitySettings.enableNormalization
-          : DEFAULT_QUALITY_SETTINGS.enableNormalization,
+          : defaultQuality.enableNormalization,
         enableDenoiser: typeof saved.qualitySettings.enableDenoiser === 'boolean'
           ? saved.qualitySettings.enableDenoiser
-          : DEFAULT_QUALITY_SETTINGS.enableDenoiser,
+          : defaultQuality.enableDenoiser,
         enableCompressor: typeof saved.qualitySettings.enableCompressor === 'boolean'
           ? saved.qualitySettings.enableCompressor
-          : DEFAULT_QUALITY_SETTINGS.enableCompressor,
+          : defaultQuality.enableCompressor,
         enableDeesser: typeof saved.qualitySettings.enableDeesser === 'boolean'
           ? saved.qualitySettings.enableDeesser
-          : DEFAULT_QUALITY_SETTINGS.enableDeesser,
+          : defaultQuality.enableDeesser,
         enableEq: typeof saved.qualitySettings.enableEq === 'boolean'
           ? saved.qualitySettings.enableEq
-          : DEFAULT_QUALITY_SETTINGS.enableEq,
+          : defaultQuality.enableEq,
         enableTrim: typeof saved.qualitySettings.enableTrim === 'boolean'
           ? saved.qualitySettings.enableTrim
-          : DEFAULT_QUALITY_SETTINGS.enableTrim,
+          : defaultQuality.enableTrim,
         multiPass: typeof saved.qualitySettings.multiPass === 'boolean'
           ? saved.qualitySettings.multiPass
-          : DEFAULT_QUALITY_SETTINGS.multiPass,
+          : defaultQuality.multiPass,
         multiPassCount: typeof saved.qualitySettings.multiPassCount === 'number'
           ? saved.qualitySettings.multiPassCount
-          : DEFAULT_QUALITY_SETTINGS.multiPassCount,
+          : defaultQuality.multiPassCount,
         enableVad: typeof saved.qualitySettings.enableVad === 'boolean'
           ? saved.qualitySettings.enableVad
-          : DEFAULT_QUALITY_SETTINGS.enableVad,
+          : defaultQuality.enableVad,
         enableBatch: typeof saved.qualitySettings.enableBatch === 'boolean'
           ? saved.qualitySettings.enableBatch
-          : DEFAULT_QUALITY_SETTINGS.enableBatch,
+          : defaultQuality.enableBatch,
         useHifigan: typeof saved.qualitySettings.useHifigan === 'boolean'
           ? saved.qualitySettings.useHifigan
-          : DEFAULT_QUALITY_SETTINGS.useHifigan,
+          : defaultQuality.useHifigan,
         hifiganRefinementIntensity: typeof saved.qualitySettings.hifiganRefinementIntensity === 'number'
           ? saved.qualitySettings.hifiganRefinementIntensity
-          : DEFAULT_QUALITY_SETTINGS.hifiganRefinementIntensity,
+          : defaultQuality.hifiganRefinementIntensity,
         hifiganNormalizeOutput: typeof saved.qualitySettings.hifiganNormalizeOutput === 'boolean'
           ? saved.qualitySettings.hifiganNormalizeOutput
-          : DEFAULT_QUALITY_SETTINGS.hifiganNormalizeOutput,
+          : defaultQuality.hifiganNormalizeOutput,
         hifiganNormalizeGain: typeof saved.qualitySettings.hifiganNormalizeGain === 'number'
           ? saved.qualitySettings.hifiganNormalizeGain
-          : DEFAULT_QUALITY_SETTINGS.hifiganNormalizeGain,
+          : defaultQuality.hifiganNormalizeGain,
         enableDialectConversion: typeof saved.qualitySettings.enableDialectConversion === 'boolean'
           ? saved.qualitySettings.enableDialectConversion
-          : DEFAULT_QUALITY_SETTINGS.enableDialectConversion,
+          : defaultQuality.enableDialectConversion,
         dialectCode: saved.qualitySettings.dialectCode !== undefined
           ? saved.qualitySettings.dialectCode
-          : DEFAULT_QUALITY_SETTINGS.dialectCode,
+          : defaultQuality.dialectCode,
         dialectIntensity: typeof saved.qualitySettings.dialectIntensity === 'number'
           ? saved.qualitySettings.dialectIntensity
-          : DEFAULT_QUALITY_SETTINGS.dialectIntensity
+          : defaultQuality.dialectIntensity,
+        whisperIntensity: typeof saved.qualitySettings.whisperIntensity === 'number'
+          ? saved.qualitySettings.whisperIntensity
+          : defaultQuality.whisperIntensity
       }
     } else {
-      // Výchozí nastavení pro novou variantu
-      loadedTts = { ...DEFAULT_TTS_SETTINGS }
-      loadedQuality = { ...DEFAULT_QUALITY_SETTINGS }
+      // Výchozí nastavení pro novou variantu - použij slot-specifické defaultní hodnoty
+      const defaultSlot = getDefaultSlotSettings(activeVariant)
+      loadedTts = { ...defaultSlot.ttsSettings }
+      loadedQuality = { ...defaultSlot.qualitySettings }
     }
 
     // Aktualizuj state atomicky (všechno najednou)
@@ -367,6 +571,10 @@ function App() {
       ttsSettings: { ...loadedTts },
       qualitySettings: { ...loadedQuality }
     }
+
+    // DŮLEŽITÉ: Pokud není uložené nastavení, použijeme defaultní hodnoty,
+    // ale NEULOŽÍME je automaticky. Uloží se pouze když uživatel něco změní.
+    // Tím zajistíme, že uživatelské změny se nebudou přepisovat defaultními hodnotami.
 
     // Po načtení resetuj flag (v cleanup funkci pro jistotu)
     const timeoutId = setTimeout(() => {
@@ -448,7 +656,15 @@ function App() {
       if (voiceType === 'upload' && uploadedVoice) {
         voiceFile = uploadedVoice
       } else if (voiceType === 'demo') {
-        demoVoice = selectedVoice
+        // Extrahuj pouze název souboru (ID) z selectedVoice, pokud obsahuje cestu
+        let voiceId = selectedVoice
+        if (voiceId && (voiceId.includes('/') || voiceId.includes('\\'))) {
+          // Je to cesta - extrahuj pouze název souboru bez přípony
+          const pathParts = voiceId.replace(/\\/g, '/').split('/')
+          const filename = pathParts[pathParts.length - 1]
+          voiceId = filename.replace(/\.wav$/i, '')
+        }
+        demoVoice = voiceId
       } else {
         setError('Vyberte nebo nahrajte hlas')
         setLoading(false)
@@ -777,9 +993,10 @@ function App() {
                     settings={ttsSettings}
                     onChange={setTtsSettings}
                     onReset={() => {
-                      // Resetovat nastavení pro aktuální variantu
-                      const resetTts = { ...DEFAULT_TTS_SETTINGS }
-                      const resetQuality = { ...DEFAULT_QUALITY_SETTINGS }
+                      // Resetovat nastavení pro aktuální variantu na slot-specifické defaultní hodnoty
+                      const defaultSlot = getDefaultSlotSettings(activeVariant)
+                      const resetTts = { ...defaultSlot.ttsSettings }
+                      const resetQuality = { ...defaultSlot.qualitySettings }
 
                       setTtsSettings(resetTts)
                       setQualitySettings(resetQuality)
