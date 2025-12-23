@@ -102,3 +102,4 @@ Zkuste vygenerovat texty s:
 - Stop words se kontrolují case-insensitive (malá/velká písmena)
 
 
+
