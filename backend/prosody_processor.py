@@ -136,16 +136,23 @@ class ProsodyProcessor:
                     # Přidej emphasis metadata pro celou větu s vykřičníkem
                     emphasis_meta = {
                         'type': 'emphasis',
-                        'level': 'STRONG',  # Silný důraz pro vykřičník
+                        # Dříve bylo STRONG + UPPERCASE + vysoká audio-intenzita, což často vedlo k přebuzení.
+                        # U vykřičníku chceme důraz, ale bezpečně: MODERATE bez úpravy textu.
+                        'level': 'MODERATE',
+                        'source': 'exclamation',
                         'content': processed,  # Celá věta
-                        'processed_content': processed.upper(),  # Velká písmena pro důraz
+                        'processed_content': processed,  # Neměnit text (UPPERCASE umí model přestřelit)
                         'position': 0,
                         'processed_position': 0,
                         'processed_length': len(processed),
                         'auto_detected': True
                     }
                     metadata['emphasis'].append(emphasis_meta)
-                    print(f"💥 Automatický důraz detekován pro vykřičník: '{processed[:50]}...'")
+                    # Pozn.: některé Windows konzole (cp1252) neumí diakritiku/emoji -> nechceme shazovat běh
+                    try:
+                        print(f"[INFO] Auto emphasis for exclamation: '{processed[:50]}...'")
+                    except Exception:
+                        print("[INFO] Auto emphasis for exclamation.")
 
         return processed, metadata
 
@@ -423,7 +430,8 @@ class ProsodyProcessor:
             intonation_type = 'HALF_FALL'  # Polokadence
         elif text_clean.endswith('!'):
             intonation_type = 'FALL'  # Klesavá pro rozkazy/výkřiky
-            intonation_intensity = 1.5  # Zvýšená intenzita pro výraznější efekt
+            # Příliš vysoká intenzita + emphasis může vést k nepříjemně "hot" výstupu.
+            intonation_intensity = 1.2
             is_exclamation = True
 
         if intonation_type:

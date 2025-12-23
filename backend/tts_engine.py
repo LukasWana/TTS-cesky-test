@@ -1313,7 +1313,7 @@ class XTTSEngine:
                                                         is_exclamation = inton.get('is_exclamation', False)
                                                         if is_exclamation:
                                                             # Pro vykřičník použij mírně vyšší intenzitu
-                                                            fall_intensity = 1.4
+                                                            fall_intensity = 1.2
                                                             print(f"      Auto-detekce FALL (vykřičník!): aplikuji na celou větu ({intonation_start}-{intonation_end}, 100% věty, intensity={fall_intensity})")
                                                         else:
                                                             # Přirozená intenzita pro běžný FALL
@@ -1398,8 +1398,9 @@ class XTTSEngine:
                                                 segment = audio[start_sample:end_sample]
                                                 # Pro STRONG použij vyšší intenzitu (1.5), pro MODERATE standardní (1.0)
                                                 # Pro automaticky detekovaný emphasis z vykřičníku použij ještě vyšší intenzitu
-                                                if auto_detected_emphasis and level == 'STRONG':
-                                                    emphasis_intensity = 2.0  # Velmi vysoká intenzita pro vykřičník
+                                                if auto_detected_emphasis and emph.get('source') == 'exclamation':
+                                                    # Bezpečný důraz pro vykřičník (bez přebuzení)
+                                                    emphasis_intensity = 1.15
                                                 elif level == 'STRONG':
                                                     emphasis_intensity = 1.5
                                                 else:
@@ -1691,13 +1692,30 @@ class XTTSEngine:
 
                 audio, sr = librosa.load(output_path, sr=None)
                 final_headroom_db = target_headroom_db if target_headroom_db is not None else OUTPUT_HEADROOM_DB
-                if final_headroom_db is not None and final_headroom_db < 0:
-                    gain = 10 ** (float(final_headroom_db) / 20.0)  # např. -6 dB => ~0.501
-                    audio = audio * gain
-                    # bezpečnostní clip (float WAV může jít mimo rozsah)
-                    audio = np.clip(audio, -1.0, 1.0)
+                # Striktní hlídání headroomu (peak-based):
+                # - nikdy NEnavyšujeme hlasitost
+                # - pokud peak překročí cílový peak podle headroomu, stáhneme celý signál
+                # - vyhneme se tvrdému clipu, který zní "přebuzile"
+                if final_headroom_db is not None:
+                    try:
+                        peak = float(np.max(np.abs(audio))) if audio is not None and len(audio) else 0.0
+                        if peak > 0:
+                            if float(final_headroom_db) < 0:
+                                target_peak = 10 ** (float(final_headroom_db) / 20.0)  # např. -6 dB => ~0.501
+                            else:
+                                # i při 0 dB necháme mikro-peak rezervu (PCM export / numerika)
+                                target_peak = 0.999
+                            if peak > target_peak:
+                                audio = audio * (target_peak / peak)
+                        # poslední pojistka proti NaN/inf
+                        if not np.isfinite(audio).all():
+                            audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+                    except Exception as _e:
+                        # fallback: aspoň neclippovat
+                        audio = np.clip(audio, -0.999, 0.999)
+
                     sf.write(output_path, audio, sr)
-                    print(f"🔉 Aplikuji finální headroom: {final_headroom_db} dB")
+                    print(f"🔉 Finální headroom guard: {final_headroom_db} dB")
             except Exception as e:
                 print(f"⚠️ Warning: Finální headroom selhal: {e}")
             # 99% necháme až pro úplně poslední krok v backend/main.py (těsně před done=100),
