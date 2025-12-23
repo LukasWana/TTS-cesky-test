@@ -975,7 +975,27 @@ function App() {
 
                 {generatedVariants && generatedVariants.length > 0 && !loading ? (
                   <div className="variants-output-list">
-                    <h3>✨ Vygenerované varianty ({generatedVariants.length})</h3>
+                    <div className="variants-header">
+                      <h3>✨ Vygenerované varianty ({generatedVariants.length})</h3>
+                      <button
+                        className="btn-download-all"
+                        onClick={() => {
+                          generatedVariants.forEach((variant, index) => {
+                            const link = document.createElement('a')
+                            link.href = `http://localhost:8000${variant.audio_url}`
+                            link.download = variant.filename || `varianta-${index + 1}.wav`
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                            // Malé zpoždění mezi stahováním, aby se soubory stáhly správně
+                            setTimeout(() => {}, 100 * index)
+                          })
+                        }}
+                        title="Stáhnout všechny varianty"
+                      >
+                        💾 Stáhnout všechny
+                      </button>
+                    </div>
                     <div className="variants-grid">
                       {generatedVariants.map((variant, index) => (
                         <div key={index} className="variant-output-item">
