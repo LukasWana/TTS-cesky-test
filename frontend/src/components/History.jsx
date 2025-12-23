@@ -165,7 +165,7 @@ function History({ onRestoreText }) {
               )}
 
               {selectedEntry?.id === entry.id && (
-                <div className="history-item-details">
+                <div className="history-item-details" onClick={(e) => e.stopPropagation()}>
                   <div className="history-item-audio">
                     <AudioPlayer audioUrl={`${API_BASE_URL}${entry.audio_url}`} />
                   </div>
