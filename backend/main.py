@@ -23,6 +23,10 @@ from typing import Optional
 # Potlačení deprecation warning z librosa (pkg_resources je zastaralé, ale knihovna ho ještě používá)
 import warnings
 warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*", category=UserWarning)
+# Potlačení FutureWarning z huggingface_hub o resume_download
+warnings.filterwarnings("ignore", message=".*resume_download.*", category=FutureWarning)
+# Potlačení deprecation warning z PyTorch weight_norm (Bark/encodec používá zastaralé API)
+warnings.filterwarnings("ignore", message=".*weight_norm is deprecated.*", category=UserWarning)
 
 # Windows + librosa/numba: na některých sestavách padá numba ufunc (např. _phasor_angles) při pitch shifting.
 # Vypneme JIT (bezpečnější, za cenu menší rychlosti pouze pro tyto operace).
@@ -68,8 +72,10 @@ try:
     )
     from backend.musicgen_engine import MusicGenEngine
     from backend.music_history_manager import MusicHistoryManager
+    from backend.bark_history_manager import BarkHistoryManager
     from backend.ambience_library import pick_many
     from backend.audio_mix_utils import load_audio, overlay as mix_overlay, save_wav, make_loopable
+    from backend.bark_engine import BarkEngine
 except ImportError:
     # Fallback pro spuštění z backend/ adresáře
     from tts_engine import XTTSEngine
@@ -84,8 +90,10 @@ except ImportError:
     )
     from musicgen_engine import MusicGenEngine
     from music_history_manager import MusicHistoryManager
+    from bark_history_manager import BarkHistoryManager
     from ambience_library import pick_many
     from audio_mix_utils import load_audio, overlay as mix_overlay, save_wav
+    from bark_engine import BarkEngine
     from config import (
         API_HOST,
         API_PORT,
@@ -108,6 +116,7 @@ except ImportError:
 # Inicializace engine
 tts_engine = XTTSEngine()
 music_engine = MusicGenEngine()
+bark_engine = BarkEngine()
 
 
 @asynccontextmanager
@@ -905,6 +914,166 @@ async def generate_music(
         raise HTTPException(status_code=500, detail=f"Chyba při MusicGen: {msg}")
 
 
+@app.post("/api/bark/generate")
+async def generate_bark(
+    text: str = Form(...),
+    job_id: str = Form(None),
+    model_size: str = Form("small"),  # "small" nebo "large"
+    temperature: float = Form(0.7),
+    seed: int = Form(None),
+    duration: float = Form(None),  # Délka v sekundách (None = použít výchozí ~14s)
+):
+    """
+    Generuje audio pomocí Bark modelu (řeč, hudba, zvuky).
+
+    Body:
+        text: Textový prompt (může obsahovat [smích], [hudba], [pláč] apod.)
+        model_size: Velikost modelu ("small" nebo "large")
+        temperature: Teplota generování (0.0-1.0, vyšší = kreativnější)
+        seed: Seed pro reprodukovatelnost (volitelné)
+        duration: Délka v sekundách (1-120s, None = výchozí ~14s, delší segmenty se zacyklí)
+        job_id: volitelné pro progress (SSE/polling)
+    """
+    try:
+        if job_id:
+            ProgressManager.start(job_id, meta={"endpoint": "/api/bark/generate", "text_length": len(text or "")})
+
+        if not text or len(text.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Text je prázdný")
+
+        if model_size not in ("small", "large"):
+            model_size = "small"
+
+        # Validace délky
+        duration_s = None
+        if duration is not None:
+            duration_s = float(duration)
+            if duration_s < 1.0 or duration_s > 120.0:
+                raise HTTPException(status_code=400, detail="Délka musí být mezi 1 a 120 sekundami")
+
+        # Generování audia
+        out_path = await anyio.to_thread.run_sync(
+            lambda: bark_engine.generate(
+                text=text,
+                model_size=model_size,
+                temperature=float(temperature) if temperature else 0.7,
+                seed=int(seed) if seed else None,
+                duration_s=duration_s,
+                job_id=job_id,
+            )
+        )
+
+        filename = Path(out_path).name
+        audio_url = f"/api/audio/{filename}"
+
+        # Uložení do historie
+        print(f"[Bark] Ukládám do historie: {filename}")
+        BarkHistoryManager.add_entry(
+            audio_url=audio_url,
+            filename=filename,
+            prompt=text,
+            bark_params={
+                "model_size": model_size,
+                "temperature": float(temperature) if temperature else 0.7,
+                "seed": int(seed) if seed else None,
+                "duration": duration_s,
+            },
+        )
+
+        if job_id:
+            ProgressManager.update(job_id, percent=99, stage="final", message="Hotovo, posílám výsledek…")
+            ProgressManager.done(job_id)
+
+        print(f"[Bark] Hotovo. Odesílám audio_url: {audio_url}")
+        return {
+            "success": True,
+            "audio_url": audio_url,
+            "filename": filename,
+            "job_id": job_id,
+        }
+    except HTTPException:
+        if job_id:
+            ProgressManager.fail(job_id, "HTTPException")
+        raise
+    except Exception as e:
+        msg = str(e)
+        if job_id:
+            ProgressManager.fail(job_id, msg)
+        raise HTTPException(status_code=500, detail=f"Chyba při Bark: {msg}")
+
+
+@app.get("/api/bark/progress/{job_id}")
+async def get_bark_progress(job_id: str):
+    """Vrátí průběh generování Bark pro daný job_id (polling)."""
+    info = ProgressManager.get(job_id)
+    if not info:
+        return {
+            "job_id": job_id,
+            "status": "pending",
+            "percent": 0,
+            "stage": "pending",
+            "message": "Čekám na zahájení…",
+            "eta_seconds": None,
+            "error": None,
+        }
+    return info
+
+
+@app.get("/api/bark/progress/{job_id}/stream")
+async def stream_bark_progress(job_id: str):
+    """SSE stream pro real-time progress updates pro Bark."""
+    import json
+    import asyncio
+
+    async def event_generator():
+        last_percent = -1
+        last_updated = None
+
+        while True:
+            try:
+                info = ProgressManager.get(job_id)
+                if not info:
+                    pending_data = {
+                        "job_id": job_id,
+                        "status": "pending",
+                        "percent": 0,
+                        "stage": "pending",
+                        "message": "Čekám na zahájení…",
+                        "eta_seconds": None,
+                        "error": None,
+                    }
+                    yield f"data: {json.dumps(pending_data)}\n\n"
+                    await asyncio.sleep(0.5)
+                    continue
+
+                percent = info.get("percent", 0)
+                status = info.get("status", "processing")
+                updated = info.get("updated_at")
+
+                # Poslat update pouze pokud se změnil percent nebo status
+                if percent != last_percent or status != last_updated:
+                    yield f"data: {json.dumps(info)}\n\n"
+                    last_percent = percent
+                    last_updated = status
+
+                    if status in ("done", "error"):
+                        break
+
+                await asyncio.sleep(0.5)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                error_data = {
+                    "job_id": job_id,
+                    "status": "error",
+                    "error": str(e),
+                }
+                yield f"data: {json.dumps(error_data)}\n\n"
+                break
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @app.get("/api/music/progress/{job_id}")
 async def get_music_progress(job_id: str):
     """Vrátí průběh generování hudby pro daný job_id (polling)."""
@@ -1024,6 +1193,52 @@ async def clear_music_history():
         return {"success": True, "message": f"Music historie vymazána ({count} záznamů)"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chyba při mazání music historie: {str(e)}")
+
+
+@app.get("/api/bark/history")
+async def get_bark_history(limit: int = 50, offset: int = 0):
+    """Samostatná historie Bark výstupů."""
+    try:
+        history = BarkHistoryManager.get_history(limit=limit, offset=offset)
+        stats = BarkHistoryManager.get_stats()
+        return {"history": history, "stats": stats, "limit": limit, "offset": offset}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při načítání bark historie: {str(e)}")
+
+
+@app.get("/api/bark/history/{entry_id}")
+async def get_bark_history_entry(entry_id: str):
+    try:
+        entry = BarkHistoryManager.get_entry_by_id(entry_id)
+        if not entry:
+            raise HTTPException(status_code=404, detail="Záznam nenalezen")
+        return entry
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při načítání záznamu: {str(e)}")
+
+
+@app.delete("/api/bark/history/{entry_id}")
+async def delete_bark_history_entry(entry_id: str):
+    try:
+        success = BarkHistoryManager.delete_entry(entry_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Záznam nenalezen")
+        return {"success": True, "message": "Záznam smazán"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při mazání: {str(e)}")
+
+
+@app.delete("/api/bark/history")
+async def clear_bark_history():
+    try:
+        count = BarkHistoryManager.clear_history()
+        return {"success": True, "message": f"Bark historie vymazána ({count} záznamů)"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při mazání bark historie: {str(e)}")
 
 
 def get_demo_voice_path(demo_voice_name: str) -> Optional[str]:
