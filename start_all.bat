@@ -105,6 +105,8 @@ python -c "import librosa" >nul 2>&1
 if errorlevel 1 goto :install_backend_deps
 python -c "import soundfile" >nul 2>&1
 if errorlevel 1 goto :install_backend_deps
+python -c "import transformers" >nul 2>&1
+if errorlevel 1 goto :install_backend_deps
 python -c "import scipy" >nul 2>&1
 if errorlevel 1 goto :install_backend_deps
 python -c "import yt_dlp" >nul 2>&1

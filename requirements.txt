@@ -26,14 +26,26 @@ aiofiles==23.2.1
 # NOTE: TTS 0.22.0 requires numpy==1.22.0 for Python <= 3.10
 # Let TTS specify all audio dependencies including librosa
 soundfile==0.12.1
-# librosa - TTS 0.22.0 specifies compatible version, let pip resolve automatically
-pydub==0.25.1
-# numpy - TTS 0.22.0 specifies version based on Python version, let pip resolve automatically
+# librosa: pin kvůli kompatibilitě s TTS (import magphase/pyin) a stabilitě po upgradu deps
+librosa==0.10.0
+ pydub==0.25.1
++# soxr: pro rychlý resampling v librosa (důležité pro mixování na CPU)
++soxr>=0.3.7
+ # numpy - TTS 0.22.0 specifies version based on Python version, let pip resolve automatically
 # scipy - TTS 0.22.0 specifies its version, let pip resolve automatically
 
 # Utilities
 python-dotenv==1.0.0
-huggingface-hub==0.20.0
+# huggingface-hub: novější verze je potřeba pro accelerate/transformers (MusicGen)
+huggingface-hub>=0.23.0,<1.0
+
+# Music generation (MusicGen)
+# Používáme Transformers implementaci (lepší kompatibilita na Windows; bez PyAV/FFmpeg buildů).
+# Pozn.: pin kvůli kompatibilitě s torch==2.1.0 (TTS stack) na Windows.
+transformers==4.38.2
+accelerate==0.27.2
+sentencepiece>=0.2.0
+safetensors>=0.4.0
 
 # YouTube download
 yt-dlp>=2024.0.0
