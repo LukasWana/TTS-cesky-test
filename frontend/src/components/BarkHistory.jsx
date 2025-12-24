@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { getBarkHistory, deleteBarkHistoryEntry, clearBarkHistory } from '../services/api'
+import { deleteWaveformCache, clearWaveformCache } from '../utils/waveformCache'
 import AudioPlayer from './AudioPlayer'
 import './History.css'
 
-const API_BASE_URL = 'http://localhost:8000'
+// Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome
+const API_BASE_URL = 'http://127.0.0.1:8000'
 
 function BarkHistory({ onRestorePrompt }) {
   const [history, setHistory] = useState([])
@@ -38,7 +40,16 @@ function BarkHistory({ onRestorePrompt }) {
     }
 
     try {
+      // Najít entry před smazáním pro vyčištění cache
+      const entryToDelete = history.find(entry => entry.id === entryId)
+
       await deleteBarkHistoryEntry(entryId)
+
+      // Vyčistit cache pro smazané audio
+      if (entryToDelete?.audio_url) {
+        deleteWaveformCache(entryToDelete.audio_url)
+      }
+
       setHistory(history.filter(entry => entry.id !== entryId))
     } catch (err) {
       setError(err.message || 'Chyba při mazání záznamu')
@@ -52,6 +63,10 @@ function BarkHistory({ onRestorePrompt }) {
 
     try {
       await clearBarkHistory()
+
+      // Vyčistit celou waveform cache
+      clearWaveformCache()
+
       setHistory([])
       setStats(null)
     } catch (err) {

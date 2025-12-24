@@ -4,10 +4,12 @@ import {
   getMusicHistory, deleteMusicHistoryEntry, clearMusicHistory,
   getBarkHistory, deleteBarkHistoryEntry, clearBarkHistory
 } from '../services/api'
+import { deleteWaveformCache, clearWaveformCache } from '../utils/waveformCache'
 import AudioPlayer from './AudioPlayer'
 import './History.css'
 
-const API_BASE_URL = 'http://localhost:8000'
+// Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome
+const API_BASE_URL = 'http://127.0.0.1:8000'
 
 const HISTORY_TYPES = {
   tts: { label: 'mluvené slovo', icon: '🎤' },
@@ -58,6 +60,9 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
     }
 
     try {
+      // Najít entry před smazáním pro vyčištění cache
+      const entryToDelete = history.find(entry => entry.id === entryId)
+
       if (historyType === 'tts') {
         await deleteHistoryEntry(entryId)
       } else if (historyType === 'music') {
@@ -65,6 +70,12 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
       } else if (historyType === 'bark') {
         await deleteBarkHistoryEntry(entryId)
       }
+
+      // Vyčistit cache pro smazané audio
+      if (entryToDelete?.audio_url) {
+        deleteWaveformCache(entryToDelete.audio_url)
+      }
+
       setHistory(history.filter(entry => entry.id !== entryId))
     } catch (err) {
       setError(err.message || 'Chyba při mazání záznamu')
@@ -85,6 +96,10 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
       } else if (historyType === 'bark') {
         await clearBarkHistory()
       }
+
+      // Vyčistit celou waveform cache (jednodušší než iterovat přes všechny položky)
+      clearWaveformCache()
+
       setHistory([])
       setStats(null)
     } catch (err) {
