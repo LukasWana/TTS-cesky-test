@@ -96,10 +96,12 @@
 
 .main-header-row {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+  justify-content: center;
+  align-items: center;
   margin-bottom: 24px;
   gap: 20px;
+  flex-wrap: wrap;
+  width: 100%;
 }
 
 .btn-toggle-settings {

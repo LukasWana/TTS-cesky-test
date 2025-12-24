@@ -187,6 +187,302 @@ function LayerWaveform({
   return <div ref={waveformContainerRef} className="layer-waveform" />
 }
 
+// Komponenta pro náhled položky v historii
+function HistoryItemPreview({ entry, onAddToEditor }) {
+  const waveformRef = useRef(null)
+  const wavesurferRef = useRef(null)
+  const containerRef = useRef(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [hasError, setHasError] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [shouldLoad, setShouldLoad] = useState(false)
+  const errorTimeoutRef = useRef(null)
+  const observerRef = useRef(null)
+
+  const audioUrl = entry?.audio_url
+  const prompt = entry?.text || entry?.prompt || 'Bez popisu'
+
+  // Validace a vytvoření full URL
+  const fullUrl = React.useMemo(() => {
+    if (!audioUrl) {
+      return null
+    }
+    if (audioUrl.startsWith('http://') || audioUrl.startsWith('https://')) {
+      return audioUrl
+    }
+    // Zajistit, že URL začíná lomítkem
+    const normalizedUrl = audioUrl.startsWith('/') ? audioUrl : `/${audioUrl}`
+    return `${API_BASE_URL}${normalizedUrl}`
+  }, [audioUrl])
+
+  // Intersection Observer pro lazy loading - načítat pouze viditelné položky
+  useEffect(() => {
+    if (!containerRef.current || !fullUrl) {
+      setIsLoading(false)
+      return
+    }
+
+    // Vytvořit observer pro detekci, kdy je prvek viditelný
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            // Prvek je viditelný - začít načítat waveform
+            setShouldLoad(true)
+            // Odpojit observer, už není potřeba
+            if (observerRef.current && containerRef.current) {
+              observerRef.current.unobserve(containerRef.current)
+            }
+          }
+        })
+      },
+      {
+        rootMargin: '100px', // Začít načítat 100px před tím, než je prvek viditelný
+        threshold: 0.01
+      }
+    )
+
+    observerRef.current.observe(containerRef.current)
+
+    return () => {
+      if (observerRef.current && containerRef.current) {
+        observerRef.current.unobserve(containerRef.current)
+      }
+    }
+  }, [fullUrl])
+
+  // Načíst waveform pouze když je prvek viditelný (shouldLoad = true)
+  useEffect(() => {
+    if (!waveformRef.current || !fullUrl || !shouldLoad) {
+      return
+    }
+
+    // Reset states při novém načítání
+    setHasError(false)
+    setIsLoading(true)
+
+    // Vyčistit předchozí timeout
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current)
+      errorTimeoutRef.current = null
+    }
+
+    let wavesurfer = null
+
+    try {
+      wavesurfer = WaveSurfer.create({
+        container: waveformRef.current,
+        waveColor: 'rgba(255, 255, 255, 0.25)',
+        progressColor: 'rgba(99, 102, 241, 0.6)',
+        cursorColor: 'transparent',
+        barWidth: 1,
+        barRadius: 0.5,
+        responsive: true,
+        height: 40,
+        normalize: true,
+        interact: false,
+        backend: 'WebAudio'
+      })
+
+      wavesurferRef.current = wavesurfer
+
+      // Handler pro úspěšné načtení
+      wavesurfer.on('ready', () => {
+        setHasError(false)
+        setIsLoading(false)
+        // Zrušit timeout pro chybu, pokud existuje
+        if (errorTimeoutRef.current) {
+          clearTimeout(errorTimeoutRef.current)
+          errorTimeoutRef.current = null
+        }
+      })
+
+      // Error handling - pouze skutečné chyby
+      wavesurfer.on('error', (error) => {
+        // Ignorovat některé běžné chyby, které se mohou objevit při cleanup
+        if (error && typeof error === 'object') {
+          const errorMessage = error.message || error.toString()
+          // Ignorovat chyby související s cleanup nebo abort
+          if (errorMessage.includes('AbortError') ||
+              errorMessage.includes('NotAllowedError') ||
+              errorMessage.includes('cancelLoad')) {
+            return
+          }
+        }
+        console.error('WaveSurfer error při načítání audio:', error, fullUrl)
+        setIsLoading(false)
+        setHasError(true)
+      })
+
+      wavesurfer.on('play', () => setIsPlaying(true))
+      wavesurfer.on('pause', () => setIsPlaying(false))
+      wavesurfer.on('finish', () => setIsPlaying(false))
+
+      // Timeout pro detekci pomalého načítání (10 sekund)
+      errorTimeoutRef.current = setTimeout(() => {
+        if (isLoading) {
+          console.warn('Audio se načítá příliš dlouho:', fullUrl)
+          // Nezobrazit chybu, jen logovat - možná se ještě načte
+        }
+      }, 10000)
+
+      // Načíst audio
+      try {
+        const loadPromise = wavesurfer.load(fullUrl)
+        if (loadPromise && typeof loadPromise.catch === 'function') {
+          loadPromise.catch((error) => {
+            // Ignorovat abort chyby
+            if (error && error.name &&
+                (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
+              return
+            }
+            console.error('Chyba při načítání audio URL:', error, fullUrl)
+            setIsLoading(false)
+            setHasError(true)
+          })
+        }
+      } catch (loadError) {
+        // Ignorovat abort chyby
+        if (loadError && loadError.name &&
+            (loadError.name === 'AbortError' || loadError.name === 'NotAllowedError')) {
+          return
+        }
+        console.error('Chyba při volání load():', loadError, fullUrl)
+        setIsLoading(false)
+        setHasError(true)
+      }
+
+      return () => {
+        // Vyčistit timeout
+        if (errorTimeoutRef.current) {
+          clearTimeout(errorTimeoutRef.current)
+          errorTimeoutRef.current = null
+        }
+
+        if (wavesurferRef.current) {
+          try {
+            // Zastavit přehrávání
+            if (wavesurferRef.current.isPlaying && wavesurferRef.current.isPlaying()) {
+              wavesurferRef.current.pause()
+            }
+            // Zastavit načítání, pokud probíhá
+            if (wavesurferRef.current.isLoading && wavesurferRef.current.cancelLoad) {
+              try {
+                wavesurferRef.current.cancelLoad()
+              } catch (e) {
+                // Ignorovat chyby při cancelLoad
+              }
+            }
+            // Zničit instanci
+            const destroyResult = wavesurferRef.current.destroy()
+            if (destroyResult && typeof destroyResult.catch === 'function') {
+              destroyResult.catch((e) => {
+                // Ignorovat všechny cleanup chyby
+                if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
+                  console.debug('Cleanup warning:', e)
+                }
+              })
+            }
+          } catch (e) {
+            // Ignorovat všechny cleanup chyby
+            if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
+              console.debug('Cleanup warning:', e)
+            }
+          }
+          wavesurferRef.current = null
+        }
+      }
+    } catch (err) {
+      console.error('Chyba při vytváření WaveSurfer instance:', err)
+      setIsLoading(false)
+      setHasError(true)
+    }
+  }, [fullUrl, shouldLoad])
+
+  const togglePlay = (e) => {
+    e.stopPropagation()
+    if (wavesurferRef.current && !hasError) {
+      try {
+        wavesurferRef.current.playPause()
+      } catch (error) {
+        console.error('Chyba při přehrávání:', error)
+        setHasError(true)
+      }
+    }
+  }
+
+  const handleClick = (e) => {
+    // Pokud klikneme na play button, nechceme přidat do editoru
+    if (e.target.closest('.history-item-play-btn')) {
+      return
+    }
+    onAddToEditor()
+  }
+
+  // Pokud není audio URL, nezobrazovat waveform
+  if (!audioUrl || !fullUrl) {
+    return (
+      <div className="history-item-compact" onClick={handleClick}>
+        <div className="history-item-compact-text">
+          {prompt}
+        </div>
+        <div className="history-item-error" style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '8px' }}>
+          Audio není k dispozici
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="history-item-compact"
+      onClick={handleClick}
+    >
+      <div className="history-item-waveform-container">
+        <button
+          className="history-item-play-btn"
+          onClick={togglePlay}
+          title={isPlaying ? 'Pauza' : 'Přehrát'}
+          disabled={hasError || isLoading || !shouldLoad}
+        >
+          {hasError ? '⚠️' : (isLoading && !shouldLoad ? '⏳' : (isPlaying ? '⏸' : '▶'))}
+        </button>
+        {!shouldLoad ? (
+          <div className="history-item-waveform-placeholder" style={{
+            flex: 1,
+            minHeight: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'rgba(255, 255, 255, 0.3)',
+            fontSize: '0.7rem'
+          }}>
+            Načítání...
+          </div>
+        ) : hasError ? (
+          <div className="history-item-waveform-error" style={{
+            flex: 1,
+            minHeight: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'rgba(255, 255, 255, 0.4)',
+            fontSize: '0.75rem'
+          }}>
+            Chyba při načítání
+          </div>
+        ) : (
+          <div className="history-item-waveform" ref={waveformRef}></div>
+        )}
+      </div>
+      <div className="history-item-compact-text">
+        {prompt}
+      </div>
+    </div>
+  )
+}
+
 function AudioEditor() {
   const [layers, setLayers] = useState([])
   const [selectedLayerId, setSelectedLayerId] = useState(null)
@@ -206,6 +502,7 @@ function AudioEditor() {
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [currentProjectId, setCurrentProjectId] = useState(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const audioContextRef = useRef(null)
   const masterGainNodeRef = useRef(null)
@@ -484,6 +781,7 @@ function AudioEditor() {
       setHistoryLoading(true)
       let allHistory = []
 
+      // Načíst data z API (rychle, bez waveformů)
       if (historyType === 'all' || historyType === 'tts') {
         try {
           const ttsData = await getHistory(100, 0)
@@ -533,6 +831,7 @@ function AudioEditor() {
         return dateB - dateA
       })
 
+      // Nastavit historii - waveformy se načtou lazy loadingem přes Intersection Observer
       setHistory(allHistory)
     } catch (err) {
       console.error('Chyba při načítání historie:', err)
@@ -594,6 +893,151 @@ function AudioEditor() {
     } catch (err) {
       console.error('Chyba při vytváření blob URL:', err)
       return null
+    }
+  }
+
+  // Export projektu jako WAV soubor
+  const exportProjectAsWav = async () => {
+    if (layers.length === 0) {
+      alert('Nelze exportovat prázdný projekt')
+      return
+    }
+
+    try {
+      setIsExporting(true)
+
+      if (!audioContextRef.current) {
+        throw new Error('AudioContext není inicializován')
+      }
+
+      const sampleRate = audioContextRef.current.sampleRate
+      const totalLength = Math.ceil(maxDuration * sampleRate)
+
+      // Vytvořit finální buffer (stereo)
+      const numberOfChannels = 2
+      const outputBuffer = audioContextRef.current.createBuffer(numberOfChannels, totalLength, sampleRate)
+      const leftChannel = outputBuffer.getChannelData(0)
+      const rightChannel = outputBuffer.getChannelData(1)
+
+      // Mixovat všechny vrstvy
+      for (const layer of layers) {
+        if (!layer.audioBuffer) continue
+
+        // Oříznutí podle trim
+        const trimStart = Math.max(0, Math.min(layer.trimStart, layer.audioBuffer.duration))
+        const trimEnd = Math.max(trimStart + 0.1, Math.min(layer.trimEnd, layer.audioBuffer.duration))
+        const trimmedDuration = trimEnd - trimStart
+
+        // Vypočítat, kolikrát se má loop opakovat
+        const cycleDuration = trimmedDuration
+        const layerDuration = layer.duration
+        const numCycles = layer.loop ? Math.ceil(layerDuration / cycleDuration) : 1
+
+        // Získat audio data z původního bufferu
+        const sourceChannels = layer.audioBuffer.numberOfChannels
+        const sourceLeft = layer.audioBuffer.getChannelData(0)
+        const sourceRight = sourceChannels > 1 ? layer.audioBuffer.getChannelData(1) : sourceLeft
+
+        // Vypočítat offset v původním bufferu
+        const sourceStartSample = Math.floor(trimStart * layer.audioBuffer.sampleRate)
+        const sourceEndSample = Math.floor(trimEnd * layer.audioBuffer.sampleRate)
+        const sourceLength = sourceEndSample - sourceStartSample
+
+        // Resample ratio
+        const resampleRatio = layer.audioBuffer.sampleRate / sampleRate
+
+        // Pro každý cyklus
+        for (let cycle = 0; cycle < numCycles; cycle++) {
+          const cycleStartTime = layer.startTime + (cycle * cycleDuration)
+          const cycleStartSample = Math.floor(cycleStartTime * sampleRate)
+          const cycleEndSample = Math.min(
+            Math.floor((cycleStartTime + cycleDuration) * sampleRate),
+            totalLength
+          )
+
+          // Vypočítat délku tohoto cyklu
+          const cycleLength = cycleEndSample - cycleStartSample
+          if (cycleLength <= 0) continue
+
+          // Mixovat do výstupního bufferu
+          for (let i = 0; i < cycleLength; i++) {
+            const outputIndex = cycleStartSample + i
+            if (outputIndex >= totalLength) break
+
+            // Vypočítat pozici v původním bufferu (s resamplingem)
+            const sourceIndex = sourceStartSample + (i * resampleRatio)
+            const sourceIndexFloor = Math.floor(sourceIndex)
+            const sourceIndexCeil = Math.min(sourceIndexFloor + 1, sourceEndSample - 1)
+            const fraction = sourceIndex - sourceIndexFloor
+
+            // Lineární interpolace
+            let leftSample = 0
+            let rightSample = 0
+
+            if (sourceIndexFloor < sourceEndSample && sourceIndexFloor >= sourceStartSample) {
+              const left1 = sourceLeft[sourceIndexFloor]
+              const right1 = sourceRight[sourceIndexFloor]
+              const left2 = sourceIndexCeil < sourceEndSample ? sourceLeft[sourceIndexCeil] : left1
+              const right2 = sourceIndexCeil < sourceEndSample ? sourceRight[sourceIndexCeil] : right1
+
+              leftSample = left1 + (left2 - left1) * fraction
+              rightSample = right1 + (right2 - right1) * fraction
+            }
+
+            // Vypočítat čas v rámci vrstvy pro fade in/out
+            const timeInLayer = (outputIndex / sampleRate) - layer.startTime
+            const timeInCycle = timeInLayer % cycleDuration
+            const fadeInDuration = Math.min(layer.fadeIn, cycleDuration)
+            const fadeOutDuration = Math.min(layer.fadeOut, cycleDuration)
+
+            // Aplikovat fade in
+            let fadeMultiplier = 1.0
+            if (fadeInDuration > 0 && timeInCycle < fadeInDuration) {
+              fadeMultiplier = timeInCycle / fadeInDuration
+            }
+
+            // Aplikovat fade out
+            if (fadeOutDuration > 0 && timeInCycle > (cycleDuration - fadeOutDuration)) {
+              const fadeOutProgress = (cycleDuration - timeInCycle) / fadeOutDuration
+              fadeMultiplier = Math.min(fadeMultiplier, fadeOutProgress)
+            }
+
+            // Aplikovat volume a master volume
+            const finalVolume = layer.volume * masterVolume * fadeMultiplier
+            leftSample *= finalVolume
+            rightSample *= finalVolume
+
+            // Mixovat do výstupního bufferu (s ochranou proti clippingu)
+            leftChannel[outputIndex] = Math.max(-1, Math.min(1, leftChannel[outputIndex] + leftSample))
+            rightChannel[outputIndex] = Math.max(-1, Math.min(1, rightChannel[outputIndex] + rightSample))
+          }
+        }
+      }
+
+      // Vytvořit WAV a stáhnout
+      const wav = await audioBufferToWav(outputBuffer)
+      const blob = new Blob([wav], { type: 'audio/wav' })
+      const url = URL.createObjectURL(blob)
+
+      const link = document.createElement('a')
+      const filename = projectName
+        ? `${projectName.replace(/[^a-z0-9]/gi, '_')}.wav`
+        : `audio-project-${new Date().toISOString().replace(/[:.]/g, '-')}.wav`
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      // Vyčistit URL
+      setTimeout(() => URL.revokeObjectURL(url), 100)
+
+      alert(`Projekt byl úspěšně exportován jako ${filename}`)
+    } catch (err) {
+      console.error('Chyba při exportu projektu:', err)
+      alert('Chyba při exportu projektu: ' + err.message)
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -1466,13 +1910,18 @@ function AudioEditor() {
   const selectedLayer = layers.find(l => l.id === selectedLayerId)
 
   return (
-    <div className="audio-editor">
+    <div
+      className="audio-editor"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="audio-editor-header">
         <div className="header-top">
           <div>
             <h2>🎚️ Audio Editor - Kompozice ve vrstvách</h2>
             <p className="audio-editor-hint">
-              Přetáhněte audio soubory nebo klikněte pro výběr. Upravujte vrstvy, mixujte a exportujte výsledek.
+              Přetáhněte audio soubory do editoru. Upravujte vrstvy, mixujte a exportujte výsledek.
             </p>
           </div>
           <div className="project-controls">
@@ -1491,36 +1940,12 @@ function AudioEditor() {
               💾 {currentProjectId ? 'Uložit změny' : 'Uložit projekt'}
             </button>
             <button
-              className="btn-project btn-reset"
-              onClick={() => {
-                if (window.confirm('Opravdu chcete kompletně resetovat editor? Vymaže se vše včetně uložených projektů a localStorage.')) {
-                  // Vymazat localStorage
-                  localStorage.removeItem(STORAGE_KEY)
-                  localStorage.removeItem(PROJECTS_STORAGE_KEY)
-                  // Zastavit přehrávání
-                  stopAllSources()
-                  setIsPlaying(false)
-                  // Vymazat všechny vrstvy
-                  layers.forEach(layer => {
-                    if (layer.blobUrl) {
-                      URL.revokeObjectURL(layer.blobUrl)
-                    }
-                  })
-                  // Reset všech stavů
-                  setLayers([])
-                  setSelectedLayerId(null)
-                  setCurrentTime(0)
-                  setPlaybackPosition(0)
-                  setCurrentProjectId(null)
-                  setProjectName('')
-                  setSavedProjects([])
-                  alert('Editor byl kompletně resetován. Stránka se obnoví.')
-                  window.location.reload()
-                }
-              }}
-              title="Kompletní reset editoru"
+              className="btn-project btn-export-wav"
+              onClick={exportProjectAsWav}
+              title="Exportovat projekt jako WAV soubor"
+              disabled={layers.length === 0 || isExporting}
             >
-              🔄 Reset všeho
+              {isExporting ? '⏳ Exportuji...' : '💾 Exportovat jako WAV'}
             </button>
             {currentProjectId && (
               <span className="current-project-name">
@@ -1810,39 +2235,11 @@ function AudioEditor() {
           ) : (
             <div className="history-list-compact">
               {history.map((entry) => (
-                <div
+                <HistoryItemPreview
                   key={`${entry.source}-${entry.id}`}
-                  className="history-item-compact"
-                  onClick={() => addLayerFromHistory(entry)}
-                >
-                  <div className="history-item-compact-header">
-                    <span className="history-item-source">{entry.sourceLabel}</span>
-                    <span className="history-item-date">
-                      {new Date(entry.created_at).toLocaleDateString('cs-CZ', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
-                  </div>
-                  <div className="history-item-compact-text">
-                    {entry.text ? (
-                      <span title={entry.text}>
-                        "{entry.text.length > 60 ? entry.text.substring(0, 60) + '...' : entry.text}"
-                      </span>
-                    ) : entry.prompt ? (
-                      <span title={entry.prompt}>
-                        {entry.prompt.length > 60 ? entry.prompt.substring(0, 60) + '...' : entry.prompt}
-                      </span>
-                    ) : (
-                      <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Bez popisu</span>
-                    )}
-                  </div>
-                  <div className="history-item-compact-action">
-                    ➕ Přidat do editoru
-                  </div>
-                </div>
+                  entry={entry}
+                  onAddToEditor={() => addLayerFromHistory(entry)}
+                />
               ))}
             </div>
           )}
@@ -1858,29 +2255,15 @@ function AudioEditor() {
         </button>
       )}
 
-      {/* Drag and Drop Area */}
-      <div
-        className={`drop-zone ${isDragging ? 'dragging' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="audio/*"
-          multiple
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-        />
-        <div className="drop-zone-content">
-          <div className="drop-zone-icon">📁</div>
-          <div className="drop-zone-text">
-            Přetáhněte audio soubory sem nebo klikněte pro výběr
-          </div>
-        </div>
-      </div>
+      {/* Hidden file input for programmatic file selection */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/*"
+        multiple
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+      />
 
       {/* Layers List */}
       <div className="layers-panel">
