@@ -6,10 +6,12 @@ import AudioPlayer from './components/AudioPlayer'
 import LoadingSpinner from './components/LoadingSpinner'
 import TTSSettings from './components/TTSSettings'
 import History from './components/History'
-import Tabs from './components/Tabs'
 import MusicGen from './components/MusicGen'
 import Bark from './components/Bark'
 import AudioEditor from './components/AudioEditor'
+import Sidebar from './components/Sidebar'
+import Alert from './components/Alert'
+import Button from './components/ui/Button'
 import { generateSpeech, getDemoVoices, getModelStatus, getTtsProgress, subscribeToTtsProgress } from './services/api'
 import './App.css'
 
@@ -268,6 +270,7 @@ const loadVariantSettings = (voiceId, variantId) => {
 function App() {
   const [activeVariant, setActiveVariant] = useState('variant1') // 'variant1' | 'variant2' | ... | 'variant5'
   const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'musicgen' | 'bark' | 'history'
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Nastavení hlasu
   const [selectedVoice, setSelectedVoice] = useState('demo1')
@@ -893,33 +896,37 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>🎤 XTTS-v2 Czech TTS Demo</h1>
-        {modelStatus && (
-          <div className="model-status">
-            <span className={`status-indicator ${modelStatus.loaded ? 'loaded' : modelStatus.loading ? 'loading' : 'idle'}`}>
-              {modelStatus.loaded
-                ? '✓ Model načten'
-                : modelStatus.loading
-                  ? '⏳ Načítání modelu...'
-                  : 'Připraven (On-Demand)'}
-            </span>
-            <span className="device-info">
-              Device: <strong>{modelStatus.device.toUpperCase()}</strong>
-              {modelStatus.gpu_name && ` (${modelStatus.gpu_name})`}
-              {modelStatus.device_forced && (
-                <span className="device-forced"> [vynuceno: {modelStatus.force_device}]</span>
-              )}
-            </span>
-          </div>
-        )}
-      </header>
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        tabs={tabs}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        modelStatus={modelStatus}
+      />
 
-      <main className="app-main">
+      <div className="app-content">
+        <header className="app-header">
+          <button
+            className="app-menu-toggle"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Otevřít menu"
+          >
+            ☰
+          </button>
+        </header>
+
+        {error && (
+          <Alert
+            type="error"
+            message={error}
+            onClose={() => setError(null)}
+          />
+        )}
+
+        <main className="app-main">
         <div className="container">
           <div className="main-header-row">
-            {/* Záložky Generovat/Historie */}
-            <Tabs activeTab={activeTab} onTabChange={setActiveTab} tabs={tabs} />
 
             {activeTab === 'generate' && (
               <button
@@ -958,22 +965,19 @@ function App() {
                 />
 
                 <div className="generate-section">
-                  <button
-                    className="btn-primary"
+                  <Button
+                    variant="primary"
+                    size="lg"
                     onClick={handleGenerate}
                     disabled={loading || !text.trim()}
+                    fullWidth
+                    icon={loading ? '⏳' : '🔊'}
                   >
-                    {loading ? '⏳ Generuji...' : '🔊 Generovat řeč'}
-                  </button>
+                    {loading ? 'Generuji...' : 'Generovat řeč'}
+                  </Button>
                 </div>
 
                 {loading && <LoadingSpinner progress={ttsProgress} />}
-
-                {error && (
-                  <div className="error-message">
-                    ⚠️ {error}
-                  </div>
-                )}
 
                 {generatedVariants && generatedVariants.length > 0 && !loading ? (
                   <div className="variants-output-list">
@@ -1087,6 +1091,7 @@ function App() {
           )}
         </div>
       </main>
+      </div>
     </div>
   )
 }

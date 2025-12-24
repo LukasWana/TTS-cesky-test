@@ -1,29 +1,72 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
 
 /* Design Tokens - CSS Variables */
 :root {
-  /* Colors - based on existing palette */
+  /* Primary Colors */
+  --color-primary: #6366f1;
+  --color-primary-hover: #818cf8;
+  --color-primary-light: rgba(99, 102, 241, 0.15);
+  --color-primary-border: rgba(99, 102, 241, 0.2);
+  --color-primary-dark: #4f46e5;
+
+  /* Secondary Colors */
+  --color-secondary: #8b5cf6;
+  --color-secondary-hover: #a78bfa;
+  --color-secondary-light: rgba(139, 92, 246, 0.15);
+  --color-secondary-border: rgba(139, 92, 246, 0.2);
+
+  /* Accent Colors */
+  --color-accent-teal: #14b8a6;
+  --color-accent-teal-hover: #2dd4bf;
+  --color-accent-teal-light: rgba(20, 184, 166, 0.15);
+  --color-accent-amber: #f59e0b;
+  --color-accent-amber-hover: #fbbf24;
+  --color-accent-amber-light: rgba(245, 158, 11, 0.15);
+
+  /* Background Colors */
   --color-bg-start: #2a2d3e;
   --color-bg-end: #1a1c2c;
+  --color-bg-gradient: linear-gradient(135deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%);
+
+  /* Text Colors */
   --color-text-primary: #ffffff;
   --color-text-secondary: rgba(255, 255, 255, 0.8);
   --color-text-tertiary: rgba(255, 255, 255, 0.6);
   --color-text-muted: rgba(255, 255, 255, 0.4);
-  --color-accent: #6366f1;
-  --color-accent-hover: #818cf8;
-  --color-accent-light: rgba(99, 102, 241, 0.15);
-  --color-accent-border: rgba(99, 102, 241, 0.2);
+  --color-text-disabled: rgba(255, 255, 255, 0.2);
+
+  /* Legacy accent (for backward compatibility) */
+  --color-accent: var(--color-primary);
+  --color-accent-hover: var(--color-primary-hover);
+  --color-accent-light: var(--color-primary-light);
+  --color-accent-border: var(--color-primary-border);
 
   /* Surface colors */
   --color-surface: rgba(255, 255, 255, 0.02);
   --color-surface-hover: rgba(255, 255, 255, 0.04);
   --color-surface-active: rgba(255, 255, 255, 0.06);
   --color-surface-elevated: rgba(255, 255, 255, 0.05);
+  --color-surface-card: rgba(0, 0, 0, 0.2);
 
   /* Border colors */
   --color-border: rgba(255, 255, 255, 0.05);
   --color-border-hover: rgba(255, 255, 255, 0.1);
   --color-border-active: rgba(255, 255, 255, 0.2);
+  --color-border-focus: rgba(99, 102, 241, 0.4);
+
+  /* Status Colors */
+  --color-success: #10b981;
+  --color-success-light: rgba(16, 185, 129, 0.15);
+  --color-success-border: rgba(16, 185, 129, 0.3);
+  --color-error: #ef4444;
+  --color-error-light: rgba(239, 68, 68, 0.15);
+  --color-error-border: rgba(239, 68, 68, 0.3);
+  --color-warning: #f59e0b;
+  --color-warning-light: rgba(245, 158, 11, 0.15);
+  --color-warning-border: rgba(245, 158, 11, 0.3);
+  --color-info: #3b82f6;
+  --color-info-light: rgba(59, 130, 246, 0.15);
+  --color-info-border: rgba(59, 130, 246, 0.3);
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -47,10 +90,52 @@
   --font-base: 1rem;
   --font-lg: 1.1rem;
   --font-xl: 1.5rem;
+  --font-2xl: 2rem;
+  --font-3xl: 2.5rem;
+
+  /* Font families */
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  --font-heading: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Font weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* Letter spacing */
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-glow: 0 10px 25px rgba(79, 70, 229, 0.3);
+  --shadow-glow-hover: 0 15px 30px rgba(79, 70, 229, 0.4);
 
   /* Transitions */
   --transition-fast: 0.2s ease;
   --transition-base: 0.3s ease;
+  --transition-slow: 0.5s ease;
+  --transition-bounce: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Z-index layers */
+  --z-base: 1;
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
 }
 
 * {
@@ -60,17 +145,126 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%);
+  background: var(--color-bg-gradient);
+  background-attachment: fixed;
   color: var(--color-text-secondary);
   min-height: 100vh;
-  padding: 20px;
+  padding: 0;
+  line-height: var(--line-height-normal);
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 0;
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+  color: var(--color-text-primary);
+}
+
+h1 {
+  font-size: var(--font-3xl);
+  font-weight: var(--font-weight-bold);
+}
+
+h2 {
+  font-size: var(--font-2xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+h3 {
+  font-size: var(--font-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+p {
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-secondary);
 }
 
 #root {
   width: 100%;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Fade in animation for page content */
+.app-main {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Smooth transitions for interactive elements */
+button, a, input, select, textarea {
+  transition: all var(--transition-fast);
+}
+
+/* Hover effects */
+button:not(:disabled):hover,
+a:hover {
+  transition: all var(--transition-base);
+}
+
+/* Focus visible styles */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 
