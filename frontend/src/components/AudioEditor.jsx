@@ -1,14 +1,16 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import './AudioEditor.css'
 import { getHistory, getMusicHistory, getBarkHistory } from '../services/api'
+import { getWaveformCache, setWaveformCache } from '../utils/waveformCache'
 
-const API_BASE_URL = 'http://localhost:8000'
+// Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome
+const API_BASE_URL = 'http://127.0.0.1:8000'
 const STORAGE_KEY = 'audio_editor_state'
 const PROJECTS_STORAGE_KEY = 'audio_editor_projects'
 
 // Komponenta pro waveform náhled v klipu
-function LayerWaveform({
+const LayerWaveform = React.memo(function LayerWaveform({
   layerId,
   audioUrl,
   blobUrl,
@@ -21,8 +23,6 @@ function LayerWaveform({
   loopAnchorTime = null,
   onReady
 }) {
-  const waveformContainerRef = useRef(null)
-  const wavesurferRef = useRef(null)
 
   const renderWaveformDataUrl = useCallback((buffer, tStart, tEnd) => {
     try {
@@ -51,19 +51,35 @@ function LayerWaveform({
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)'
       ctx.lineWidth = 1
       const mid = height / 2
+      const padding = 2 // Padding aby waveform nešel až na okraj
 
+      // Nejprve najít max absolutní amplitudu v celém segmentu pro grafickou normalizaci
+      let globalMaxAmplitude = 0
+      for (let i = s0; i < s1; i++) {
+        const raw = ch1 ? (ch0[i] + ch1[i]) / 2 : ch0[i]
+        const abs = Math.abs(raw)
+        if (abs > globalMaxAmplitude) globalMaxAmplitude = abs
+      }
+
+      // Vypočítat normalizační faktor: škálovat tak, aby vyplnil výšku (s paddingem)
+      const availableHeight = (height / 2) - padding
+      const scale = globalMaxAmplitude > 0 ? availableHeight / globalMaxAmplitude : 1
+
+      // Renderovat waveform s grafickou normalizací na výšku
       for (let x = 0; x < width; x++) {
         const start = s0 + (x * step)
         const end = Math.min(s1, start + step)
         let min = 1
         let max = -1
         for (let i = start; i < end; i++) {
-          const v = ch1 ? (ch0[i] + ch1[i]) / 2 : ch0[i]
+          const raw = ch1 ? (ch0[i] + ch1[i]) / 2 : ch0[i]
+          const v = Math.max(-1, Math.min(1, raw))
           if (v < min) min = v
           if (v > max) max = v
         }
-        const y1 = mid - (max * mid)
-        const y2 = mid - (min * mid)
+        // Aplikovat škálování pro vyplnění výšky canvasu
+        const y1 = mid - (max * scale)
+        const y2 = mid - (min * scale)
         ctx.beginPath()
         ctx.moveTo(x + 0.5, y1)
         ctx.lineTo(x + 0.5, y2)
@@ -79,7 +95,20 @@ function LayerWaveform({
 
   // Pokud je loop aktivní, vykresli opakující se pattern (i když je klip stejně dlouhý jako cyklus)
   const shouldUseRepeatWaveform = loop && audioBuffer && (trimEnd - trimStart) > 0.05
-  const repeatWaveformUrl = shouldUseRepeatWaveform ? renderWaveformDataUrl(audioBuffer, trimStart, trimEnd) : null
+  const repeatWaveformUrl = useMemo(() => {
+    if (!shouldUseRepeatWaveform) return null
+    return renderWaveformDataUrl(audioBuffer, trimStart, trimEnd)
+  }, [shouldUseRepeatWaveform, audioBuffer, trimStart, trimEnd, renderWaveformDataUrl])
+
+  // Statický waveform pro non-loop (výrazně levnější než WaveSurfer, a hlavně nemizí při re-renderech)
+  const staticWaveformUrl = useMemo(() => {
+    if (!audioBuffer) return null
+    const len = trimEnd - trimStart
+    if (!(len > 0.01)) return null
+    // Pro loop používáme repeatWaveformUrl výše
+    if (shouldUseRepeatWaveform) return null
+    return renderWaveformDataUrl(audioBuffer, trimStart, trimEnd)
+  }, [audioBuffer, trimStart, trimEnd, shouldUseRepeatWaveform, renderWaveformDataUrl])
 
   // Debug: zkontrolovat, proč se repeat waveform nezobrazuje
   if (loop && !audioBuffer) {
@@ -116,79 +145,36 @@ function LayerWaveform({
     )
   }
 
-  useEffect(() => {
-    if (!waveformContainerRef.current) return
+  if (staticWaveformUrl) {
+    return (
+      <div
+        className="layer-waveform"
+        style={{
+          backgroundImage: `url(${staticWaveformUrl})`,
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: '100% 100%',
+          backgroundPosition: '0 0'
+        }}
+      />
+    )
+  }
 
-    const url = audioUrl || blobUrl
-    if (!url) return
-
-    try {
-      let fullUrl = url
-      if (url && !url.startsWith('http') && !url.startsWith('blob:')) {
-        fullUrl = `${API_BASE_URL}${url.startsWith('/') ? url : '/' + url}`
-      }
-
-      const wavesurfer = WaveSurfer.create({
-        container: waveformContainerRef.current,
-        waveColor: 'rgba(255, 255, 255, 0.25)',
-        progressColor: 'rgba(99, 102, 241, 0.5)',
-        cursorColor: 'transparent',
-        barWidth: 1,
-        barRadius: 0.5,
-        responsive: true,
-        height: 40,
-        normalize: true,
-        interact: false,
-        backend: 'WebAudio'
-      })
-
-      wavesurferRef.current = wavesurfer
-
-      wavesurfer.load(fullUrl)
-      wavesurfer.on('ready', () => {
-        if (onReady) onReady(wavesurfer)
-      })
-
-      return () => {
-        if (wavesurferRef.current) {
-          try {
-            // Zastavit načítání, pokud probíhá
-            if (wavesurferRef.current.isLoading && wavesurferRef.current.cancelLoad) {
-              try {
-                wavesurferRef.current.cancelLoad()
-              } catch (e) {
-                // Ignorovat chyby při cancelLoad
-              }
-            }
-            // destroy() může vracet promise, takže ošetříme obě možnosti
-            const destroyResult = wavesurferRef.current.destroy()
-            if (destroyResult && typeof destroyResult.catch === 'function') {
-              destroyResult.catch((e) => {
-                // Ignorovat AbortError a NotAllowedError při cleanup
-                if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
-                  console.error('Chyba při cleanup WaveSurfer (promise):', e)
-                }
-              })
-            }
-          } catch (e) {
-            // Ignorovat chyby při cleanup (AbortError je OK)
-            if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
-              console.error('Chyba při cleanup WaveSurfer (sync):', e)
-            }
-          }
-          wavesurferRef.current = null
-        }
-      }
-    } catch (err) {
-      console.error('Chyba při vytváření waveform:', err)
-    }
-  }, [layerId, audioUrl, blobUrl])
-
-  return <div ref={waveformContainerRef} className="layer-waveform" />
-}
+  // Fallback: pokud nemáme buffer, zobraz placeholder (lepší než spouštět WaveSurfer na každém re-renderu editoru)
+  return <div className="layer-waveform layer-waveform-placeholder" />
+}, (prev, next) => {
+  return (
+    prev.audioBuffer === next.audioBuffer &&
+    prev.trimStart === next.trimStart &&
+    prev.trimEnd === next.trimEnd &&
+    prev.duration === next.duration &&
+    prev.loop === next.loop &&
+    prev.startTime === next.startTime &&
+    prev.loopAnchorTime === next.loopAnchorTime
+  )
+})
 
 // Komponenta pro náhled položky v historii
-function HistoryItemPreview({ entry, onAddToEditor }) {
+const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAddToEditor }) {
   const waveformRef = useRef(null)
   const wavesurferRef = useRef(null)
   const containerRef = useRef(null)
@@ -214,6 +200,13 @@ function HistoryItemPreview({ entry, onAddToEditor }) {
     const normalizedUrl = audioUrl.startsWith('/') ? audioUrl : `/${audioUrl}`
     return `${API_BASE_URL}${normalizedUrl}`
   }, [audioUrl])
+
+  // Načíst cached peaks bez setState (nechceme re-initovat WaveSurfer)
+  const cached = useMemo(() => (audioUrl ? getWaveformCache(audioUrl) : null), [audioUrl])
+  const cachedPeaks = cached?.peaks
+  const cachedDuration = cached?.duration
+
+  // Canvas overlay odstraněn - WaveSurfer už renderuje waveform sám
 
   // Intersection Observer pro lazy loading - načítat pouze viditelné položky
   useEffect(() => {
@@ -276,20 +269,49 @@ function HistoryItemPreview({ entry, onAddToEditor }) {
         progressColor: 'rgba(99, 102, 241, 0.6)',
         cursorColor: 'transparent',
         barWidth: 1,
+        barGap: 1,
         barRadius: 0.5,
         responsive: true,
         height: 40,
         normalize: true,
         interact: false,
-        backend: 'WebAudio'
+        // Preview: MediaElement backend je výrazně lehčí než WebAudio decode pro waveform list
+        backend: 'MediaElement',
+        partialRender: true
       })
 
       wavesurferRef.current = wavesurfer
 
-      // Handler pro úspěšné načtení
+      // Handler pro úspěšné načtení - uložit peaks do cache
       wavesurfer.on('ready', () => {
         setHasError(false)
         setIsLoading(false)
+
+        // Uložit peaks do cache pro budoucí použití
+        try {
+          if (audioUrl) {
+            // v7: exportPeaks vrací Array<number[]> (per channel)
+            // maxLength odvodíme od šířky pro lepší kvalitu cache a detailnější zobrazení
+            const width = waveformRef.current?.clientWidth || 260
+            const maxLength = Math.max(200, Math.min(600, Math.floor(width * 1.5)))
+            const exported = wavesurfer.exportPeaks?.({
+              channels: 1,
+              maxLength,
+              precision: 4
+            })
+            const duration = wavesurfer.getDuration?.()
+            if (Array.isArray(exported) && exported.length > 0 && Array.isArray(exported[0]) && exported[0].length > 0 && typeof duration === 'number' && duration > 0) {
+              setWaveformCache(audioUrl, {
+                peaks: exported,
+                duration,
+                timestamp: Date.now()
+              })
+            }
+          }
+        } catch (e) {
+          console.warn('Chyba při ukládání peaks do cache:', e)
+        }
+
         // Zrušit timeout pro chybu, pokud existuje
         if (errorTimeoutRef.current) {
           clearTimeout(errorTimeoutRef.current)
@@ -328,7 +350,88 @@ function HistoryItemPreview({ entry, onAddToEditor }) {
 
       // Načíst audio
       try {
-        const loadPromise = wavesurfer.load(fullUrl)
+        // Největší win: pokud máme cached peaks + duration, WaveSurfer vykreslí waveform okamžitě
+        const hasCached = Array.isArray(cachedPeaks) && cachedPeaks.length > 0 && Array.isArray(cachedPeaks[0]) && typeof cachedDuration === 'number'
+
+        // Downsample peaks stabilně: pro každý bucket vezmi vzorek s největší |amplitudou|
+        // a zachovej znaménko. Abs-only dělá waveform „potichu" a vizuálně divný.
+        const downsample = (arr, targetLen) => {
+          if (!Array.isArray(arr) || targetLen <= 0) return arr
+          if (arr.length <= targetLen) return arr
+          const out = new Array(targetLen)
+          const step = arr.length / targetLen
+          for (let i = 0; i < targetLen; i++) {
+            const start = Math.floor(i * step)
+            const end = Math.min(arr.length, Math.floor((i + 1) * step))
+            let best = 0
+            for (let j = start; j < end; j++) {
+              const v = arr[j] || 0
+              if (Math.abs(v) > Math.abs(best)) best = v
+            }
+            out[i] = best
+          }
+          return out
+        }
+
+        // Normalizace peaks na výšku: najít globální max a škálovat všechny hodnoty
+        // Stejná logika jako v editoru - waveform vyplní celou výšku
+        const normalizePeaksToHeight = (peaks) => {
+          if (!Array.isArray(peaks) || peaks.length === 0) return peaks
+          if (!Array.isArray(peaks[0])) return peaks
+
+          // Najít max absolutní hodnotu v celém peaks array
+          let maxAbs = 0
+          for (let ch = 0; ch < peaks.length; ch++) {
+            const channel = peaks[ch]
+            if (Array.isArray(channel)) {
+              for (let i = 0; i < channel.length; i++) {
+                const abs = Math.abs(channel[i] || 0)
+                if (abs > maxAbs) maxAbs = abs
+              }
+            }
+          }
+
+          // Pokud není co normalizovat, vrátit původní peaks
+          if (maxAbs <= 0) return peaks
+
+          // Vypočítat normalizační faktor s paddingem (0.95) aby waveform nešel až na okraj
+          const padding = 0.95
+          const scale = padding / maxAbs
+
+          // Aplikovat škálování na všechny hodnoty
+          const normalized = peaks.map(channel => {
+            if (!Array.isArray(channel)) return channel
+            return channel.map(v => (v || 0) * scale)
+          })
+
+          return normalized
+        }
+
+        // WaveSurfer s normalize: true už normalizuje automaticky, takže nepotřebujeme další normalizaci
+        const getMaxBars = () => {
+          const width = waveformRef.current?.clientWidth || 260
+          // barWidth 1 + barGap 1 -> ~2px, zvýšené rozlišení pro detailnější zobrazení
+          return Math.max(200, Math.floor(width / 1.5))
+        }
+
+        let peaksToUse = cachedPeaks
+        if (hasCached) {
+          const maxBars = getMaxBars()
+          const ch0 = cachedPeaks[0]
+          if (Array.isArray(ch0) && ch0.length > maxBars) {
+            // Downsampling pro optimalizaci
+            peaksToUse = [downsample(ch0, maxBars)]
+          } else if (Array.isArray(ch0)) {
+            // Použít cached peaks přímo
+            peaksToUse = cachedPeaks
+          }
+          // Aplikovat grafickou normalizaci na výšku (stejně jako v editoru)
+          peaksToUse = normalizePeaksToHeight(peaksToUse)
+        }
+
+        const loadPromise = hasCached
+          ? wavesurfer.load(fullUrl, peaksToUse, cachedDuration)
+          : wavesurfer.load(fullUrl)
         if (loadPromise && typeof loadPromise.catch === 'function') {
           loadPromise.catch((error) => {
             // Ignorovat abort chyby
@@ -397,7 +500,7 @@ function HistoryItemPreview({ entry, onAddToEditor }) {
       setIsLoading(false)
       setHasError(true)
     }
-  }, [fullUrl, shouldLoad])
+  }, [fullUrl, shouldLoad, audioUrl, cachedPeaks, cachedDuration])
 
   const togglePlay = (e) => {
     e.stopPropagation()
@@ -416,7 +519,7 @@ function HistoryItemPreview({ entry, onAddToEditor }) {
     if (e.target.closest('.history-item-play-btn')) {
       return
     }
-    onAddToEditor()
+    if (onAddToEditor) onAddToEditor(entry)
   }
 
   // Pokud není audio URL, nezobrazovat waveform
@@ -481,7 +584,12 @@ function HistoryItemPreview({ entry, onAddToEditor }) {
       </div>
     </div>
   )
-}
+}, (prevProps, nextProps) => {
+  // Optimalizace: re-render pouze pokud se změnilo entry.id nebo entry.audio_url
+  return prevProps.entry?.id === nextProps.entry?.id &&
+         prevProps.entry?.audio_url === nextProps.entry?.audio_url &&
+         (prevProps.entry?.text || prevProps.entry?.prompt) === (nextProps.entry?.text || nextProps.entry?.prompt)
+})
 
 function AudioEditor() {
   const [layers, setLayers] = useState([])
@@ -841,7 +949,7 @@ function AudioEditor() {
   }
 
   // Načtení audio souboru z URL
-  const loadAudioFromUrl = async (audioUrl) => {
+  const loadAudioFromUrl = useCallback(async (audioUrl) => {
     try {
       let fullUrl = audioUrl
       if (!audioUrl.startsWith('http')) {
@@ -864,7 +972,7 @@ function AudioEditor() {
       console.error('Chyba při načítání audio z URL:', err, audioUrl)
       throw err
     }
-  }
+  }, [])
 
   // Načtení audio souboru
   const loadAudioFile = async (file) => {
@@ -1088,7 +1196,7 @@ function AudioEditor() {
   }
 
   // Přidání nové vrstvy z historie
-  const addLayerFromHistory = async (entry) => {
+  const addLayerFromHistory = useCallback(async (entry) => {
     try {
       const audioBuffer = await loadAudioFromUrl(entry.audio_url)
       const duration = audioBuffer.duration
@@ -1115,14 +1223,12 @@ function AudioEditor() {
       }
 
       setLayers(prevLayers => [...prevLayers, newLayer])
-      if (selectedLayerId === null) {
-        setSelectedLayerId(newLayer.id)
-      }
+      setSelectedLayerId(prev => (prev === null ? newLayer.id : prev))
     } catch (err) {
       console.error('Chyba při načítání audio z historie:', err)
       alert('Chyba při načítání audio souboru z historie')
     }
-  }
+  }, [loadAudioFromUrl])
 
   // Přidání nové vrstvy
   const addLayer = async (file) => {
@@ -2238,7 +2344,7 @@ function AudioEditor() {
                 <HistoryItemPreview
                   key={`${entry.source}-${entry.id}`}
                   entry={entry}
-                  onAddToEditor={() => addLayerFromHistory(entry)}
+                  onAddToEditor={addLayerFromHistory}
                 />
               ))}
             </div>
