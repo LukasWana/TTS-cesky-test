@@ -16,7 +16,7 @@
 }
 
 @media (min-width: 1024px) {
-  .app-content {
+  .app-content.sidebar-open {
     margin-left: 280px;
   }
 }
@@ -31,11 +31,13 @@
   justify-content: center;
   gap: var(--spacing-lg);
   position: relative;
+  overflow: visible;
 }
 
 .app-menu-toggle {
   position: absolute;
   left: 20px;
+  top: 15px;
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
@@ -50,6 +52,7 @@
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
+  z-index: 10;
 }
 
 .app-menu-toggle:hover {
@@ -58,9 +61,10 @@
   transform: scale(1.05);
 }
 
+
 @media (min-width: 1024px) {
   .app-menu-toggle {
-    display: none;
+    display: flex;
   }
 }
 
@@ -81,7 +85,7 @@
   background: transparent;
   backdrop-filter: none;
   border-radius: 0;
-  padding: 20px 40px;
+  padding: 10px;
   border: none;
   box-shadow: none;
   width: 100%;
@@ -92,14 +96,14 @@
 @media (min-width: 1400px) {
   .app-main {
     max-width: 1600px;
-    padding: 24px 40px;
+    padding: 10px;
   }
 }
 
 @media (min-width: 1920px) {
   .app-main {
     max-width: 1920px;
-    padding: 32px 40px;
+    padding: 10px;
   }
 }
 
@@ -334,6 +338,10 @@
   .app-header h1 {
     font-size: var(--font-2xl);
     margin: 0;
+  }
+
+  .app-menu-toggle {
+    left: 16px;
   }
 
   .app-main {

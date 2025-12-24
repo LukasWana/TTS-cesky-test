@@ -519,7 +519,7 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
               </div>
 
               {quality.enableDialectConversion && (
-                <div className="dialect-settings" style={{ marginTop: '15px', marginLeft: '54px', padding: '15px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.1)' }}>
+                <div className="dialect-settings" style={{ marginTop: '15px', marginLeft: '54px' }}>
                   <h5 style={{ marginTop: '0', marginBottom: '15px', fontSize: '14px', fontWeight: '600' }}>🌍 Nastavení nářečí</h5>
 
                   <SelectRow
@@ -567,7 +567,7 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
 
               {/* HiFi-GAN pokročilá nastavení */}
               {quality.useHifigan && (
-                <div className="hifigan-settings" style={{ marginTop: '15px', marginLeft: '54px', padding: '15px', backgroundColor: 'rgba(0, 0, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.1)' }}>
+                <div className="hifigan-settings" style={{ marginTop: '15px', marginLeft: '54px' }}>
                   <h5 style={{ marginTop: '0', marginBottom: '15px', fontSize: '14px', fontWeight: '600' }}>⚙️ HiFi-GAN nastavení</h5>
 
                   {/* Intenzita refinement */}

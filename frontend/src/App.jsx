@@ -270,7 +270,7 @@ const loadVariantSettings = (voiceId, variantId) => {
 function App() {
   const [activeVariant, setActiveVariant] = useState('variant1') // 'variant1' | 'variant2' | ... | 'variant5'
   const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'musicgen' | 'bark' | 'history'
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // Nastavení hlasu
   const [selectedVoice, setSelectedVoice] = useState('demo1')
@@ -905,7 +905,7 @@ function App() {
         modelStatus={modelStatus}
       />
 
-      <div className="app-content">
+      <div className={`app-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
         <header className="app-header">
           <button
             className="app-menu-toggle"

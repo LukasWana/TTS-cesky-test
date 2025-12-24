@@ -211,7 +211,7 @@
   outline: none;
   border-color: #6366f1;
   background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .text-input::placeholder {

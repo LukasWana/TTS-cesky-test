@@ -34,7 +34,7 @@
   gap: 6px;
 }
 
-.history-filter-btn:hover {
+.history-filter-btn:hover:not(.active) {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.9);
@@ -44,6 +44,11 @@
   background: rgba(99, 102, 241, 0.2);
   border-color: rgba(99, 102, 241, 0.4);
   color: #818cf8;
+}
+
+.history-filter-btn.active:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.4);
 }
 
 .history-header h2 {
@@ -134,7 +139,7 @@
   gap: 12px;
 }
 
-.history-item:hover {
+.history-item:hover:not(.selected) {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-2px);
@@ -142,6 +147,12 @@
 }
 
 .history-item.selected {
+  background: rgba(99, 102, 241, 0.05);
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 10px 40px rgba(99, 102, 241, 0.1);
+}
+
+.history-item.selected:hover {
   background: rgba(99, 102, 241, 0.05);
   border-color: rgba(99, 102, 241, 0.3);
   box-shadow: 0 10px 40px rgba(99, 102, 241, 0.1);

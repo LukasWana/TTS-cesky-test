@@ -81,6 +81,12 @@
   color: var(--color-text-secondary);
 }
 
+.ui-reset-button:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
 .ui-reset-button-small {
   width: 20px;
   height: 20px;
@@ -102,6 +108,12 @@
   background: var(--color-surface-hover);
   border-color: var(--color-border-hover);
   color: var(--color-text-secondary);
+}
+
+.ui-reset-button-small:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 /* Segmented Control - Pill Shape */
@@ -148,10 +160,18 @@
   color: var(--color-text-secondary);
 }
 
+.ui-segmented-option:focus {
+  outline: none;
+}
+
 .ui-segmented-option.selected {
   background: var(--color-surface-active);
   color: var(--color-text-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.ui-segmented-option.selected:hover {
+  background: var(--color-surface-active);
 }
 
 /* Slider Row - Compact */
@@ -193,6 +213,11 @@
 .ui-reset-icon-button:hover {
   color: var(--color-text-primary);
   transform: rotate(-30deg);
+}
+
+.ui-reset-icon-button:focus {
+  outline: none;
+  color: var(--color-text-primary);
 }
 
 .ui-slider-container {
@@ -329,7 +354,8 @@
 
 .ui-select-input:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .ui-select-chevron {
@@ -418,6 +444,28 @@
   pointer-events: none;
 }
 
+.ui-button:focus {
+  outline: none;
+}
+
+.ui-button-primary:focus:not(:disabled) {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.ui-button-secondary:focus:not(:disabled) {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.ui-button-ghost:focus:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.ui-button-danger:focus:not(:disabled) {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
 .ui-button-content {
   display: flex;
   align-items: center;
@@ -490,6 +538,11 @@
 .ui-button-outline:hover:not(:disabled) {
   background: var(--color-primary-light);
   transform: translateY(-1px);
+}
+
+.ui-button-outline:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .ui-button-ghost {
@@ -567,8 +620,8 @@
 }
 
 .ui-input:focus:not(:disabled) {
-  border-color: var(--color-border-focus);
-  box-shadow: 0 0 0 3px var(--color-primary-light);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .ui-input:disabled {

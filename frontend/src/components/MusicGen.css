@@ -54,8 +54,9 @@
 
 .musicgen-textarea:focus {
   outline: none;
-  border-color: var(--color-accent);
+  border-color: #6366f1;
   background: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .musicgen-input {
@@ -66,11 +67,12 @@
   background: rgba(0, 0, 0, 0.2);
   color: #fff;
   font-size: 0.95rem;
+  outline: none;
 }
 
 .musicgen-input:focus {
-  outline: none;
-  border-color: var(--color-accent);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .musicgen-result {

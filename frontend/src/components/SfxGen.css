@@ -57,7 +57,8 @@
 
 .sfxgen-textarea:focus {
   outline: none;
-  border-color: var(--primary-color, #007bff);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .sfxgen-input {
@@ -67,11 +68,12 @@
   border-radius: 4px;
   font-size: 14px;
   font-family: inherit;
+  outline: none;
 }
 
 .sfxgen-input:focus {
-  outline: none;
-  border-color: var(--primary-color, #007bff);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .sfxgen-output {

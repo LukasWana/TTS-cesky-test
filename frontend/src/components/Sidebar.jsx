@@ -57,7 +57,6 @@ function Sidebar({ activeTab, onTabChange, tabs, isOpen, onClose, modelStatus })
               className={`sidebar-nav-item ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => {
                 onTabChange(tab.id)
-                onClose()
               }}
             >
               {tab.icon && <span className="sidebar-nav-icon">{tab.icon}</span>}

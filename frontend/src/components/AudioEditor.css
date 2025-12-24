@@ -2,7 +2,7 @@
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 10px;
   color: rgba(255, 255, 255, 0.9);
 }
 
@@ -139,8 +139,9 @@
 }
 
 .modal-form input:focus {
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: #6366f1;
   background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .modal-buttons {
@@ -386,8 +387,8 @@
 }
 
 .time-display-duration-input:focus {
-  border-color: rgba(99, 102, 241, 0.6);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .time-display-auto-btn {
@@ -667,12 +668,18 @@
   -ms-user-select: none;
 }
 
-.layer-track:hover {
+.layer-track:hover:not(.selected) {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
 .layer-track.selected {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+}
+
+.layer-track.selected:hover {
   border-color: #6366f1;
   background: rgba(99, 102, 241, 0.1);
   box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
@@ -864,8 +871,8 @@
 .layer-settings-content .control-group input[type="range"]:focus,
 .layer-settings-content .control-group input[type="number"]:focus {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.8);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .layer-settings-content .btn-delete-layer {
@@ -1181,6 +1188,12 @@
 
 .history-type-select:hover {
   border-color: rgba(255, 255, 255, 0.3);
+}
+
+.history-type-select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .btn-refresh-history,
