@@ -7,7 +7,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
-from backend.config import BASE_DIR
+from backend.config import BASE_DIR, OUTPUTS_DIR
 
 HISTORY_FILE = BASE_DIR / "history.json"
 
@@ -124,6 +124,22 @@ class HistoryManager:
             Seznam záznamů
         """
         history = HistoryManager._load_history()
+
+        # Prune záznamy, které ukazují na soubory, jež už neexistují v outputs/
+        # (jinak FE dostává 404 a WaveSurfer hlásí chyby)
+        try:
+            before = len(history)
+            filtered = []
+            for entry in history:
+                fn = entry.get("filename")
+                if fn and (OUTPUTS_DIR / fn).exists():
+                    filtered.append(entry)
+            if len(filtered) != before:
+                HistoryManager._save_history(filtered)
+                history = filtered
+        except Exception:
+            # Nechceme blokovat API kvůli problému s FS; v nejhorším vrať původní list
+            pass
 
         if limit is None:
             return history[offset:]

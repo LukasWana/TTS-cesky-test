@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from backend.config import BASE_DIR
+from backend.config import BASE_DIR, OUTPUTS_DIR
 
 BARK_HISTORY_FILE = BASE_DIR / "bark_history.json"
 
@@ -90,6 +90,20 @@ class BarkHistoryManager:
     @staticmethod
     def get_history(limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
         history = BarkHistoryManager._load_history()
+
+        # Prune záznamy, které ukazují na neexistující soubory v outputs/
+        try:
+            before = len(history)
+            filtered = []
+            for entry in history:
+                fn = entry.get("filename")
+                if fn and (OUTPUTS_DIR / fn).exists():
+                    filtered.append(entry)
+            if len(filtered) != before:
+                BarkHistoryManager._save_history(filtered)
+                history = filtered
+        except Exception:
+            pass
         if limit is None:
             return history[offset:]
         return history[offset : offset + limit]
