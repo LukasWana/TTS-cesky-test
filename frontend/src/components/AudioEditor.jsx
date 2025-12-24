@@ -602,7 +602,12 @@ function AudioEditor() {
   const [masterVolume, setMasterVolume] = useState(1.0)
   const [masterLevel, setMasterLevel] = useState({ left: 0, right: 0 })
   const [playbackPosition, setPlaybackPosition] = useState(0)
-  const [maxDuration, setMaxDuration] = useState(0)
+  const [manualMaxDuration, setManualMaxDuration] = useState(null) // null = auto (dle vrstev)
+  const [isEditingMaxDuration, setIsEditingMaxDuration] = useState(false)
+  const [maxDurationInput, setMaxDurationInput] = useState('')
+  const [timelineZoom, setTimelineZoom] = useState(1) // 1..10
+  const [timelineBaseWidthPx, setTimelineBaseWidthPx] = useState(0)
+  const [timelineHover, setTimelineHover] = useState({ visible: false, percent: 0, time: 0 })
   const [draggingClip, setDraggingClip] = useState(null)
   const [resizingClip, setResizingClip] = useState(null)
   const [historyType, setHistoryType] = useState('all') // 'all' | 'tts' | 'music' | 'bark'
@@ -623,12 +628,88 @@ function AudioEditor() {
   const animationFrameRef = useRef(null)
   const playbackStartTimeRef = useRef(0)
   const pausedTimeRef = useRef(0)
-  const timelineRef = useRef(null)
+  const timelineRef = useRef(null) // scroll kontejner
+  const timelineContentRef = useRef(null) // vnitřní obsah s měnitelnou šířkou
+  const timelineRulerRef = useRef(null)
+  const maxDurationInputRef = useRef(null)
   const dragStartXRef = useRef(0)
   const dragStartTimeRef = useRef(0)
   const isLoadingStateRef = useRef(false)
   const saveTimeoutRef = useRef(null)
   const layerIdCounterRef = useRef(0) // Counter pro unikátní ID
+
+  const computedMaxDuration = useMemo(() => {
+    const max = layers.reduce((acc, layer) => {
+      const endTime = (layer?.startTime || 0) + (layer?.duration || 0)
+      return Math.max(acc, endTime)
+    }, 0)
+    return Math.max(max, 10) // Minimálně 10 sekund
+  }, [layers])
+
+  const maxDuration = useMemo(() => {
+    if (typeof manualMaxDuration === 'number' && Number.isFinite(manualMaxDuration) && manualMaxDuration > 0) {
+      return Math.max(computedMaxDuration, manualMaxDuration)
+    }
+    return computedMaxDuration
+  }, [computedMaxDuration, manualMaxDuration])
+
+  const timelineContentWidthPx = useMemo(() => {
+    const base = Math.max(300, timelineBaseWidthPx || 0)
+    const z = Math.max(1, Math.min(10, Number(timelineZoom) || 1))
+    return Math.max(base, Math.floor(base * z))
+  }, [timelineBaseWidthPx, timelineZoom])
+
+  const clamp01 = (v) => Math.max(0, Math.min(1, v))
+
+  const getTimelinePercentFromClientX = (clientX) => {
+    const scrollEl = timelineRef.current
+    const contentEl = timelineContentRef.current
+    const contentWidth = contentEl?.clientWidth || timelineContentWidthPx || 1
+    if (!scrollEl || !Number.isFinite(contentWidth) || contentWidth <= 0) return 0
+    const rect = scrollEl.getBoundingClientRect()
+    const x = (clientX - rect.left) + (scrollEl.scrollLeft || 0)
+    return clamp01(x / contentWidth)
+  }
+
+  const formatTimeMMSS = (time) => {
+    const total = Math.max(0, Math.floor(time || 0))
+    const minutes = Math.floor(total / 60)
+    const seconds = total % 60
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
+
+  const getNiceStep = (minStepSec) => {
+    const candidates = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
+    for (const c of candidates) {
+      if (c >= minStepSec) return c
+    }
+    return candidates[candidates.length - 1]
+  }
+
+  const timelineTicks = useMemo(() => {
+    const durationSec = Math.max(1, Math.ceil(maxDuration))
+    const widthPx = Math.max(1, timelineContentWidthPx)
+    const pxPerSecond = widthPx / durationSec
+
+    const minLabelPx = 90 // cíleně větší, aby se popisky nikdy neslévaly
+    const majorStepSec = getNiceStep(minLabelPx / Math.max(pxPerSecond, 0.0001))
+    const minorStepSec = majorStepSec >= 10 ? Math.max(1, Math.floor(majorStepSec / 5)) : majorStepSec
+
+    const ticks = []
+    for (let s = 0; s <= durationSec; s += minorStepSec) {
+      const isMajor = (s % majorStepSec) === 0
+      ticks.push({
+        sec: s,
+        percent: (s / durationSec) * 100,
+        isMajor
+      })
+    }
+    // vždy přidat poslední tick na konci (pro přesný konec i když minorStep nesedí)
+    if (ticks.length === 0 || ticks[ticks.length - 1].sec !== durationSec) {
+      ticks.push({ sec: durationSec, percent: 100, isMajor: true })
+    }
+    return { ticks, majorStepSec, minorStepSec }
+  }, [maxDuration, timelineContentWidthPx])
 
   // Načtení seznamu projektů
   useEffect(() => {
@@ -653,9 +734,14 @@ function AudioEditor() {
         if (state.masterVolume !== undefined) {
           setMasterVolume(state.masterVolume)
         }
+        if (state.manualMaxDuration !== undefined) {
+          const v = state.manualMaxDuration
+          setManualMaxDuration((typeof v === 'number' && Number.isFinite(v) && v > 0) ? v : null)
+        }
         if (state.currentTime !== undefined) {
           setCurrentTime(state.currentTime)
-          setPlaybackPosition(state.currentTime / Math.max(state.maxDuration || 10, 1))
+          const denom = Math.max((state.manualMaxDuration ?? state.maxDuration ?? 10), 1)
+          setPlaybackPosition(state.currentTime / denom)
         }
         if (state.selectedLayerId !== undefined) {
           setSelectedLayerId(state.selectedLayerId)
@@ -755,7 +841,8 @@ function AudioEditor() {
           selectedLayerId,
           showHistory,
           historyType,
-          maxDuration
+          maxDuration,
+          manualMaxDuration
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave))
       } catch (err) {
@@ -768,7 +855,7 @@ function AudioEditor() {
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [layers, masterVolume, currentTime, selectedLayerId, showHistory, historyType, maxDuration])
+  }, [layers, masterVolume, currentTime, selectedLayerId, showHistory, historyType, maxDuration, manualMaxDuration])
 
   // Inicializace AudioContext - pouze jednou při mountu
   useEffect(() => {
@@ -855,14 +942,43 @@ function AudioEditor() {
     }
   }, [masterVolume])
 
-  // Výpočet maximální délky
+  // Pokud se změní délka projektu, ohlídat currentTime + playhead
   useEffect(() => {
-    const max = layers.reduce((max, layer) => {
-      const endTime = layer.startTime + layer.duration
-      return Math.max(max, endTime)
+    if (!Number.isFinite(maxDuration) || maxDuration <= 0) return
+    if (currentTime > maxDuration) {
+      setCurrentTime(maxDuration)
+      setPlaybackPosition(1)
+      pausedTimeRef.current = maxDuration
+    }
+  }, [maxDuration, currentTime])
+
+  // Fokus inputu při editaci délky
+  useEffect(() => {
+    if (!isEditingMaxDuration) return
+    const t = setTimeout(() => {
+      maxDurationInputRef.current?.focus?.()
+      maxDurationInputRef.current?.select?.()
     }, 0)
-    setMaxDuration(Math.max(max, 10)) // Minimálně 10 sekund
-  }, [layers])
+    return () => clearTimeout(t)
+  }, [isEditingMaxDuration])
+
+  // Měření šířky timeline (pro adaptivní ticky + zoom)
+  useEffect(() => {
+    const el = timelineRef.current
+    if (!el) return
+
+    const update = () => {
+      setTimelineBaseWidthPx(el.clientWidth || 0)
+    }
+    update()
+
+    const ro = new ResizeObserver(() => update())
+    ro.observe(el)
+
+    return () => {
+      ro.disconnect()
+    }
+  }, [])
 
   // Aktualizace pozice přehrávání
   useEffect(() => {
@@ -1409,11 +1525,7 @@ function AudioEditor() {
     const trimmedDuration = initialTrimEnd - initialTrimStart
 
     const handleMouseMove = (e) => {
-      if (!timelineRef.current) return
-
-      const rect = timelineRef.current.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const percent = Math.max(0, Math.min(1, x / rect.width))
+      const percent = getTimelinePercentFromClientX(e.clientX)
       const newTime = percent * maxDuration
 
       if (isDragging) {
@@ -1484,10 +1596,7 @@ function AudioEditor() {
 
   // Kliknutí na časovou osu pro přesun playheadu
   const handleTimelineClick = (e) => {
-    if (!timelineRef.current) return
-    const rect = timelineRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const percent = Math.max(0, Math.min(1, x / rect.width))
+    const percent = getTimelinePercentFromClientX(e.clientX)
     const newTime = percent * maxDuration
     setCurrentTime(newTime)
     setPlaybackPosition(percent)
@@ -1807,9 +1916,70 @@ function AudioEditor() {
 
   // Formátování času
   const formatTime = (time) => {
-    const minutes = Math.floor(time / 60)
-    const seconds = Math.floor(time % 60)
+    const total = Math.max(0, Math.floor(time || 0))
+    const hours = Math.floor(total / 3600)
+    const minutes = Math.floor((total % 3600) / 60)
+    const seconds = total % 60
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+    }
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
+
+  const parseTimeToSeconds = (raw) => {
+    const s = String(raw ?? '').trim()
+    if (!s) return null // prázdné = auto
+
+    // Povolit i čisté sekundy (např. "90")
+    if (/^\d+(\.\d+)?$/.test(s)) {
+      const n = Number(s)
+      return Number.isFinite(n) ? n : NaN
+    }
+
+    const parts = s.split(':').map(p => p.trim())
+    if (parts.length !== 2 && parts.length !== 3) return NaN
+    if (parts.some(p => p === '' || !/^\d+$/.test(p))) return NaN
+
+    const nums = parts.map(p => Number(p))
+    if (parts.length === 2) {
+      const [m, sec] = nums
+      if (sec >= 60) return NaN
+      return (m * 60) + sec
+    }
+    const [h, m, sec] = nums
+    if (m >= 60 || sec >= 60) return NaN
+    return (h * 3600) + (m * 60) + sec
+  }
+
+  const startEditMaxDuration = () => {
+    setIsEditingMaxDuration(true)
+    setMaxDurationInput(formatTime(maxDuration))
+  }
+
+  const cancelEditMaxDuration = () => {
+    setIsEditingMaxDuration(false)
+    setMaxDurationInput('')
+  }
+
+  const commitEditMaxDuration = () => {
+    const parsed = parseTimeToSeconds(maxDurationInput)
+    if (parsed === null) {
+      setManualMaxDuration(null)
+      setIsEditingMaxDuration(false)
+      return
+    }
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      // Nezapisovat nesmysly; necháme uživatele opravit
+      return
+    }
+    const clamped = Math.max(10, computedMaxDuration, parsed)
+    setManualMaxDuration(clamped)
+    if (currentTime > clamped) {
+      setCurrentTime(clamped)
+      setPlaybackPosition(1)
+      pausedTimeRef.current = clamped
+    }
+    setIsEditingMaxDuration(false)
   }
 
   // Nový projekt
@@ -1854,6 +2024,7 @@ function AudioEditor() {
       setPlaybackPosition(0)
       setCurrentProjectId(null)
       setProjectName('')
+      setManualMaxDuration(null)
 
       return []
     })
@@ -1878,6 +2049,8 @@ function AudioEditor() {
       name: name,
       createdAt: currentProjectId ? savedProjects.find(p => p.id === currentProjectId)?.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      manualMaxDuration,
+      maxDuration,
       layers: layers.map(layer => ({
         id: layer.id,
         name: layer.name,
@@ -1952,6 +2125,9 @@ function AudioEditor() {
     setMasterVolume(project.masterVolume || 1.0)
     setCurrentProjectId(project.id)
     setProjectName(project.name)
+    setManualMaxDuration((typeof project.manualMaxDuration === 'number' && Number.isFinite(project.manualMaxDuration) && project.manualMaxDuration > 0)
+      ? project.manualMaxDuration
+      : null)
 
     // Načíst vrstvy
     if (project.layers && Array.isArray(project.layers)) {
@@ -2170,7 +2346,43 @@ function AudioEditor() {
           ⏭
         </button>
         <div className="time-display">
-          {formatTime(currentTime)} / {formatTime(maxDuration)}
+          <span className="time-display-current">{formatTime(currentTime)}</span>
+          <span className="time-display-sep">/</span>
+          {isEditingMaxDuration ? (
+            <input
+              ref={maxDurationInputRef}
+              className="time-display-duration-input"
+              value={maxDurationInput}
+              onChange={(e) => setMaxDurationInput(e.target.value)}
+              onBlur={commitEditMaxDuration}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitEditMaxDuration()
+                if (e.key === 'Escape') cancelEditMaxDuration()
+              }}
+              inputMode="numeric"
+              placeholder="mm:ss nebo hh:mm:ss"
+              title="Zadej délku projektu (mm:ss nebo hh:mm:ss). Prázdné = auto."
+            />
+          ) : (
+            <button
+              type="button"
+              className={`time-display-duration-btn ${manualMaxDuration ? 'manual' : 'auto'}`}
+              onClick={startEditMaxDuration}
+              title="Klikni pro úpravu délky projektu (mm:ss / hh:mm:ss)."
+            >
+              {formatTime(maxDuration)}
+            </button>
+          )}
+          {manualMaxDuration ? (
+            <button
+              type="button"
+              className="time-display-auto-btn"
+              onClick={() => setManualMaxDuration(null)}
+              title="Přepnout délku zpět na automatiku (dle vrstev)"
+            >
+              AUTO
+            </button>
+          ) : null}
         </div>
 
         {/* Master Level Meter */}
@@ -2209,99 +2421,137 @@ function AudioEditor() {
       </div>
 
       {/* Timeline */}
-      <div className="timeline-container" ref={timelineRef} onClick={handleTimelineClick}>
-        <div className="timeline-header">
-          <div className="timeline-ruler">
-            {Array.from({ length: Math.ceil(maxDuration) + 1 }, (_, i) => (
-              <div key={i} className="timeline-tick" style={{ left: `${(i / Math.max(maxDuration, 1)) * 100}%` }}>
-                <span className="tick-label">{i}s</span>
+      <div className="timeline-container">
+        <div className="timeline-scroll" ref={timelineRef} onClick={handleTimelineClick}>
+          <div className="timeline-content" ref={timelineContentRef} style={{ width: `${timelineContentWidthPx}px` }}>
+            <div className="timeline-header">
+              <div className="timeline-zoom-controls" onClick={(e) => e.stopPropagation()}>
+                <span className="timeline-zoom-label">Zoom</span>
+                <input
+                  className="timeline-zoom-slider"
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="0.25"
+                  value={timelineZoom}
+                  onChange={(e) => setTimelineZoom(parseFloat(e.target.value))}
+                  title="Zoom timeline"
+                />
+                <span className="timeline-zoom-value">{Math.round(timelineZoom * 100)}%</span>
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="timeline-playhead" style={{ left: `${playbackPosition * 100}%` }} />
-        <div className="layers-container" onClick={(e) => e.stopPropagation()}>
-          {layers.map((layer, index) => (
-            <div
-              key={layer.id}
-              className={`layer-track ${selectedLayerId === layer.id ? 'selected' : ''}`}
-              onClick={() => setSelectedLayerId(layer.id)}
-            >
-              <div className="layer-label">
-                {layer.name}
-                {!layer.audioUrl && layer.blobUrl && (
-                  <span className="layer-local-badge" title="Lokální soubor - nebude uložen v projektu">
-                    📁
-                  </span>
-                )}
-                <button
-                  className="layer-delete-btn-inline"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (window.confirm(`Opravdu chcete smazat vrstvu "${layer.name}"?`)) {
-                      deleteLayer(layer.id)
-                    }
-                  }}
-                  title="Smazat vrstvu"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="layer-clip-container">
-                <div
-                  className={`layer-clip ${draggingClip === layer.id ? 'dragging' : ''}`}
-                  style={{
-                    left: `${(layer.startTime / Math.max(maxDuration, 1)) * 100}%`,
-                    width: `${(layer.duration / Math.max(maxDuration, 1)) * 100}%`
-                  }}
-                  onMouseDown={(e) => handleClipMouseDown(e, layer.id)}
-                >
-                  <LayerWaveform
-                    layerId={layer.id}
-                    audioUrl={layer.audioUrl}
-                    blobUrl={layer.blobUrl}
-                    audioBuffer={layer.audioBuffer}
-                    trimStart={layer.trimStart}
-                    trimEnd={layer.trimEnd}
-                    duration={layer.duration}
-                    loop={layer.loop || false}
-                    startTime={layer.startTime}
-                    loopAnchorTime={layer.loopAnchorTime}
-                    isVisible={true}
-                    isSelected={selectedLayerId === layer.id}
-                  />
-                  <button
-                    className="clip-delete-btn"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (window.confirm(`Opravdu chcete smazat vrstvu "${layer.name}"?`)) {
-                        deleteLayer(layer.id)
-                      }
-                    }}
-                    title="Smazat vrstvu"
+
+              <div
+                className="timeline-ruler"
+                ref={timelineRulerRef}
+                onMouseMove={(e) => {
+                  const percent = getTimelinePercentFromClientX(e.clientX)
+                  const t = percent * maxDuration
+                  setTimelineHover({ visible: true, percent, time: t })
+                }}
+                onMouseLeave={() => setTimelineHover((p) => ({ ...p, visible: false }))}
+              >
+                {timelineTicks.ticks.map((t) => (
+                  <div
+                    key={t.sec}
+                    className={`timeline-tick ${t.isMajor ? 'major' : 'minor'}`}
+                    style={{ left: `${t.percent}%` }}
                   >
-                    ✕
-                  </button>
-                  <div
-                    className="clip-handle clip-handle-left"
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      handleClipMouseDown(e, layer.id, true, false)
-                    }}
-                    title="Drag pro trim, Shift+Drag pro prodloužení zleva"
-                  />
-                  <div
-                    className="clip-handle clip-handle-right"
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      handleClipMouseDown(e, layer.id, false, true)
-                    }}
-                    title="Drag pro trim, Shift+Drag pro prodloužení zprava"
-                  />
-                </div>
+                    {t.isMajor ? <span className="tick-label">{formatTimeMMSS(t.sec)}</span> : null}
+                  </div>
+                ))}
+                {timelineHover.visible ? (
+                  <div className="timeline-hover-tooltip" style={{ left: `${timelineHover.percent * 100}%` }}>
+                    {formatTimeMMSS(timelineHover.time)}
+                  </div>
+                ) : null}
               </div>
             </div>
-          ))}
+
+            <div className="timeline-playhead" style={{ left: `${playbackPosition * 100}%` }} />
+            <div className="layers-container" onClick={(e) => e.stopPropagation()}>
+              {layers.map((layer, index) => (
+                <div
+                  key={layer.id}
+                  className={`layer-track ${selectedLayerId === layer.id ? 'selected' : ''}`}
+                  onClick={() => setSelectedLayerId(layer.id)}
+                >
+                  <div className="layer-label">
+                    {layer.name}
+                    {!layer.audioUrl && layer.blobUrl && (
+                      <span className="layer-local-badge" title="Lokální soubor - nebude uložen v projektu">
+                        📁
+                      </span>
+                    )}
+                    <button
+                      className="layer-delete-btn-inline"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (window.confirm(`Opravdu chcete smazat vrstvu "${layer.name}"?`)) {
+                          deleteLayer(layer.id)
+                        }
+                      }}
+                      title="Smazat vrstvu"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="layer-clip-container">
+                    <div
+                      className={`layer-clip ${draggingClip === layer.id ? 'dragging' : ''}`}
+                      style={{
+                        left: `${(layer.startTime / Math.max(maxDuration, 1)) * 100}%`,
+                        width: `${(layer.duration / Math.max(maxDuration, 1)) * 100}%`
+                      }}
+                      onMouseDown={(e) => handleClipMouseDown(e, layer.id)}
+                    >
+                      <LayerWaveform
+                        layerId={layer.id}
+                        audioUrl={layer.audioUrl}
+                        blobUrl={layer.blobUrl}
+                        audioBuffer={layer.audioBuffer}
+                        trimStart={layer.trimStart}
+                        trimEnd={layer.trimEnd}
+                        duration={layer.duration}
+                        loop={layer.loop || false}
+                        startTime={layer.startTime}
+                        loopAnchorTime={layer.loopAnchorTime}
+                        isVisible={true}
+                        isSelected={selectedLayerId === layer.id}
+                      />
+                      <button
+                        className="clip-delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (window.confirm(`Opravdu chcete smazat vrstvu "${layer.name}"?`)) {
+                            deleteLayer(layer.id)
+                          }
+                        }}
+                        title="Smazat vrstvu"
+                      >
+                        ✕
+                      </button>
+                      <div
+                        className="clip-handle clip-handle-left"
+                        onMouseDown={(e) => {
+                          e.stopPropagation()
+                          handleClipMouseDown(e, layer.id, true, false)
+                        }}
+                        title="Drag pro trim, Shift+Drag pro prodloužení zleva"
+                      />
+                      <div
+                        className="clip-handle clip-handle-right"
+                        onMouseDown={(e) => {
+                          e.stopPropagation()
+                          handleClipMouseDown(e, layer.id, false, true)
+                        }}
+                        title="Drag pro trim, Shift+Drag pro prodloužení zprava"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
