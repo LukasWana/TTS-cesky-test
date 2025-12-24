@@ -142,17 +142,10 @@ app = FastAPI(title="XTTS-v2 Demo", version="1.0.0", lifespan=lifespan)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    # FE dev servery typicky běží na 5173 (Vite), 3000 apod.
-    # SSE (EventSource) je na CORS citlivé stejně jako fetch, takže povolíme lokální originy.
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
-    # Bezpečné povolení libovolného lokálního portu (např. Vite 5174 po kolizi).
-    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_credentials=True,
+    # Pro dev režim povolíme CORS široce, aby šly načítat WAVy přes WaveSurfer z FE na jiném portu (3000/5173/…).
+    # (WaveSurfer používá fetch/XHR i <audio>, obojí vyžaduje správné CORS hlavičky.)
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1838,7 +1831,13 @@ async def get_audio(filename: str):
     return FileResponse(
         str(file_path),
         media_type="audio/wav",
-        filename=filename
+        filename=filename,
+        headers={
+            # Explicitní CORS pro případ, že klient načítá audio jako "media" request.
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET,OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
     )
 
 
@@ -1866,7 +1865,12 @@ async def get_demo_audio(filename: str):
     return FileResponse(
         str(file_path),
         media_type="audio/wav",
-        filename=filename
+        filename=filename,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET,OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
     )
 
 
