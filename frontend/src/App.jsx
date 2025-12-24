@@ -9,6 +9,7 @@ import History from './components/History'
 import Tabs from './components/Tabs'
 import MusicGen from './components/MusicGen'
 import Bark from './components/Bark'
+import AudioEditor from './components/AudioEditor'
 import { generateSpeech, getDemoVoices, getModelStatus, getTtsProgress, subscribeToTtsProgress } from './services/api'
 import './App.css'
 
@@ -295,6 +296,7 @@ function App() {
     { id: 'generate', label: 'mluvené slovo', icon: '🎤' },
     { id: 'musicgen', label: 'hudba', icon: '🎵' },
     { id: 'bark', label: 'FX & English', icon: '🔊' },
+    { id: 'audioeditor', label: 'Audio Editor', icon: '🎚️' },
     { id: 'history', label: 'Historie', icon: '📜' }
   ]
 
@@ -1078,6 +1080,10 @@ function App() {
 
           {activeTab === 'bark' && (
             <Bark prompt={text} setPrompt={setText} />
+          )}
+
+          {activeTab === 'audioeditor' && (
+            <AudioEditor />
           )}
         </div>
       </main>

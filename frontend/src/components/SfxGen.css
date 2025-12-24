@@ -1,0 +1,107 @@
+/* SfxGen komponenta - podobný styl jako MusicGen */
+.sfxgen {
+  padding: 20px;
+}
+
+.sfxgen-header {
+  margin-bottom: 20px;
+}
+
+.sfxgen-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.5rem;
+  color: var(--text-primary, #333);
+}
+
+.sfxgen-hint {
+  margin: 0;
+  color: var(--text-secondary, #666);
+  font-size: 0.9rem;
+}
+
+.sfxgen-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 1024px) {
+  .sfxgen-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sfxgen-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sfxgen-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text-primary, #333);
+}
+
+.sfxgen-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.sfxgen-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color, #007bff);
+}
+
+.sfxgen-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.sfxgen-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #007bff);
+}
+
+.sfxgen-output {
+  display: flex;
+  flex-direction: column;
+}
+
+.sfxgen-result {
+  padding: 16px;
+  background: var(--bg-secondary, #f9f9f9);
+  border-radius: 8px;
+}
+
+.sfxgen-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-secondary, #999);
+  font-style: italic;
+}
+
+.generate-section {
+  margin-top: 20px;
+}
+
+.error-message {
+  margin-top: 16px;
+  padding: 12px;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  color: #c33;
+}
+

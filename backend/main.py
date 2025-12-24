@@ -1817,7 +1817,20 @@ async def get_model_status():
 @app.get("/api/audio/{filename}")
 async def get_audio(filename: str):
     """Vrátí audio soubor"""
-    file_path = OUTPUTS_DIR / filename
+    # Validace filename proti path traversal
+    if '..' in filename or '/' in filename or '\\' in filename:
+        raise HTTPException(status_code=400, detail="Neplatný název souboru")
+
+    # Resolve cesty a kontrola, že zůstává v OUTPUTS_DIR
+    try:
+        file_path = (OUTPUTS_DIR / filename).resolve()
+        outputs_dir_resolved = OUTPUTS_DIR.resolve()
+
+        # Kontrola, že file_path je uvnitř OUTPUTS_DIR
+        if not str(file_path).startswith(str(outputs_dir_resolved)):
+            raise HTTPException(status_code=403, detail="Přístup zamítnut")
+    except (ValueError, OSError) as e:
+        raise HTTPException(status_code=400, detail=f"Neplatná cesta: {str(e)}")
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio soubor neexistuje")
@@ -1832,7 +1845,20 @@ async def get_audio(filename: str):
 @app.get("/api/audio/demo/{filename}")
 async def get_demo_audio(filename: str):
     """Vrátí demo audio soubor"""
-    file_path = DEMO_VOICES_DIR / filename
+    # Validace filename proti path traversal
+    if '..' in filename or '/' in filename or '\\' in filename:
+        raise HTTPException(status_code=400, detail="Neplatný název souboru")
+
+    # Resolve cesty a kontrola, že zůstává v DEMO_VOICES_DIR
+    try:
+        file_path = (DEMO_VOICES_DIR / filename).resolve()
+        demo_dir_resolved = DEMO_VOICES_DIR.resolve()
+
+        # Kontrola, že file_path je uvnitř DEMO_VOICES_DIR
+        if not str(file_path).startswith(str(demo_dir_resolved)):
+            raise HTTPException(status_code=403, detail="Přístup zamítnut")
+    except (ValueError, OSError) as e:
+        raise HTTPException(status_code=400, detail=f"Neplatná cesta: {str(e)}")
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Demo audio neexistuje")

@@ -1,55 +1,39 @@
 """
-Samostatná historie pro generování Bark audia (FX & English).
+Samostatná historie pro generování SFX (AudioGen).
 
-Ukládá do BASE_DIR/bark_history.json, nezávisle na TTS a MusicGen historii.
+Ukládá do BASE_DIR/sfx_history.json, nezávisle na TTS a MusicGen historii.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from backend.config import BASE_DIR
 
-BARK_HISTORY_FILE = BASE_DIR / "bark_history.json"
+SFX_HISTORY_FILE = BASE_DIR / "sfx_history.json"
 
 
-class BarkHistoryManager:
+class SfxHistoryManager:
     @staticmethod
     def _load_history() -> List[Dict]:
-        if not BARK_HISTORY_FILE.exists():
+        if not SFX_HISTORY_FILE.exists():
             return []
         try:
-            with open(BARK_HISTORY_FILE, "r", encoding="utf-8") as f:
+            with open(SFX_HISTORY_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return []
 
     @staticmethod
     def _save_history(history: List[Dict]) -> None:
-        """Uloží historii atomicky (write temp + rename)"""
         try:
-            temp_file = BARK_HISTORY_FILE.with_suffix('.tmp')
-            with open(temp_file, "w", encoding="utf-8") as f:
+            with open(SFX_HISTORY_FILE, "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-
-            if temp_file.exists():
-                if BARK_HISTORY_FILE.exists():
-                    BARK_HISTORY_FILE.unlink()
-                temp_file.rename(BARK_HISTORY_FILE)
         except IOError as e:
-            print(f"Chyba při ukládání bark historie: {e}")
-            temp_file = BARK_HISTORY_FILE.with_suffix('.tmp')
-            if temp_file.exists():
-                try:
-                    temp_file.unlink()
-                except:
-                    pass
+            print(f"Chyba při ukládání SFX historie: {e}")
 
     @staticmethod
     def add_entry(
@@ -57,19 +41,14 @@ class BarkHistoryManager:
         audio_url: str,
         filename: str,
         prompt: str,
-        bark_params: Optional[Dict] = None,
+        sfx_params: Optional[Dict] = None,
         created_at: Optional[str] = None,
     ) -> Dict:
-        history = BarkHistoryManager._load_history()
+        history = SfxHistoryManager._load_history()
 
-        # Dedupe: kontrolovat prompt + parametry + filename
-        if history and len(history) > 0:
-            last_entry = history[0]
-            if (last_entry.get("prompt") == prompt and
-                last_entry.get("filename") == filename and
-                last_entry.get("bark_params") == (bark_params or {})):
-                # Všechno stejné, neukládat duplikát
-                return last_entry
+        # dedupe: pokud je poslední prompt stejný, nepřidávej nový záznam
+        if history and history[0].get("prompt") == prompt:
+            return history[0]
 
         if len(history) >= 1000:
             history = history[:999]
@@ -79,24 +58,24 @@ class BarkHistoryManager:
             "audio_url": audio_url,
             "filename": filename,
             "prompt": prompt,
-            "bark_params": bark_params or {},
+            "sfx_params": sfx_params or {},
             "created_at": created_at or datetime.now().isoformat(),
         }
 
         history.insert(0, entry)
-        BarkHistoryManager._save_history(history)
+        SfxHistoryManager._save_history(history)
         return entry
 
     @staticmethod
     def get_history(limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
-        history = BarkHistoryManager._load_history()
+        history = SfxHistoryManager._load_history()
         if limit is None:
             return history[offset:]
         return history[offset : offset + limit]
 
     @staticmethod
     def get_entry_by_id(entry_id: str) -> Optional[Dict]:
-        history = BarkHistoryManager._load_history()
+        history = SfxHistoryManager._load_history()
         for entry in history:
             if entry.get("id") == entry_id:
                 return entry
@@ -104,24 +83,24 @@ class BarkHistoryManager:
 
     @staticmethod
     def delete_entry(entry_id: str) -> bool:
-        history = BarkHistoryManager._load_history()
+        history = SfxHistoryManager._load_history()
         original_length = len(history)
         history = [entry for entry in history if entry.get("id") != entry_id]
         if len(history) < original_length:
-            BarkHistoryManager._save_history(history)
+            SfxHistoryManager._save_history(history)
             return True
         return False
 
     @staticmethod
     def clear_history() -> int:
-        history = BarkHistoryManager._load_history()
+        history = SfxHistoryManager._load_history()
         count = len(history)
-        BarkHistoryManager._save_history([])
+        SfxHistoryManager._save_history([])
         return count
 
     @staticmethod
     def get_stats() -> Dict:
-        history = BarkHistoryManager._load_history()
+        history = SfxHistoryManager._load_history()
         return {
             "total_entries": len(history),
             "oldest_entry": history[-1]["created_at"] if history else None,

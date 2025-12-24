@@ -7,6 +7,7 @@ Ukládá do BASE_DIR/music_history.json, nezávisle na TTS historii (history.jso
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -29,11 +30,26 @@ class MusicHistoryManager:
 
     @staticmethod
     def _save_history(history: List[Dict]) -> None:
+        """Uloží historii atomicky (write temp + rename)"""
         try:
-            with open(MUSIC_HISTORY_FILE, "w", encoding="utf-8") as f:
+            temp_file = MUSIC_HISTORY_FILE.with_suffix('.tmp')
+            with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+
+            if temp_file.exists():
+                if MUSIC_HISTORY_FILE.exists():
+                    MUSIC_HISTORY_FILE.unlink()
+                temp_file.rename(MUSIC_HISTORY_FILE)
         except IOError as e:
             print(f"Chyba při ukládání music historie: {e}")
+            temp_file = MUSIC_HISTORY_FILE.with_suffix('.tmp')
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except:
+                    pass
 
     @staticmethod
     def add_entry(
@@ -46,9 +62,14 @@ class MusicHistoryManager:
     ) -> Dict:
         history = MusicHistoryManager._load_history()
 
-        # dedupe: pokud je poslední prompt stejný, nepřidávej nový záznam
-        if history and history[0].get("prompt") == prompt:
-            return history[0]
+        # Dedupe: kontrolovat prompt + parametry + filename
+        if history and len(history) > 0:
+            last_entry = history[0]
+            if (last_entry.get("prompt") == prompt and
+                last_entry.get("filename") == filename and
+                last_entry.get("music_params") == (music_params or {})):
+                # Všechno stejné, neukládat duplikát
+                return last_entry
 
         if len(history) >= 1000:
             history = history[:999]

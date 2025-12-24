@@ -2,6 +2,8 @@
 Správa historie generovaných audio souborů
 """
 import json
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -27,12 +29,29 @@ class HistoryManager:
 
     @staticmethod
     def _save_history(history: List[Dict]):
-        """Uloží historii do JSON souboru"""
+        """Uloží historii do JSON souboru atomicky (write temp + rename)"""
         try:
-            with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+            # Atomický zápis: zapíšeme do temp souboru, pak přejmenujeme
+            temp_file = HISTORY_FILE.with_suffix('.tmp')
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())  # Zajistit, že data jsou na disku
+
+            # Atomické přejmenování (na Windows může selhat, pokud soubor existuje)
+            if temp_file.exists():
+                if HISTORY_FILE.exists():
+                    HISTORY_FILE.unlink()
+                temp_file.rename(HISTORY_FILE)
         except IOError as e:
             print(f"Chyba při ukládání historie: {e}")
+            # Pokus o cleanup temp souboru
+            temp_file = HISTORY_FILE.with_suffix('.tmp')
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except:
+                    pass
 
     @staticmethod
     def add_entry(
@@ -61,11 +80,14 @@ class HistoryManager:
         """
         history = HistoryManager._load_history()
 
-        # Kontrola, zda se text nezměnil - pokud je stejný jako poslední záznam, neukládat
+        # Dedupe: kontrolovat text + parametry + filename
+        # Pokud je vše stejné, vrátit existující záznam
         if history and len(history) > 0:
             last_entry = history[0]  # Nejnovější záznam je na začátku
-            if last_entry.get("text") == text:
-                # Text se nezměnil, neukládat nový záznam
+            if (last_entry.get("text") == text and
+                last_entry.get("filename") == filename and
+                last_entry.get("tts_params") == (tts_params or {})):
+                # Všechno stejné, neukládat duplikát
                 return last_entry
 
         # Omezit historii na max 1000 záznamů před přidáním nového
