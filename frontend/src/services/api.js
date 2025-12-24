@@ -1,7 +1,8 @@
 /**
  * API client pro komunikaci s backend
  */
-const API_BASE_URL = 'http://localhost:8000'
+// Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome, kde backend často neběží na IPv6
+const API_BASE_URL = 'http://127.0.0.1:8000'
 
 
 /**
