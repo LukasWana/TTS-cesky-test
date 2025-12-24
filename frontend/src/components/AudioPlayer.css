@@ -6,6 +6,14 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+.audio-player-section.compact {
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
 .audio-player-header {
   display: flex;
   justify-content: space-between;
@@ -33,6 +41,16 @@
   margin-top: 0;
 }
 
+.audio-player-section.compact .audio-player-main {
+  gap: 12px;
+}
+
+.waveform-wrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
 .waveform-container {
   flex: 1;
   min-width: 0;
@@ -40,6 +58,21 @@
   border-radius: 12px;
   padding: 8px;
   min-height: 60px;
+}
+
+.audio-duration-badge {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .waveform-error {

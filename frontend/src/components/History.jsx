@@ -233,7 +233,7 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
               </div>
 
               <div className="history-item-audio-preview">
-                <AudioPlayer audioUrl={`${API_BASE_URL}${entry.audio_url}`} />
+                <AudioPlayer audioUrl={`${API_BASE_URL}${entry.audio_url}`} variant="compact" />
               </div>
 
               <div className="history-item-text">

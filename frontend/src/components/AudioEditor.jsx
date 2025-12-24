@@ -206,6 +206,21 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
   const cachedPeaks = cached?.peaks
   const cachedDuration = cached?.duration
 
+  const [durationSec, setDurationSec] = useState(
+    typeof cachedDuration === 'number' && cachedDuration > 0 ? cachedDuration : 0
+  )
+
+  useEffect(() => {
+    setDurationSec(typeof cachedDuration === 'number' && cachedDuration > 0 ? cachedDuration : 0)
+  }, [cachedDuration, audioUrl])
+
+  const formatDurationMMSS = (time) => {
+    const t = Math.max(0, Math.floor(Number(time) || 0))
+    const minutes = Math.floor(t / 60)
+    const seconds = Math.floor(t % 60)
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
+
   // Canvas overlay odstraněn - WaveSurfer už renderuje waveform sám
 
   // Intersection Observer pro lazy loading - načítat pouze viditelné položky
@@ -306,6 +321,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
                 duration,
                 timestamp: Date.now()
               })
+              setDurationSec(duration)
             }
           }
         } catch (e) {
@@ -580,6 +596,11 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           </div>
         ) : (
           <div className="history-item-waveform" ref={waveformRef}></div>
+        )}
+        {!hasError && typeof durationSec === 'number' && durationSec > 0 && (
+          <div className="history-item-duration-badge" title="Celkový čas souboru">
+            {formatDurationMMSS(durationSec)}
+          </div>
         )}
       </div>
       <div className="history-item-compact-text">

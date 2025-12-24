@@ -1023,6 +1023,22 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 8px;
+  position: relative;
+}
+
+.history-item-duration-badge {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .history-item-play-btn {

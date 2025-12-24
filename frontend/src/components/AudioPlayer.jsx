@@ -3,7 +3,7 @@ import WaveSurfer from 'wavesurfer.js'
 import { getWaveformCache, setWaveformCache } from '../utils/waveformCache'
 import './AudioPlayer.css'
 
-function AudioPlayer({ audioUrl }) {
+function AudioPlayer({ audioUrl, variant = 'full' }) {
   const waveformRef = useRef(null)
   const wavesurfer = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -250,13 +250,15 @@ function AudioPlayer({ audioUrl }) {
   }
 
   return (
-    <div className="audio-player-section">
-      <div className="audio-player-header">
-        <h2>Výstup</h2>
-        <div className="audio-time">
-          {formatTime(currentTime)} / {formatTime(duration)}
+    <div className={`audio-player-section ${variant === 'compact' ? 'compact' : ''}`}>
+      {variant !== 'compact' && (
+        <div className="audio-player-header">
+          <h2>Výstup</h2>
+          <div className="audio-time">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="audio-player-main">
         <button
@@ -267,8 +269,15 @@ function AudioPlayer({ audioUrl }) {
           {hasError ? '⚠️' : (isPlaying ? '⏸' : '▶')}
         </button>
 
-        <div className="waveform-container" ref={waveformRef} style={{ display: hasError ? 'none' : 'block' }}></div>
-        {hasError && <div className="waveform-error">Soubor nebyl nalezen</div>}
+        <div className="waveform-wrap">
+          <div className="waveform-container" ref={waveformRef} style={{ display: hasError ? 'none' : 'block' }}></div>
+          {variant === 'compact' && !hasError && typeof duration === 'number' && duration > 0 && (
+            <div className="audio-duration-badge" title="Celkový čas souboru">
+              {formatTime(duration)}
+            </div>
+          )}
+          {hasError && <div className="waveform-error">Soubor nebyl nalezen</div>}
+        </div>
 
         <button className="download-button-large" onClick={handleDownload} title="Stáhnout audio" disabled={hasError}>
           💾
