@@ -21,6 +21,11 @@ const LayerWaveform = React.memo(function LayerWaveform({
   loop = false,
   startTime = 0,
   loopAnchorTime = null,
+  fadeIn = 0,
+  fadeOut = 0,
+  isSelected = false,
+  onFadeInChange = null,
+  onFadeOutChange = null,
   onReady
 }) {
 
@@ -123,6 +128,103 @@ const LayerWaveform = React.memo(function LayerWaveform({
     })
   }
 
+  // Vypočítat fade procenta pro vizualizaci
+  const trimmedDuration = Math.max(0.01, trimEnd - trimStart)
+  const fadeInPercent = trimmedDuration > 0 ? Math.min(100, (fadeIn / trimmedDuration) * 100) : 0
+  const fadeOutPercent = trimmedDuration > 0 ? Math.min(100, (fadeOut / trimmedDuration) * 100) : 0
+
+
+  // Render fade overlay
+  const renderFadeOverlay = () => {
+    if (fadeIn <= 0 && fadeOut <= 0) return null
+    return (
+      <div
+        className="fade-overlay"
+        style={{
+          background: `linear-gradient(
+            to right,
+            rgba(0, 0, 0, 0.4) 0%,
+            rgba(0, 0, 0, 0.4) ${fadeInPercent}%,
+            transparent ${fadeInPercent}%,
+            transparent ${100 - fadeOutPercent}%,
+            rgba(0, 0, 0, 0.4) ${100 - fadeOutPercent}%,
+            rgba(0, 0, 0, 0.4) 100%
+          )`,
+          pointerEvents: 'none'
+        }}
+      />
+    )
+  }
+
+  // Render fade handles
+  const renderFadeHandles = () => {
+    if (!isSelected || (!onFadeInChange && !onFadeOutChange)) return null
+    return (
+      <>
+        {fadeIn > 0 && onFadeInChange && (
+          <div
+            className="fade-handle fade-handle-in"
+            style={{ left: `${fadeInPercent}%` }}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              const startX = e.clientX
+              const startFadeIn = fadeIn
+              const rect = e.currentTarget.closest('.layer-clip')?.getBoundingClientRect()
+              if (!rect) return
+
+              const handleMouseMove = (moveE) => {
+                const deltaX = moveE.clientX - startX
+                const deltaPercent = (deltaX / rect.width) * 100
+                const deltaTime = (deltaPercent / 100) * trimmedDuration
+                const newFadeIn = Math.max(0, Math.min(trimmedDuration - fadeOut, startFadeIn + deltaTime))
+                onFadeInChange(newFadeIn)
+              }
+
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove)
+                document.removeEventListener('mouseup', handleMouseUp)
+              }
+
+              document.addEventListener('mousemove', handleMouseMove)
+              document.addEventListener('mouseup', handleMouseUp)
+            }}
+            title={`Fade In: ${fadeIn.toFixed(2)}s`}
+          />
+        )}
+        {fadeOut > 0 && onFadeOutChange && (
+          <div
+            className="fade-handle fade-handle-out"
+            style={{ right: `${fadeOutPercent}%` }}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              const startX = e.clientX
+              const startFadeOut = fadeOut
+              const rect = e.currentTarget.closest('.layer-clip')?.getBoundingClientRect()
+              if (!rect) return
+
+              const handleMouseMove = (moveE) => {
+                const deltaX = moveE.clientX - startX
+                const deltaPercent = (deltaX / rect.width) * 100
+                const deltaTime = (deltaPercent / 100) * trimmedDuration
+                const newFadeOut = Math.max(0, Math.min(trimmedDuration - fadeIn, startFadeOut - deltaTime))
+                onFadeOutChange(newFadeOut)
+              }
+
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove)
+                document.removeEventListener('mouseup', handleMouseUp)
+              }
+
+              document.addEventListener('mousemove', handleMouseMove)
+              document.addEventListener('mouseup', handleMouseUp)
+            }}
+            title={`Fade Out: ${fadeOut.toFixed(2)}s`}
+          />
+        )}
+      </>
+    )
+  }
+
   if (shouldUseRepeatWaveform && repeatWaveformUrl) {
     const cycle = Math.max(0.05, (trimEnd - trimStart))
     const tilePercent = Math.max(1, (cycle / Math.max(duration, 0.001)) * 100)
@@ -132,30 +234,38 @@ const LayerWaveform = React.memo(function LayerWaveform({
     const phasePercentOfTile = (phaseSeconds / cycle) * 100
 
     return (
-      <div
-        className="layer-waveform layer-waveform-repeat"
-        style={{
-          backgroundImage: `url(${repeatWaveformUrl})`,
-          backgroundRepeat: 'repeat-x',
-          backgroundSize: `${tilePercent}% 100%`,
-          backgroundPositionX: `${-phasePercentOfTile}%`,
-          backgroundPositionY: '0'
-        }}
-      />
+      <div className="layer-waveform-wrapper">
+        <div
+          className="layer-waveform layer-waveform-repeat"
+          style={{
+            backgroundImage: `url(${repeatWaveformUrl})`,
+            backgroundRepeat: 'repeat-x',
+            backgroundSize: `${tilePercent}% 100%`,
+            backgroundPositionX: `${-phasePercentOfTile}%`,
+            backgroundPositionY: '0'
+          }}
+        />
+        {renderFadeOverlay()}
+        {renderFadeHandles()}
+      </div>
     )
   }
 
   if (staticWaveformUrl) {
     return (
-      <div
-        className="layer-waveform"
-        style={{
-          backgroundImage: `url(${staticWaveformUrl})`,
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: '100% 100%',
-          backgroundPosition: '0 0'
-        }}
-      />
+      <div className="layer-waveform-wrapper">
+        <div
+          className="layer-waveform"
+          style={{
+            backgroundImage: `url(${staticWaveformUrl})`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: '100% 100%',
+            backgroundPosition: '0 0'
+          }}
+        />
+        {renderFadeOverlay()}
+        {renderFadeHandles()}
+      </div>
     )
   }
 
@@ -169,7 +279,10 @@ const LayerWaveform = React.memo(function LayerWaveform({
     prev.duration === next.duration &&
     prev.loop === next.loop &&
     prev.startTime === next.startTime &&
-    prev.loopAnchorTime === next.loopAnchorTime
+    prev.loopAnchorTime === next.loopAnchorTime &&
+    prev.fadeIn === next.fadeIn &&
+    prev.fadeOut === next.fadeOut &&
+    prev.isSelected === next.isSelected
   )
 })
 
@@ -1457,6 +1570,30 @@ function AudioEditor() {
 
         const next = { ...layer, ...updates }
 
+        // Validace fade in/out hodnot
+        if (updates.fadeIn !== undefined || updates.fadeOut !== undefined) {
+          const trimmedDuration = Math.max(0.01, (next.trimEnd || 0) - (next.trimStart || 0))
+          const fadeIn = next.fadeIn || 0
+          const fadeOut = next.fadeOut || 0
+
+          // Zajistit, aby fade in + fade out nepřesáhly trimmedDuration
+          if (fadeIn + fadeOut > trimmedDuration) {
+            if (updates.fadeIn !== undefined) {
+              // Pokud se mění fadeIn, upravit fadeOut
+              next.fadeIn = Math.max(0, Math.min(trimmedDuration, fadeIn))
+              next.fadeOut = Math.max(0, Math.min(trimmedDuration - next.fadeIn, fadeOut))
+            } else if (updates.fadeOut !== undefined) {
+              // Pokud se mění fadeOut, upravit fadeIn
+              next.fadeOut = Math.max(0, Math.min(trimmedDuration, fadeOut))
+              next.fadeIn = Math.max(0, Math.min(trimmedDuration - next.fadeOut, fadeIn))
+            }
+          } else {
+            // Omezit jednotlivé hodnoty na trimmedDuration
+            next.fadeIn = Math.max(0, Math.min(trimmedDuration, fadeIn))
+            next.fadeOut = Math.max(0, Math.min(trimmedDuration, fadeOut))
+          }
+        }
+
         // Když zapínáme loop a není anchor nebo je 0, ukotvit na aktuální startTime
         if (updates.loop === true) {
           // Pokud loopAnchorTime není nastavený nebo je 0 (což je default hodnota), nastavit na startTime
@@ -1815,8 +1952,8 @@ function AudioEditor() {
         if (durationToPlay <= 0) return
 
         // Gain + fade in/out (globálně vůči vrstvě)
-        const fadeInDuration = Math.min(layer.fadeIn, layer.duration)
-        const fadeOutDuration = Math.min(layer.fadeOut, layer.duration)
+        const fadeInDuration = Math.min(layer.fadeIn || 0, trimmedDuration)
+        const fadeOutDuration = Math.min(layer.fadeOut || 0, trimmedDuration)
 
         // Pokud už jsme ve fade-in, nastavíme počáteční hlasitost podle progressu
         const fadeInProgress = fadeInDuration > 0 ? Math.min(layerTimeOffset / fadeInDuration, 1) : 1
@@ -2548,8 +2685,20 @@ function AudioEditor() {
                         loop={layer.loop || false}
                         startTime={layer.startTime}
                         loopAnchorTime={layer.loopAnchorTime}
-                        isVisible={true}
+                        fadeIn={layer.fadeIn || 0}
+                        fadeOut={layer.fadeOut || 0}
                         isSelected={selectedLayerId === layer.id}
+                        onFadeInChange={(newFadeIn) => {
+                          const trimmedDuration = Math.max(0.01, layer.trimEnd - layer.trimStart)
+                          const validFadeIn = Math.max(0, Math.min(trimmedDuration - (layer.fadeOut || 0), newFadeIn))
+                          updateLayer(layer.id, { fadeIn: validFadeIn })
+                        }}
+                        onFadeOutChange={(newFadeOut) => {
+                          const trimmedDuration = Math.max(0.01, layer.trimEnd - layer.trimStart)
+                          const validFadeOut = Math.max(0, Math.min(trimmedDuration - (layer.fadeIn || 0), newFadeOut))
+                          updateLayer(layer.id, { fadeOut: validFadeOut })
+                        }}
+                        isVisible={true}
                       />
                       <button
                         className="clip-delete-btn"
@@ -2661,10 +2810,14 @@ function AudioEditor() {
                           <input
                             type="number"
                             min="0"
-                            max={layer.duration}
+                            max={Math.max(0.01, (layer.trimEnd || 0) - (layer.trimStart || 0))}
                             step="0.1"
                             value={layer.fadeIn.toFixed(1)}
-                            onChange={(e) => updateLayer(layer.id, { fadeIn: parseFloat(e.target.value) || 0 })}
+                            onChange={(e) => {
+                              const trimmedDuration = Math.max(0.01, (layer.trimEnd || 0) - (layer.trimStart || 0))
+                              const newFadeIn = Math.max(0, Math.min(trimmedDuration - (layer.fadeOut || 0), parseFloat(e.target.value) || 0))
+                              updateLayer(layer.id, { fadeIn: newFadeIn })
+                            }}
                           />
                         </div>
                         <div className="control-group">
@@ -2672,10 +2825,14 @@ function AudioEditor() {
                           <input
                             type="number"
                             min="0"
-                            max={layer.duration}
+                            max={Math.max(0.01, (layer.trimEnd || 0) - (layer.trimStart || 0))}
                             step="0.1"
                             value={layer.fadeOut.toFixed(1)}
-                            onChange={(e) => updateLayer(layer.id, { fadeOut: parseFloat(e.target.value) || 0 })}
+                            onChange={(e) => {
+                              const trimmedDuration = Math.max(0.01, (layer.trimEnd || 0) - (layer.trimStart || 0))
+                              const newFadeOut = Math.max(0, Math.min(trimmedDuration - (layer.fadeIn || 0), parseFloat(e.target.value) || 0))
+                              updateLayer(layer.id, { fadeOut: newFadeOut })
+                            }}
                           />
                         </div>
                         <div className="control-group">
