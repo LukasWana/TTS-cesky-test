@@ -1,5 +1,5 @@
 // bump verze kvůli špatně uloženým peaks z předchozího nastavení (barcode look)
-const WAVEFORM_CACHE_KEY = 'waveform_peaks_cache_v2'
+const WAVEFORM_CACHE_KEY = 'waveform_peaks_cache_v3'
 
 // In-memory cache to avoid JSON.parse/stringify per item render
 let _mem = null

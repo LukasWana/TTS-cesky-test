@@ -268,9 +268,8 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
         waveColor: 'rgba(255, 255, 255, 0.25)',
         progressColor: 'rgba(99, 102, 241, 0.6)',
         cursorColor: 'transparent',
-        barWidth: 1,
-        barGap: 1,
-        barRadius: 0.5,
+        // Pozn.: barWidth/barGap/barRadius přepínají renderer do „sloupců“ (barcode look).
+        // Pro náhledy chceme plynulý průběh jako v editoru -> necháme default waveform renderer.
         responsive: true,
         height: 40,
         normalize: true,
@@ -292,12 +291,13 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           if (audioUrl) {
             // v7: exportPeaks vrací Array<number[]> (per channel)
             // maxLength odvodíme od šířky pro lepší kvalitu cache a detailnější zobrazení
+            // precision zvýšena na 6 pro zachování plynulých hodnot (místo binary 0/1)
             const width = waveformRef.current?.clientWidth || 260
-            const maxLength = Math.max(200, Math.min(600, Math.floor(width * 1.5)))
+            const maxLength = Math.max(600, Math.min(2000, Math.floor(width * 4)))
             const exported = wavesurfer.exportPeaks?.({
               channels: 1,
               maxLength,
-              precision: 4
+              precision: 6
             })
             const duration = wavesurfer.getDuration?.()
             if (Array.isArray(exported) && exported.length > 0 && Array.isArray(exported[0]) && exported[0].length > 0 && typeof duration === 'number' && duration > 0) {
@@ -394,11 +394,17 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           // Pokud není co normalizovat, vrátit původní peaks
           if (maxAbs <= 0) return peaks
 
-          // Vypočítat normalizační faktor s paddingem (0.95) aby waveform nešel až na okraj
-          const padding = 0.95
-          const scale = padding / maxAbs
+          // Stejná logika jako v LayerWaveform: vyplnit výšku s paddingem 2px
+          // DŮLEŽITÉ: WaveSurfer očekává peaks v rozsahu -1 až 1, takže musíme škálovat
+          // v rámci tohoto rozsahu, ne na pixely
+          const height = 40
+          const padding = 2
+          const maxHeight = height / 2 // = 20px (maximální výška na jednu stranu)
+          const availableHeight = maxHeight - padding // = 18px (dostupná výška s paddingem)
+          const heightRatio = availableHeight / maxHeight // = 0.9 (90% výšky)
+          const scale = maxAbs > 0 ? heightRatio / maxAbs : 1
 
-          // Aplikovat škálování na všechny hodnoty
+          // Aplikovat škálování na všechny hodnoty (výsledek bude v rozsahu -0.9 až 0.9)
           const normalized = peaks.map(channel => {
             if (!Array.isArray(channel)) return channel
             return channel.map(v => (v || 0) * scale)
@@ -406,27 +412,24 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
 
           return normalized
         }
-
-        // WaveSurfer s normalize: true už normalizuje automaticky, takže nepotřebujeme další normalizaci
-        const getMaxBars = () => {
+        const getMaxPeaks = () => {
           const width = waveformRef.current?.clientWidth || 260
-          // barWidth 1 + barGap 1 -> ~2px, zvýšené rozlišení pro detailnější zobrazení
-          return Math.max(200, Math.floor(width / 1.5))
+          // Plynulý waveform potřebuje víc bodů než sloupce.
+          // Držíme to rozumně kvůli velikosti cache a výkonu.
+          return Math.max(600, Math.min(2000, Math.floor(width * 4)))
         }
 
         let peaksToUse = cachedPeaks
         if (hasCached) {
-          const maxBars = getMaxBars()
+          const maxPeaks = getMaxPeaks()
           const ch0 = cachedPeaks[0]
-          if (Array.isArray(ch0) && ch0.length > maxBars) {
+          if (Array.isArray(ch0) && ch0.length > maxPeaks) {
             // Downsampling pro optimalizaci
-            peaksToUse = [downsample(ch0, maxBars)]
+            peaksToUse = [downsample(ch0, maxPeaks)]
           } else if (Array.isArray(ch0)) {
             // Použít cached peaks přímo
             peaksToUse = cachedPeaks
           }
-          // Aplikovat grafickou normalizaci na výšku (stejně jako v editoru)
-          peaksToUse = normalizePeaksToHeight(peaksToUse)
         }
 
         const loadPromise = hasCached

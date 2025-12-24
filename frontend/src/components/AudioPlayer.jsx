@@ -27,15 +27,17 @@ function AudioPlayer({ audioUrl }) {
     if (waveformRef.current) {
       wavesurfer.current = WaveSurfer.create({
         container: waveformRef.current,
-        waveColor: '#6366f1',
-        progressColor: '#a5b4fc',
-        cursorColor: '#fff',
-        barWidth: 2,
-        barGap: 1,
-        barRadius: 3,
+        waveColor: 'rgba(255, 255, 255, 0.25)',
+        progressColor: 'rgba(99, 102, 241, 0.6)',
+        cursorColor: 'transparent',
+        // Pozn.: barWidth/barGap/barRadius přepínají renderer do „sloupců“ (barcode look).
+        // Pro náhledy chceme plynulý průběh jako v editoru -> necháme default waveform renderer.
         responsive: true,
-        height: 50,
+        height: 40,
         normalize: true,
+        interact: false,
+        // Preview: MediaElement backend je výrazně lehčí než WebAudio decode pro waveform list
+        backend: 'MediaElement',
         partialRender: true
       })
 
@@ -89,11 +91,17 @@ function AudioPlayer({ audioUrl }) {
         // Pokud není co normalizovat, vrátit původní peaks
         if (maxAbs <= 0) return peaks
 
-        // Vypočítat normalizační faktor s paddingem (0.95) aby waveform nešel až na okraj
-        const padding = 0.95
-        const scale = padding / maxAbs
+        // Stejná logika jako v LayerWaveform: vyplnit výšku s paddingem 2px
+        // DŮLEŽITÉ: WaveSurfer očekává peaks v rozsahu -1 až 1, takže musíme škálovat
+        // v rámci tohoto rozsahu, ne na pixely
+        const height = 40
+        const padding = 2
+        const maxHeight = height / 2 // = 20px (maximální výška na jednu stranu)
+        const availableHeight = maxHeight - padding // = 18px (dostupná výška s paddingem)
+        const heightRatio = availableHeight / maxHeight // = 0.9 (90% výšky)
+        const scale = maxAbs > 0 ? heightRatio / maxAbs : 1
 
-        // Aplikovat škálování na všechny hodnoty
+        // Aplikovat škálování na všechny hodnoty (výsledek bude v rozsahu -0.9 až 0.9)
         const normalized = peaks.map(channel => {
           if (!Array.isArray(channel)) return channel
           return channel.map(v => (v || 0) * scale)
@@ -102,10 +110,11 @@ function AudioPlayer({ audioUrl }) {
         return normalized
       }
 
-      const getMaxBars = () => {
+      const getMaxPeaks = () => {
         const width = waveformRef.current?.clientWidth || 300
-        // každý bar zabere ~barWidth + barGap px, zvýšené rozlišení pro detailnější zobrazení
-        return Math.max(200, Math.floor(width / 2)) // (2+1)=3
+        // Plynulý waveform potřebuje víc bodů než sloupce.
+        // Držíme to rozumně kvůli velikosti cache a výkonu.
+        return Math.max(600, Math.min(2000, Math.floor(width * 4)))
       }
 
       const loadWithRetry = (url, peaks, duration) => {
@@ -120,10 +129,8 @@ function AudioPlayer({ audioUrl }) {
       }
 
       if (hasValidCachedPeaks) {
-        const maxBars = getMaxBars()
-        let peaksToUse = cachedPeaks[0].length > maxBars ? [downsample(cachedPeaks[0], maxBars)] : cachedPeaks
-        // Aplikovat grafickou normalizaci na výšku (stejně jako v editoru)
-        peaksToUse = normalizePeaksToHeight(peaksToUse)
+        const maxPeaks = getMaxPeaks()
+        let peaksToUse = cachedPeaks[0].length > maxPeaks ? [downsample(cachedPeaks[0], maxPeaks)] : cachedPeaks
         loadWithRetry(fullUrl, peaksToUse, cachedDuration).catch(err => {
           // Ignorovat AbortError - je to normální při změně URL nebo unmountu komponenty
           if (err && (err.name === 'AbortError' || err.message?.includes('aborted'))) {
@@ -151,8 +158,11 @@ function AudioPlayer({ audioUrl }) {
         try {
           if (audioUrl && !cachedPeaks) {
             // v7: exportPeaks vrací Array<number[]> (per channel)
-            // maxLength zvýšen pro lepší kvalitu cache a detailnější zobrazení
-            const exported = wavesurfer.current.exportPeaks?.({ channels: 1, maxLength: 600, precision: 4 })
+            // maxLength odvodíme od šířky pro plynulejší průběh (a pořád rozumná velikost cache)
+            const width = waveformRef.current?.clientWidth || 300
+            const maxLength = Math.max(600, Math.min(2000, Math.floor(width * 4)))
+            // precision zvýšena pro zachování plynulých hodnot (místo „zubatého“/kvantizovaného looku)
+            const exported = wavesurfer.current.exportPeaks?.({ channels: 1, maxLength, precision: 6 })
             if (Array.isArray(exported) && exported.length > 0 && Array.isArray(exported[0]) && exported[0].length > 0 && typeof dur === 'number' && dur > 0) {
               setWaveformCache(audioUrl, {
                 peaks: exported,
