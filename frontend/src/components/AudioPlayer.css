@@ -42,6 +42,19 @@
   min-height: 60px;
 }
 
+.waveform-error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.9rem;
+  background: rgba(255, 0, 0, 0.05);
+  border-radius: 12px;
+  min-height: 60px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
 .play-button-large {
   width: 54px;
   height: 54px;
