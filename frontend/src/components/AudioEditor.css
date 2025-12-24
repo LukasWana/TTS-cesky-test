@@ -515,7 +515,7 @@
 
 .timeline-scroll {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   max-width: 100%;
   /* Lepší pocit při dragování timeline */
   scrollbar-gutter: stable;
@@ -524,6 +524,7 @@
 .timeline-content {
   position: relative;
   min-height: 200px;
+  overflow-y: visible;
 }
 
 .timeline-header {
@@ -651,6 +652,7 @@
 
 .layer-track {
   position: relative;
+  min-height: 60px;
   height: 60px;
   margin-bottom: 10px;
   border-radius: 8px;
@@ -658,7 +660,11 @@
   border: 2px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
   transition: all 0.2s ease;
-  overflow: hidden;
+  overflow: visible;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .layer-track:hover {
@@ -688,6 +694,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .layer-delete-btn-inline {
@@ -722,6 +732,159 @@
   margin-left: 6px;
   opacity: 0.7;
   cursor: help;
+}
+
+.layer-settings-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: rgba(99, 102, 241, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-right: 4px;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.layer-settings-btn:hover {
+  background: rgba(99, 102, 241, 0.4);
+  transform: scale(1.1);
+}
+
+.layer-settings-panel {
+  position: relative;
+  width: 100%;
+  background: rgba(30, 30, 40, 0.95);
+  border: 2px solid rgba(99, 102, 241, 0.5);
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  overflow: visible;
+}
+
+.layer-settings-header {
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.layer-settings-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+
+.layer-settings-close-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.layer-settings-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.layer-settings-content {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.layer-settings-content .control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.layer-settings-content .control-group label {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.layer-settings-content .control-group label input[type="checkbox"] {
+  margin-right: 6px;
+}
+
+.layer-settings-content .control-group input[type="range"] {
+  width: 120px;
+}
+
+.layer-settings-content .control-group span {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+}
+
+.layer-settings-content .control-group input[type="number"] {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  width: 80px;
+}
+
+.layer-settings-content .control-group input[type="range"]:focus,
+.layer-settings-content .control-group input[type="number"]:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.8);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.layer-settings-content .btn-delete-layer {
+  padding: 8px 16px;
+  background: rgba(239, 68, 68, 0.2);
+  color: rgba(239, 68, 68, 1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  height: fit-content;
+}
+
+.layer-settings-content .btn-delete-layer:hover {
+  background: rgba(239, 68, 68, 0.4);
+  border-color: rgba(239, 68, 68, 0.6);
 }
 
 .layer-clip-container {

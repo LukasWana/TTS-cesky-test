@@ -618,6 +618,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
 function AudioEditor() {
   const [layers, setLayers] = useState([])
   const [selectedLayerId, setSelectedLayerId] = useState(null)
+  const [expandedLayerId, setExpandedLayerId] = useState(null) // ID vrstvy s otevřeným panelem nastavení
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [masterVolume, setMasterVolume] = useState(1.0)
@@ -2491,32 +2492,43 @@ function AudioEditor() {
             <div className="timeline-playhead" style={{ left: `${playbackPosition * 100}%` }} />
             <div className="layers-container" onClick={(e) => e.stopPropagation()}>
               {layers.map((layer, index) => (
-                <div
-                  key={layer.id}
-                  className={`layer-track ${selectedLayerId === layer.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedLayerId(layer.id)}
-                >
-                  <div className="layer-label">
-                    {layer.name}
-                    {!layer.audioUrl && layer.blobUrl && (
-                      <span className="layer-local-badge" title="Lokální soubor - nebude uložen v projektu">
-                        📁
-                      </span>
-                    )}
-                    <button
-                      className="layer-delete-btn-inline"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (window.confirm(`Opravdu chcete smazat vrstvu "${layer.name}"?`)) {
-                          deleteLayer(layer.id)
-                        }
-                      }}
-                      title="Smazat vrstvu"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="layer-clip-container">
+                <React.Fragment key={layer.id}>
+                  <div
+                    className={`layer-track ${selectedLayerId === layer.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedLayerId(layer.id)}
+                  >
+                    <div className="layer-label" style={{ userSelect: 'none' }}>
+                      <button
+                        className="layer-settings-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setExpandedLayerId(expandedLayerId === layer.id ? null : layer.id)
+                        }}
+                        title={expandedLayerId === layer.id ? 'Zavřít nastavení' : 'Otevřít nastavení'}
+                      >
+                        {expandedLayerId === layer.id ? '▼' : '▶'}
+                      </button>
+                      {layer.name}
+                      {!layer.audioUrl && layer.blobUrl && (
+                        <span className="layer-local-badge" title="Lokální soubor - nebude uložen v projektu">
+                          📁
+                        </span>
+                      )}
+                      <button
+                        className="layer-delete-btn-inline"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (window.confirm(`Opravdu chcete smazat vrstvu "${layer.name}"?`)) {
+                            deleteLayer(layer.id)
+                            setExpandedLayerId(null)
+                          }
+                        }}
+                        title="Smazat vrstvu"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="layer-clip-container">
                     <div
                       className={`layer-clip ${draggingClip === layer.id ? 'dragging' : ''}`}
                       style={{
@@ -2570,6 +2582,128 @@ function AudioEditor() {
                     </div>
                   </div>
                 </div>
+                  {expandedLayerId === layer.id && (
+                    <div className="layer-settings-panel" onClick={(e) => e.stopPropagation()} style={{ userSelect: 'none' }}>
+                      <div className="layer-settings-header">
+                        <h4>Nastavení: {layer.name}</h4>
+                        <button
+                          className="layer-settings-close-btn"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setExpandedLayerId(null)
+                          }}
+                          title="Zavřít nastavení"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="layer-settings-content">
+                        <div className="control-group">
+                          <label>Hlasitost</label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="2"
+                            step="0.01"
+                            value={layer.volume}
+                            onChange={(e) => updateLayer(layer.id, { volume: parseFloat(e.target.value) })}
+                          />
+                          <span>{Math.round(layer.volume * 100)}%</span>
+                        </div>
+                        <div className="control-group">
+                          <label>Začátek (s)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={layer.startTime.toFixed(1)}
+                            onChange={(e) => updateLayer(layer.id, { startTime: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                        <div className="control-group">
+                          <label>Trim Start (s)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={layer.audioBuffer?.duration || 0}
+                            step="0.1"
+                            value={layer.trimStart.toFixed(1)}
+                            onChange={(e) => {
+                              const newTrimStart = Math.max(0, Math.min(parseFloat(e.target.value) || 0, layer.trimEnd - 0.1))
+                              const newDuration = layer.trimEnd - newTrimStart
+                              updateLayer(layer.id, {
+                                trimStart: newTrimStart,
+                                duration: newDuration
+                              })
+                            }}
+                          />
+                        </div>
+                        <div className="control-group">
+                          <label>Trim End (s)</label>
+                          <input
+                            type="number"
+                            min={(layer.trimStart || 0) + 0.1}
+                            max={layer.audioBuffer?.duration || 0}
+                            step="0.1"
+                            value={layer.trimEnd.toFixed(1)}
+                            onChange={(e) => {
+                              const newTrimEnd = Math.max((layer.trimStart || 0) + 0.1, Math.min(parseFloat(e.target.value) || layer.audioBuffer?.duration || 0, layer.audioBuffer?.duration || 0))
+                              const newDuration = newTrimEnd - (layer.trimStart || 0)
+                              updateLayer(layer.id, {
+                                trimEnd: newTrimEnd,
+                                duration: newDuration
+                              })
+                            }}
+                          />
+                        </div>
+                        <div className="control-group">
+                          <label>Fade In (s)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={layer.duration}
+                            step="0.1"
+                            value={layer.fadeIn.toFixed(1)}
+                            onChange={(e) => updateLayer(layer.id, { fadeIn: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                        <div className="control-group">
+                          <label>Fade Out (s)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={layer.duration}
+                            step="0.1"
+                            value={layer.fadeOut.toFixed(1)}
+                            onChange={(e) => updateLayer(layer.id, { fadeOut: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                        <div className="control-group">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={layer.loop || false}
+                              onChange={(e) => updateLayer(layer.id, { loop: e.target.checked })}
+                            />
+                            🔁 Loopovat zvuk
+                          </label>
+                        </div>
+                        <button
+                          className="btn-delete-layer"
+                          onClick={() => {
+                            if (window.confirm(`Opravdu chcete smazat vrstvu "${layer.name}"?`)) {
+                              deleteLayer(layer.id)
+                              setExpandedLayerId(null)
+                            }
+                          }}
+                          title="Smazat vrstvu"
+                        >
+                          🗑️ Smazat vrstvu
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </React.Fragment>
               ))}
             </div>
           </div>
@@ -2645,177 +2779,8 @@ function AudioEditor() {
         style={{ display: 'none' }}
       />
 
-      {/* Layers List */}
-      <div className="layers-panel">
-        <h3>Vrstvy ({layers.length})</h3>
-        <div className="layers-list">
-          {layers.map((layer, index) => (
-            <div
-              key={layer.id}
-              className={`layer-item ${selectedLayerId === layer.id ? 'selected' : ''}`}
-              onClick={() => setSelectedLayerId(layer.id)}
-            >
-              <div className="layer-item-header">
-                <span className="layer-item-name">
-                  {layer.name}
-                  {!layer.audioUrl && layer.blobUrl && (
-                    <span className="layer-local-badge" title="Lokální soubor - nebude uložen v projektu">
-                      📁
-                    </span>
-                  )}
-                </span>
-                <button
-                  className="layer-delete-btn"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (window.confirm(`Opravdu chcete smazat vrstvu "${layer.name}"?`)) {
-                      deleteLayer(layer.id)
-                    }
-                  }}
-                  title="Smazat vrstvu"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="layer-item-controls">
-                <div className="control-group">
-                  <label>Hlasitost</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="2"
-                    step="0.01"
-                    value={layer.volume}
-                    onChange={(e) => updateLayer(layer.id, { volume: parseFloat(e.target.value) })}
-                  />
-                  <span>{Math.round(layer.volume * 100)}%</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Layer Editor */}
-      {selectedLayer && (
-        <div className="layer-editor-panel">
-          <div className="layer-editor-header">
-            <h3>Editace vrstvy: {selectedLayer.name}</h3>
-            <button
-              className="btn-delete-layer"
-              onClick={() => {
-                if (window.confirm(`Opravdu chcete smazat vrstvu "${selectedLayer.name}"?`)) {
-                  deleteLayer(selectedLayer.id)
-                }
-              }}
-              title="Smazat vrstvu"
-            >
-              🗑️ Smazat vrstvu
-            </button>
-          </div>
-          <div className="editor-controls">
-            <div className="control-group">
-              <label>Začátek (s)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={selectedLayer.startTime.toFixed(1)}
-                onChange={(e) => updateLayer(selectedLayer.id, { startTime: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div className="control-group">
-              <label>Trim Start (s)</label>
-              <input
-                type="number"
-                min="0"
-                max={selectedLayer.audioBuffer.duration}
-                step="0.1"
-                value={selectedLayer.trimStart.toFixed(1)}
-                onChange={(e) => {
-                  const newTrimStart = Math.max(0, Math.min(parseFloat(e.target.value) || 0, selectedLayer.trimEnd - 0.1))
-                  const newDuration = selectedLayer.trimEnd - newTrimStart
-                  updateLayer(selectedLayer.id, {
-                    trimStart: newTrimStart,
-                    duration: newDuration
-                  })
-                }}
-              />
-            </div>
-
-            <div className="control-group">
-              <label>Trim End (s)</label>
-              <input
-                type="number"
-                min={selectedLayer.trimStart + 0.1}
-                max={selectedLayer.audioBuffer.duration}
-                step="0.1"
-                value={selectedLayer.trimEnd.toFixed(1)}
-                onChange={(e) => {
-                  const newTrimEnd = Math.max(selectedLayer.trimStart + 0.1, Math.min(parseFloat(e.target.value) || selectedLayer.audioBuffer.duration, selectedLayer.audioBuffer.duration))
-                  const newDuration = newTrimEnd - selectedLayer.trimStart
-                  updateLayer(selectedLayer.id, {
-                    trimEnd: newTrimEnd,
-                    duration: newDuration
-                  })
-                }}
-              />
-            </div>
-
-            <div className="control-group">
-              <label>Fade In (s)</label>
-              <input
-                type="number"
-                min="0"
-                max={selectedLayer.duration}
-                step="0.1"
-                value={selectedLayer.fadeIn.toFixed(1)}
-                onChange={(e) => updateLayer(selectedLayer.id, { fadeIn: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div className="control-group">
-              <label>Fade Out (s)</label>
-              <input
-                type="number"
-                min="0"
-                max={selectedLayer.duration}
-                step="0.1"
-                value={selectedLayer.fadeOut.toFixed(1)}
-                onChange={(e) => updateLayer(selectedLayer.id, { fadeOut: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div className="control-group">
-              <label>Hlasitost</label>
-              <input
-                type="range"
-                min="0"
-                max="2"
-                step="0.01"
-                value={selectedLayer.volume}
-                onChange={(e) => updateLayer(selectedLayer.id, { volume: parseFloat(e.target.value) })}
-              />
-              <span>{Math.round(selectedLayer.volume * 100)}%</span>
-            </div>
-
-            <div className="control-group">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={selectedLayer.loop || false}
-                  onChange={(e) => updateLayer(selectedLayer.id, { loop: e.target.checked })}
-                />
-                🔁 Loopovat zvuk
-              </label>
-              <span className="control-hint">
-                Zvuk se bude opakovat po celou délku vrstvy na timeline
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Layers List - přesunuto do timeline */}
+      {/* Layer Editor - přesunuto do timeline */}
     </div>
   )
 }
