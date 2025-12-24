@@ -77,3 +77,4 @@ echo Restartujte backend server pokud bezite.
 :end
 echo.
 pause
+
