@@ -607,7 +607,6 @@
   font-family: var(--font-body);
   font-size: var(--font-base);
   transition: all var(--transition-fast);
-  outline: none;
 }
 
 .ui-input::placeholder {
