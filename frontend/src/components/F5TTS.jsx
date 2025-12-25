@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import VoiceSelector from './VoiceSelector'
 import TextInput from './TextInput'
 import AudioPlayer from './AudioPlayer'
@@ -6,7 +6,7 @@ import LoadingSpinner from './LoadingSpinner'
 import TTSSettings from './TTSSettings'
 import Button from './ui/Button'
 import Icon from './ui/Icons'
-import { generateF5TTS, generateF5TTSSlovak, getDemoVoices, subscribeToTtsProgress, uploadVoice, recordVoice, downloadYouTubeVoice, transcribeReferenceAudio } from '../services/api'
+import { generateF5TTSSlovak, getDemoVoices, subscribeToTtsProgress, uploadVoice, recordVoice, downloadYouTubeVoice, transcribeReferenceAudio } from '../services/api'
 import './F5TTS.css'
 
 function F5TTS({ text: textProp, setText: setTextProp }) {
@@ -22,12 +22,75 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
   const [generatedAudio, setGeneratedAudio] = useState(null)
   const [error, setError] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
-  const [language, setLanguage] = useState('cs') // 'cs' nebo 'sk'
+  // F5TTS je v tomto projektu fixně pro slovenštinu (nepřepíná se do češtiny).
+  const language = 'sk'
   const [uploadedVoiceFileName, setUploadedVoiceFileName] = useState(null)
   const [voiceQuality, setVoiceQuality] = useState(null)
   const [refText, setRefText] = useState('')
   const [autoTranscribe, setAutoTranscribe] = useState(true)
   const [refTextLoading, setRefTextLoading] = useState(false)
+
+  // --- Persist ref_text per konkrétní hlas (aby po reloadu nezmizel) ---
+  const persistRefText = (storageKey, value) => {
+    if (!storageKey) return
+    try {
+      const v = (value || '').toString()
+      if (v.trim() === '') {
+        localStorage.removeItem(storageKey)
+      } else {
+        localStorage.setItem(storageKey, v)
+      }
+    } catch (e) {
+      // localStorage může být nedostupné (privacy mode apod.) – ignoruj
+      console.warn('Nelze uložit ref_text do localStorage:', e)
+    }
+  }
+
+  const makeDemoRefKey = (voiceId) => `f5tts_reftext:v1:${language}:demo:${voiceId}`
+  const makeUploadRefKey = (filename) => `f5tts_reftext:v1:${language}:upload:${filename}`
+
+  const refTextStorageKey = useMemo(() => {
+    // Pro demo/record/youtube používáme ID demo hlasu; pro upload jen název souboru.
+    if (voiceType === 'upload') {
+      return uploadedVoiceFileName ? makeUploadRefKey(uploadedVoiceFileName) : null
+    }
+    if (voiceType === 'demo' || voiceType === 'record' || voiceType === 'youtube') {
+      return typeof selectedVoice === 'string' && selectedVoice ? makeDemoRefKey(selectedVoice) : null
+    }
+    return null
+  }, [voiceType, selectedVoice, uploadedVoiceFileName])
+
+  // Při změně hlasu načti uložený ref_text
+  useEffect(() => {
+    if (!refTextStorageKey) {
+      setRefText('')
+      return
+    }
+    try {
+      const stored = localStorage.getItem(refTextStorageKey)
+      setRefText(stored || '')
+    } catch (e) {
+      setRefText('')
+    }
+  }, [refTextStorageKey])
+
+  // Průběžně ukládej ref_text (debounce) – aby se zachovalo i ruční psaní do textarea
+  const refTextSaveTimeoutRef = useRef(null)
+  useEffect(() => {
+    if (!refTextStorageKey) return
+    if (refTextSaveTimeoutRef.current) {
+      clearTimeout(refTextSaveTimeoutRef.current)
+    }
+    refTextSaveTimeoutRef.current = setTimeout(() => {
+      persistRefText(refTextStorageKey, refText)
+    }, 250)
+    return () => {
+      if (refTextSaveTimeoutRef.current) {
+        clearTimeout(refTextSaveTimeoutRef.current)
+        refTextSaveTimeoutRef.current = null
+      }
+    }
+  }, [refText, refTextStorageKey])
 
   // TTS nastavení (stejné jako XTTS)
   const [ttsSettings, setTtsSettings] = useState({
@@ -66,11 +129,12 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
   useEffect(() => {
     const loadVoices = async () => {
       try {
-        const data = await getDemoVoices()
+        const data = await getDemoVoices(language)
         const voices = data.voices || data || [] // Podpora obou formátů response
         setDemoVoices(voices)
-        if (voices.length > 0 && !selectedVoice) {
-          // Použít voice.id (stejně jako v App.jsx)
+        // Pokud není nic vybráno, nebo aktuální výběr v novém seznamu neexistuje, vyber první.
+        const hasSelected = selectedVoice && voices.some(v => (v.id || v.name) === selectedVoice)
+        if (voices.length > 0 && (!selectedVoice || !hasSelected)) {
           setSelectedVoice(voices[0].id || voices[0].name)
         }
       } catch (err) {
@@ -93,7 +157,7 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
 
   const loadDemoVoices = async () => {
     try {
-      const data = await getDemoVoices()
+      const data = await getDemoVoices(language)
       const voices = data.voices || data || []
       setDemoVoices(voices)
     } catch (err) {
@@ -111,7 +175,10 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
       try {
         setRefTextLoading(true)
         const res = await transcribeReferenceAudio({ voiceFile: file, language })
-        setRefText(res.cleaned_text || res.text || '')
+        const txt = res.cleaned_text || res.text || ''
+        setRefText(txt)
+        // Ulož hned pod konkrétní upload filename (state update je async)
+        persistRefText(makeUploadRefKey(file.name), txt)
       } catch (e) {
         console.error('ASR přepis selhal:', e)
       } finally {
@@ -142,7 +209,9 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
               try {
                 setRefTextLoading(true)
                 const res = await transcribeReferenceAudio({ demoVoice: voiceId, language })
-                setRefText(res.cleaned_text || res.text || '')
+                const txt = res.cleaned_text || res.text || ''
+                setRefText(txt)
+                persistRefText(makeDemoRefKey(voiceId), txt)
               } catch (e) {
                 console.error('ASR přepis selhal:', e)
               } finally {
@@ -180,7 +249,9 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
               try {
                 setRefTextLoading(true)
                 const res = await transcribeReferenceAudio({ demoVoice: voiceId, language })
-                setRefText(res.cleaned_text || res.text || '')
+                const txt = res.cleaned_text || res.text || ''
+                setRefText(txt)
+                persistRefText(makeDemoRefKey(voiceId), txt)
               } catch (e) {
                 console.error('ASR přepis selhal:', e)
               } finally {
@@ -264,10 +335,8 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
         }
       )
 
-      // Použít správný endpoint podle jazyka
-      const result = language === 'sk'
-        ? await generateF5TTSSlovak(text, voiceFile, demoVoice, ttsParams, jobId)
-        : await generateF5TTS(text, voiceFile, demoVoice, ttsParams, jobId)
+      // F5TTS je fixně slovenský endpoint
+      const result = await generateF5TTSSlovak(text, voiceFile, demoVoice, ttsParams, jobId)
 
       if (result.success) {
         setGeneratedAudio(result.audio_url)
@@ -297,19 +366,8 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
       <div className="f5tts-header">
         <h2>F5-TTS Generování</h2>
         <p className="f5tts-description">
-          Pokročilý TTS engine s flow matching. Podporuje češtinu i slovenštinu.
+          Pokročilý TTS engine s flow matching. V této aplikaci je nastavený pouze pro slovenštinu.
         </p>
-        <div className="language-selector" style={{ marginTop: '10px' }}>
-          <label style={{ marginRight: '10px' }}>Jazyk:</label>
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            style={{ padding: '5px 10px', fontSize: '14px' }}
-          >
-            <option value="cs">Čeština</option>
-            <option value="sk">Slovenština</option>
-          </select>
-        </div>
       </div>
 
       <div className="f5tts-content">
@@ -332,6 +390,7 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
             onYouTubeImport={handleYouTubeImport}
             uploadedVoiceFileName={uploadedVoiceFileName}
             voiceQuality={voiceQuality}
+            language={language}
           />
 
           <div className="reftext-section" style={{ marginTop: '12px' }}>
@@ -356,10 +415,16 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
                     setRefTextLoading(true)
                     if (voiceType === 'upload' && selectedVoice instanceof File) {
                       const res = await transcribeReferenceAudio({ voiceFile: selectedVoice, language })
-                      setRefText(res.cleaned_text || res.text || '')
+                      const txt = res.cleaned_text || res.text || ''
+                      setRefText(txt)
+                      if (uploadedVoiceFileName) {
+                        persistRefText(makeUploadRefKey(uploadedVoiceFileName), txt)
+                      }
                     } else if (selectedVoice) {
                       const res = await transcribeReferenceAudio({ demoVoice: selectedVoice, language })
-                      setRefText(res.cleaned_text || res.text || '')
+                      const txt = res.cleaned_text || res.text || ''
+                      setRefText(txt)
+                      persistRefText(makeDemoRefKey(selectedVoice), txt)
                     }
                   } catch (e) {
                     console.error('ASR přepis selhal:', e)
@@ -401,7 +466,7 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
               fullWidth
               icon={loading ? <Icon name="clock" size={16} /> : <Icon name="speaker" size={16} />}
             >
-              {loading ? 'Generuji...' : `Generovat řeč (F5-TTS ${language === 'sk' ? 'Slovak' : ''})`}
+              {loading ? 'Generuji...' : 'Generovat řeč (F5-TTS Slovak)'}
             </Button>
           </div>
 
