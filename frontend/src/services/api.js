@@ -155,6 +155,231 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
 }
 
 /**
+ * Generuje řeč pomocí F5-TTS
+ */
+export async function generateF5TTS(text, voiceFile = null, demoVoice = null, ttsParams = {}, jobId = null) {
+  const formData = new FormData()
+  formData.append('text', text)
+  if (jobId) {
+    formData.append('job_id', jobId)
+  }
+
+  if (voiceFile) {
+    formData.append('voice_file', voiceFile)
+  } else if (demoVoice) {
+    formData.append('demo_voice', demoVoice)
+  }
+
+  // Volitelný ref_text (přepis reference audio)
+  if (ttsParams.refText !== undefined && ttsParams.refText !== null && ttsParams.refText.trim() !== '') {
+    formData.append('ref_text', ttsParams.refText)
+  }
+
+  // TTS parametry (některé jsou ignorovány u F5, ale předáváme pro kompatibilitu)
+  if (ttsParams.speed !== undefined && ttsParams.speed !== null) {
+    formData.append('speed', ttsParams.speed.toString())
+  }
+  if (ttsParams.temperature !== undefined && ttsParams.temperature !== null) {
+    formData.append('temperature', ttsParams.temperature.toString())
+  }
+  if (ttsParams.lengthPenalty !== undefined && ttsParams.lengthPenalty !== null) {
+    formData.append('length_penalty', ttsParams.lengthPenalty.toString())
+  }
+  if (ttsParams.repetitionPenalty !== undefined && ttsParams.repetitionPenalty !== null) {
+    formData.append('repetition_penalty', ttsParams.repetitionPenalty.toString())
+  }
+  if (ttsParams.topK !== undefined && ttsParams.topK !== null) {
+    formData.append('top_k', ttsParams.topK.toString())
+  }
+  if (ttsParams.topP !== undefined && ttsParams.topP !== null) {
+    formData.append('top_p', ttsParams.topP.toString())
+  }
+  if (ttsParams.seed !== undefined && ttsParams.seed !== null) {
+    formData.append('seed', ttsParams.seed.toString())
+  }
+  if (ttsParams.qualityMode !== undefined && ttsParams.qualityMode !== null) {
+    formData.append('quality_mode', ttsParams.qualityMode)
+  }
+  if (ttsParams.enhancementPreset !== undefined && ttsParams.enhancementPreset !== null) {
+    formData.append('enhancement_preset', ttsParams.enhancementPreset)
+  }
+  if (ttsParams.enableEnhancement !== undefined && ttsParams.enableEnhancement !== null) {
+    formData.append('enable_enhancement', ttsParams.enableEnhancement.toString())
+  }
+  if (ttsParams.enableVad !== undefined && ttsParams.enableVad !== null) {
+    formData.append('enable_vad', ttsParams.enableVad.toString())
+  }
+  if (ttsParams.useHifigan !== undefined && ttsParams.useHifigan !== null) {
+    formData.append('use_hifigan', ttsParams.useHifigan.toString())
+  }
+  if (ttsParams.enableNormalization !== undefined && ttsParams.enableNormalization !== null) {
+    formData.append('enable_normalization', ttsParams.enableNormalization.toString())
+  }
+  if (ttsParams.enableDenoiser !== undefined && ttsParams.enableDenoiser !== null) {
+    formData.append('enable_denoiser', ttsParams.enableDenoiser.toString())
+  }
+  if (ttsParams.enableCompressor !== undefined && ttsParams.enableCompressor !== null) {
+    formData.append('enable_compressor', ttsParams.enableCompressor.toString())
+  }
+  if (ttsParams.enableDeesser !== undefined && ttsParams.enableDeesser !== null) {
+    formData.append('enable_deesser', ttsParams.enableDeesser.toString())
+  }
+  if (ttsParams.enableEq !== undefined && ttsParams.enableEq !== null) {
+    formData.append('enable_eq', ttsParams.enableEq.toString())
+  }
+  if (ttsParams.enableTrim !== undefined && ttsParams.enableTrim !== null) {
+    formData.append('enable_trim', ttsParams.enableTrim.toString())
+  }
+  if (ttsParams.enableDialectConversion !== undefined && ttsParams.enableDialectConversion !== null) {
+    formData.append('enable_dialect_conversion', ttsParams.enableDialectConversion.toString())
+  }
+  if (ttsParams.dialectCode !== undefined && ttsParams.dialectCode !== null) {
+    formData.append('dialect_code', ttsParams.dialectCode)
+  }
+  if (ttsParams.dialectIntensity !== undefined && ttsParams.dialectIntensity !== null) {
+    formData.append('dialect_intensity', ttsParams.dialectIntensity.toString())
+  }
+  if (ttsParams.hifiganRefinementIntensity !== undefined && ttsParams.hifiganRefinementIntensity !== null) {
+    formData.append('hifigan_refinement_intensity', ttsParams.hifiganRefinementIntensity.toString())
+  }
+  if (ttsParams.hifiganNormalizeOutput !== undefined && ttsParams.hifiganNormalizeOutput !== null) {
+    formData.append('hifigan_normalize_output', ttsParams.hifiganNormalizeOutput.toString())
+  }
+  if (ttsParams.hifiganNormalizeGain !== undefined && ttsParams.hifiganNormalizeGain !== null) {
+    formData.append('hifigan_normalize_gain', ttsParams.hifiganNormalizeGain.toString())
+  }
+  if (ttsParams.enableWhisper !== undefined && ttsParams.enableWhisper !== null) {
+    formData.append('enable_whisper', ttsParams.enableWhisper.toString())
+  }
+  if (ttsParams.whisperIntensity !== undefined && ttsParams.whisperIntensity !== null) {
+    formData.append('whisper_intensity', ttsParams.whisperIntensity.toString())
+  }
+  if (ttsParams.targetHeadroomDb !== undefined && ttsParams.targetHeadroomDb !== null) {
+    formData.append('target_headroom_db', ttsParams.targetHeadroomDb.toString())
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/tts/generate-f5`, {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Chyba při generování řeči (F5-TTS)')
+  }
+
+  return await response.json()
+}
+
+/**
+ * Generuje řeč pomocí F5-TTS slovenského modelu
+ */
+export async function generateF5TTSSlovak(text, voiceFile = null, demoVoice = null, ttsParams = {}, jobId = null) {
+  const formData = new FormData()
+  formData.append('text', text)
+  if (jobId) {
+    formData.append('job_id', jobId)
+  }
+
+  if (voiceFile) {
+    formData.append('voice_file', voiceFile)
+  } else if (demoVoice) {
+    formData.append('demo_voice', demoVoice)
+  }
+
+  // Volitelný ref_text (přepis reference audio)
+  if (ttsParams.refText !== undefined && ttsParams.refText !== null && ttsParams.refText.trim() !== '') {
+    formData.append('ref_text', ttsParams.refText)
+  }
+
+  // TTS parametry (stejné jako F5-TTS)
+  if (ttsParams.speed !== undefined && ttsParams.speed !== null) {
+    formData.append('speed', ttsParams.speed.toString())
+  }
+  if (ttsParams.temperature !== undefined && ttsParams.temperature !== null) {
+    formData.append('temperature', ttsParams.temperature.toString())
+  }
+  if (ttsParams.lengthPenalty !== undefined && ttsParams.lengthPenalty !== null) {
+    formData.append('length_penalty', ttsParams.lengthPenalty.toString())
+  }
+  if (ttsParams.repetitionPenalty !== undefined && ttsParams.repetitionPenalty !== null) {
+    formData.append('repetition_penalty', ttsParams.repetitionPenalty.toString())
+  }
+  if (ttsParams.topK !== undefined && ttsParams.topK !== null) {
+    formData.append('top_k', ttsParams.topK.toString())
+  }
+  if (ttsParams.topP !== undefined && ttsParams.topP !== null) {
+    formData.append('top_p', ttsParams.topP.toString())
+  }
+  if (ttsParams.seed !== undefined && ttsParams.seed !== null) {
+    formData.append('seed', ttsParams.seed.toString())
+  }
+  if (ttsParams.qualityMode !== undefined && ttsParams.qualityMode !== null) {
+    formData.append('quality_mode', ttsParams.qualityMode)
+  }
+  if (ttsParams.enhancementPreset !== undefined && ttsParams.enhancementPreset !== null) {
+    formData.append('enhancement_preset', ttsParams.enhancementPreset)
+  }
+  if (ttsParams.enableEnhancement !== undefined && ttsParams.enableEnhancement !== null) {
+    formData.append('enable_enhancement', ttsParams.enableEnhancement.toString())
+  }
+  if (ttsParams.enableVad !== undefined && ttsParams.enableVad !== null) {
+    formData.append('enable_vad', ttsParams.enableVad.toString())
+  }
+  if (ttsParams.useHifigan !== undefined && ttsParams.useHifigan !== null) {
+    formData.append('use_hifigan', ttsParams.useHifigan.toString())
+  }
+  if (ttsParams.enableNormalization !== undefined && ttsParams.enableNormalization !== null) {
+    formData.append('enable_normalization', ttsParams.enableNormalization.toString())
+  }
+  if (ttsParams.enableDenoiser !== undefined && ttsParams.enableDenoiser !== null) {
+    formData.append('enable_denoiser', ttsParams.enableDenoiser.toString())
+  }
+  if (ttsParams.enableCompressor !== undefined && ttsParams.enableCompressor !== null) {
+    formData.append('enable_compressor', ttsParams.enableCompressor.toString())
+  }
+  if (ttsParams.enableDeesser !== undefined && ttsParams.enableDeesser !== null) {
+    formData.append('enable_deesser', ttsParams.enableDeesser.toString())
+  }
+  if (ttsParams.enableEq !== undefined && ttsParams.enableEq !== null) {
+    formData.append('enable_eq', ttsParams.enableEq.toString())
+  }
+  if (ttsParams.enableTrim !== undefined && ttsParams.enableTrim !== null) {
+    formData.append('enable_trim', ttsParams.enableTrim.toString())
+  }
+  if (ttsParams.hifiganRefinementIntensity !== undefined && ttsParams.hifiganRefinementIntensity !== null) {
+    formData.append('hifigan_refinement_intensity', ttsParams.hifiganRefinementIntensity.toString())
+  }
+  if (ttsParams.hifiganNormalizeOutput !== undefined && ttsParams.hifiganNormalizeOutput !== null) {
+    formData.append('hifigan_normalize_output', ttsParams.hifiganNormalizeOutput.toString())
+  }
+  if (ttsParams.hifiganNormalizeGain !== undefined && ttsParams.hifiganNormalizeGain !== null) {
+    formData.append('hifigan_normalize_gain', ttsParams.hifiganNormalizeGain.toString())
+  }
+  if (ttsParams.enableWhisper !== undefined && ttsParams.enableWhisper !== null) {
+    formData.append('enable_whisper', ttsParams.enableWhisper.toString())
+  }
+  if (ttsParams.whisperIntensity !== undefined && ttsParams.whisperIntensity !== null) {
+    formData.append('whisper_intensity', ttsParams.whisperIntensity.toString())
+  }
+  if (ttsParams.targetHeadroomDb !== undefined && ttsParams.targetHeadroomDb !== null) {
+    formData.append('target_headroom_db', ttsParams.targetHeadroomDb.toString())
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/tts/generate-f5-sk`, {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Chyba při generování řeči (F5-TTS Slovak)')
+  }
+
+  return await response.json()
+}
+
+/**
  * Získá průběh generování TTS pro daný jobId (polling - pro zpětnou kompatibilitu)
  */
 export async function getTtsProgress(jobId) {

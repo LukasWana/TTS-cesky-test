@@ -1,0 +1,60 @@
+.f5tts-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.f5tts-header {
+  margin-bottom: 30px;
+}
+
+.f5tts-header h2 {
+  margin: 0 0 10px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.f5tts-description {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  margin: 0;
+}
+
+.f5tts-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.f5tts-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.generate-section {
+  margin-top: 10px;
+}
+
+.settings-panel {
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+}
+
+.settings-toggle {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+.error-message {
+  padding: 12px;
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  border-radius: 6px;
+  color: #ff6b6b;
+  font-size: 14px;
+}
+

@@ -8,6 +8,7 @@ import TTSSettings from './components/TTSSettings'
 import History from './components/History'
 import MusicGen from './components/MusicGen'
 import Bark from './components/Bark'
+import F5TTS from './components/F5TTS'
 import AudioEditor from './components/AudioEditor'
 import Sidebar from './components/Sidebar'
 import Alert from './components/Alert'
@@ -270,7 +271,7 @@ const loadVariantSettings = (voiceId, variantId) => {
 
 function App() {
   const [activeVariant, setActiveVariant] = useState('variant1') // 'variant1' | 'variant2' | ... | 'variant5'
-  const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'musicgen' | 'bark' | 'history'
+  const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'f5tts' | 'musicgen' | 'bark' | 'history'
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // Nastavení hlasu
@@ -298,6 +299,7 @@ function App() {
 
   const tabs = [
     { id: 'generate', label: 'mluvené slovo', icon: 'microphone' },
+    { id: 'f5tts', label: 'F5-TTS', icon: 'speaker' },
     { id: 'musicgen', label: 'hudba', icon: 'music' },
     { id: 'bark', label: 'FX & English', icon: 'speaker' },
     { id: 'audioeditor', label: 'Audio Editor', icon: 'sliders' },
@@ -1095,6 +1097,10 @@ function App() {
 
           {activeTab === 'musicgen' && (
             <MusicGen prompt={text} setPrompt={setText} />
+          )}
+
+          {activeTab === 'f5tts' && (
+            <F5TTS text={text} setText={setText} />
           )}
 
           {activeTab === 'bark' && (

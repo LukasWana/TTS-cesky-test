@@ -2,6 +2,13 @@
 echo XTTS-v2 Demo Setup
 echo ==================
 
+REM Vynutit UTF-8 a vypnout wandb (Windows cp1252 / spatne globalni PYTHONUTF8 muze shodit Python pri startu)
+set "PYTHONUTF8="
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "WANDB_MODE=disabled"
+set "WANDB_SILENT=true"
+
 REM Hledání kompatibilní verze Pythonu (3.9-3.11)
 set PYTHON_CMD=
 set PYTHON_VERSION=

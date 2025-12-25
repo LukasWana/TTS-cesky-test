@@ -4,17 +4,17 @@
 # Let pip resolve dependencies automatically
 TTS==0.22.0
 
-# PyTorch - compatible with TTS 0.22.0
-# NOTE: Pro GPU použijte PyTorch s CUDA podporou
-# CPU verze (aktuální):
-# torch==2.1.0
-# torchaudio==2.1.0
-# GPU verze (CUDA 11.8 pro RTX 3060):
-# pip install torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
-# Nebo CUDA 12.1:
-# pip install torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu121
-torch==2.1.0
-torchaudio==2.1.0
+# PyTorch / torchaudio
+# POZN.: torch CUDA wheel ma verzi ve tvaru 2.1.0+cu121, ktera NEsplnuje pin torch==2.1.0.
+# To zpusobovalo, ze pip pri "pip install -r requirements.txt" prepisoval CUDA build zpet na CPU build.
+#
+# Proto torch/torchaudio NEPINUJEME v requirements.txt.
+# - CPU rezim: torch si doinstaluje TTS stack automaticky (CPU build)
+# - GPU rezim: start_gpu.bat/start_all.bat zajisti spravny CUDA build (cu118/cu121) a udrzi ho
+#
+# Pokud potrebujes rucne:
+#   pip uninstall torch torchaudio -y
+#   pip install torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu121
 
 # Web framework
 fastapi==0.109.0

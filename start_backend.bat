@@ -1,5 +1,12 @@
 @echo off
 
+REM Vynutit UTF-8 a vypnout wandb (Windows cp1252 / spatne globalni PYTHONUTF8 muze shodit Python pri startu)
+set "PYTHONUTF8="
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "WANDB_MODE=disabled"
+set "WANDB_SILENT=true"
+
 REM Kontrola, zda venv existuje
 if not exist "venv\Scripts\activate.bat" (
     echo Virtual environment not found!
@@ -31,5 +38,6 @@ REM Výchozí headroom (pokud už není nastaven zvenku)
 if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-9.0
 
 cd backend
-python main.py
+REM Pouzit -X utf8 flag misto PYTHONUTF8 env var (aby se vyhnulo konfliktu s globalnim nastavenim)
+python -X utf8 main.py
 

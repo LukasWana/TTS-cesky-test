@@ -3,6 +3,7 @@ FastAPI aplikace pro XTTS-v2 Demo
 """
 import sys
 import os
+import asyncio
 import base64
 import uuid
 import time
@@ -43,6 +44,8 @@ except Exception:
 from backend.progress_manager import ProgressManager
 try:
     from backend.tts_engine import XTTSEngine
+    from backend.f5_tts_engine import F5TTSEngine
+    from backend.f5_tts_slovak_engine import F5TTSSlovakEngine
     from backend.audio_processor import AudioProcessor
     from backend.history_manager import HistoryManager
     from backend.youtube_downloader import (
@@ -79,6 +82,8 @@ try:
 except ImportError:
     # Fallback pro spuštění z backend/ adresáře
     from tts_engine import XTTSEngine
+    from f5_tts_engine import F5TTSEngine
+    from f5_tts_slovak_engine import F5TTSSlovakEngine
     from audio_processor import AudioProcessor
     from history_manager import HistoryManager
     from youtube_downloader import (
@@ -115,8 +120,20 @@ except ImportError:
 
 # Inicializace engine
 tts_engine = XTTSEngine()
+f5_tts_engine = F5TTSEngine()
+f5_tts_slovak_engine = F5TTSSlovakEngine()
 music_engine = MusicGenEngine()
 bark_engine = BarkEngine()
+
+# Ověření dostupnosti F5-TTS CLI při startu (neblokující)
+async def check_f5_tts_availability():
+    """Ověří dostupnost F5-TTS CLI při startu"""
+    try:
+        await f5_tts_engine.load_model()
+        print("[OK] F5-TTS CLI je dostupné")
+    except Exception as e:
+        print(f"[INFO] F5-TTS není dostupné: {e}")
+        print("[INFO] F5-TTS záložka bude dostupná až po instalaci: pip install f5-tts")
 
 
 @asynccontextmanager
@@ -127,6 +144,8 @@ async def lifespan(app: FastAPI):
         # XTTS model nyní načítáme "lazy" až při prvním požadavku v /api/tts/generate
         # To šetří VRAM (zejména pro 6GB karty), pokud chce uživatel generovat jen hudbu.
         print("Backend startup: ready (models will be loaded on demand)")
+        # Ověření F5-TTS (neblokující, pouze informativní)
+        asyncio.create_task(check_f5_tts_availability())
     except Exception as e:
         print(f"Startup error: {str(e)}")
 
@@ -726,6 +745,632 @@ async def generate_speech(
         if job_id:
             ProgressManager.fail(job_id, msg)
         raise HTTPException(status_code=500, detail=f"Chyba při generování: {msg}")
+
+
+@app.post("/api/tts/generate-f5")
+async def generate_speech_f5(
+    text: str = Form(...),
+    job_id: str = Form(None),
+    voice_file: UploadFile = File(None),
+    demo_voice: str = Form(None),
+    ref_text: str = Form(None),  # Volitelně: přepis reference audio pro lepší kvalitu
+    speed: str = Form(None),
+    temperature: float = Form(None),  # Ignorováno u F5, ale přijímáme pro kompatibilitu
+    length_penalty: float = Form(None),  # Ignorováno
+    repetition_penalty: float = Form(None),  # Ignorováno
+    top_k: int = Form(None),  # Ignorováno
+    top_p: float = Form(None),  # Ignorováno
+    quality_mode: str = Form(None),  # Ignorováno (můžeme mapovat na NFE později)
+    enhancement_preset: str = Form(None),
+    enable_enhancement: str = Form(None),
+    seed: int = Form(None),  # Ignorováno (F5 může mít vlastní seed handling)
+    enable_vad: str = Form(None),
+    use_hifigan: str = Form(None),
+    enable_normalization: str = Form(None),
+    enable_denoiser: str = Form(None),
+    enable_compressor: str = Form(None),
+    enable_deesser: str = Form(None),
+    enable_eq: str = Form(None),
+    enable_trim: str = Form(None),
+    enable_dialect_conversion: str = Form(None),
+    dialect_code: str = Form(None),
+    dialect_intensity: str = Form(None),
+    hifigan_refinement_intensity: str = Form(None),
+    hifigan_normalize_output: str = Form(None),
+    hifigan_normalize_gain: str = Form(None),
+    enable_whisper: str = Form(None),
+    whisper_intensity: str = Form(None),
+    target_headroom_db: str = Form(None),
+    auto_enhance_voice: str = Form(None),
+    allow_poor_voice: str = Form(None),
+):
+    """
+    Generuje řeč z textu pomocí F5-TTS
+
+    Body:
+        text: Text k syntéze
+        voice_file: Nahraný audio soubor (volitelné)
+        demo_voice: Název demo hlasu (volitelné)
+        ref_text: Přepis reference audio (volitelné, pro lepší kvalitu)
+        speed: Rychlost řeči (0.5-2.0, výchozí: 1.0)
+        enhancement_preset: Preset pro audio enhancement (high_quality, natural, fast)
+        enable_enhancement: Zapnout/vypnout audio enhancement (true/false, výchozí: true)
+        (ostatní parametry jako v /api/tts/generate, ale některé jsou ignorovány u F5)
+    """
+    try:
+        # Zaregistruj job_id
+        if job_id:
+            ProgressManager.start(
+                job_id,
+                meta={
+                    "text_length": len(text or ""),
+                    "endpoint": "/api/tts/generate-f5",
+                },
+            )
+
+        # Lazy loading F5-TTS (CLI check)
+        if not f5_tts_engine.is_loaded:
+            if job_id:
+                ProgressManager.update(job_id, percent=5, stage="load", message="Kontroluji F5-TTS CLI…")
+            await f5_tts_engine.load_model()
+        else:
+            if job_id:
+                ProgressManager.update(job_id, percent=10, stage="load", message="F5-TTS je připraven, začínám syntézu…")
+
+        # Zpracování parametrů (stejné jako XTTS)
+        if speed is not None:
+            try:
+                tts_speed = float(speed) if isinstance(speed, str) else float(speed)
+            except (ValueError, TypeError):
+                tts_speed = TTS_SPEED
+        else:
+            tts_speed = TTS_SPEED
+
+        # Enhancement nastavení
+        enable_enh_flag = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
+        enhancement_preset_value = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
+
+        # Boolean flags
+        enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
+        use_hifigan_flag = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
+        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
+        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
+        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
+        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
+        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
+        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+
+        # Dialect conversion
+        use_dialect = (enable_dialect_conversion.lower() == "true") if isinstance(enable_dialect_conversion, str) else False
+        dialect_code_value = dialect_code if dialect_code and dialect_code != "standardni" else None
+        try:
+            dialect_intensity_value = float(dialect_intensity) if dialect_intensity else 1.0
+        except (ValueError, TypeError):
+            dialect_intensity_value = 1.0
+
+        # HiFi-GAN parametry
+        try:
+            hifigan_refinement_intensity_value = float(hifigan_refinement_intensity) if hifigan_refinement_intensity else None
+            if hifigan_refinement_intensity_value is not None and not (0.0 <= hifigan_refinement_intensity_value <= 1.0):
+                raise HTTPException(status_code=400, detail="hifigan_refinement_intensity musí být mezi 0.0 a 1.0")
+        except (ValueError, TypeError):
+            hifigan_refinement_intensity_value = None
+
+        hifigan_normalize_output_value = (hifigan_normalize_output.lower() == "true") if isinstance(hifigan_normalize_output, str) else None
+
+        try:
+            hifigan_normalize_gain_value = float(hifigan_normalize_gain) if hifigan_normalize_gain else None
+            if hifigan_normalize_gain_value is not None and not (0.0 <= hifigan_normalize_gain_value <= 1.0):
+                raise HTTPException(status_code=400, detail="hifigan_normalize_gain musí být mezi 0.0 a 1.0")
+        except (ValueError, TypeError):
+            hifigan_normalize_gain_value = None
+
+        # Whisper efekt
+        enable_whisper_value = (enable_whisper.lower() == "true") if isinstance(enable_whisper, str) else None
+        try:
+            whisper_intensity_value = float(whisper_intensity) if whisper_intensity else None
+            if whisper_intensity_value is not None and not (0.0 <= whisper_intensity_value <= 1.0):
+                raise HTTPException(status_code=400, detail="whisper_intensity musí být mezi 0.0 a 1.0")
+        except (ValueError, TypeError):
+            whisper_intensity_value = None
+
+        # Headroom
+        try:
+            target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
+            if target_headroom_db_value is not None and not (-20.0 <= target_headroom_db_value <= 0.0):
+                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -20.0 a 0.0 dB")
+        except (ValueError, TypeError):
+            target_headroom_db_value = None
+
+        # Zpracování hlasu (stejné jako XTTS)
+        speaker_wav = None
+        reference_quality = None
+
+        if voice_file:
+            file_ext = Path(voice_file.filename).suffix
+            temp_filename = f"{uuid.uuid4()}{file_ext}"
+            temp_path = UPLOADS_DIR / temp_filename
+
+            async with aiofiles.open(temp_path, 'wb') as f:
+                content = await voice_file.read()
+                await f.write(content)
+
+            processed_path, error = AudioProcessor.process_uploaded_file(str(temp_path))
+            if error:
+                raise HTTPException(status_code=400, detail=error)
+            speaker_wav = processed_path
+
+        elif demo_voice:
+            demo_voice_clean = demo_voice.strip()
+            if os.path.sep in demo_voice_clean or '/' in demo_voice_clean:
+                demo_voice_clean = Path(demo_voice_clean).stem
+
+            demo_path = DEMO_VOICES_DIR / f"{demo_voice_clean}.wav"
+            if not demo_path.exists():
+                found = None
+                available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+                for voice_file_item in available_voices:
+                    if voice_file_item.stem.lower() == demo_voice_clean.lower():
+                        found = voice_file_item
+                        break
+
+                if found:
+                    speaker_wav = str(found)
+                elif available_voices:
+                    speaker_wav = str(available_voices[0])
+                else:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Demo hlas '{demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici."
+                    )
+            else:
+                speaker_wav = str(demo_path)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Musí být zadán buď voice_file nebo demo_voice"
+            )
+
+        # Quality gate (stejné jako XTTS)
+        try:
+            from backend.config import (
+                ENABLE_REFERENCE_QUALITY_GATE,
+                ENABLE_REFERENCE_AUTO_ENHANCE,
+                REFERENCE_ALLOW_POOR_BY_DEFAULT,
+            )
+            reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav) if speaker_wav else None
+
+            if ENABLE_REFERENCE_QUALITY_GATE and reference_quality and reference_quality.get("score") == "poor":
+                request_auto = (auto_enhance_voice.lower() == "true") if isinstance(auto_enhance_voice, str) else None
+                request_allow = (allow_poor_voice.lower() == "true") if isinstance(allow_poor_voice, str) else None
+
+                do_auto = request_auto if request_auto is not None else ENABLE_REFERENCE_AUTO_ENHANCE
+
+                is_demo_voice = False
+                try:
+                    is_demo_voice = Path(speaker_wav).resolve().is_relative_to(DEMO_VOICES_DIR.resolve())
+                except Exception:
+                    try:
+                        is_demo_voice = str(Path(speaker_wav).resolve()).startswith(str(DEMO_VOICES_DIR.resolve()))
+                    except Exception:
+                        is_demo_voice = False
+
+                if request_allow is None and is_demo_voice:
+                    do_allow = True
+                else:
+                    do_allow = request_allow if request_allow is not None else REFERENCE_ALLOW_POOR_BY_DEFAULT
+
+                if do_auto:
+                    enhanced_path = UPLOADS_DIR / f"enhanced_{uuid.uuid4().hex[:10]}.wav"
+                    ok, enh_err = AudioProcessor.enhance_voice_sample(speaker_wav, str(enhanced_path))
+                    if ok:
+                        speaker_wav = str(enhanced_path)
+                        reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav)
+
+                if reference_quality and reference_quality.get("score") == "poor" and not do_allow:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "message": "Referenční audio má nízkou kvalitu pro klonování. Nahrajte čistší vzorek nebo použijte allow_poor_voice=true.",
+                            "quality": reference_quality,
+                        },
+                    )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"⚠️ Quality gate selhal (ignorováno): {e}")
+
+        # Validace speed
+        if not (0.5 <= tts_speed <= 2.0):
+            raise HTTPException(status_code=400, detail="Speed musí být mezi 0.5 a 2.0")
+
+        # Generování řeči pomocí F5-TTS
+        if job_id:
+            ProgressManager.update(job_id, percent=1, stage="f5_tts", message="Generuji řeč (F5-TTS)…")
+
+        output_path = await f5_tts_engine.generate(
+            text=text,
+            speaker_wav=speaker_wav,
+            language="cs",
+            speed=tts_speed,
+            temperature=0.7,  # Ignorováno, ale předáváme pro kompatibilitu
+            length_penalty=1.0,
+            repetition_penalty=2.0,
+            top_k=50,
+            top_p=0.85,
+            quality_mode=quality_mode,
+            seed=seed,
+            enhancement_preset=enhancement_preset_value,
+            enable_vad=enable_vad_flag,
+            use_hifigan=use_hifigan_flag,
+            enable_normalization=enable_norm,
+            enable_denoiser=enable_den,
+            enable_compressor=enable_comp,
+            enable_deesser=enable_deess,
+            enable_eq=enable_eq_flag,
+            enable_trim=enable_trim_flag,
+            enable_dialect_conversion=use_dialect,
+            dialect_code=dialect_code_value,
+            dialect_intensity=dialect_intensity_value,
+            enable_whisper=enable_whisper_value,
+            whisper_intensity=whisper_intensity_value,
+            target_headroom_db=target_headroom_db_value,
+            hifigan_refinement_intensity=hifigan_refinement_intensity_value,
+            hifigan_normalize_output=hifigan_normalize_output_value,
+            hifigan_normalize_gain=hifigan_normalize_gain_value,
+            job_id=job_id,
+            ref_text=ref_text
+        )
+
+        filename = Path(output_path).name
+        audio_url = f"/api/audio/{filename}"
+
+        voice_type = "upload" if voice_file else "demo"
+        voice_name = None
+        if demo_voice:
+            voice_name = demo_voice
+        elif voice_file:
+            voice_name = voice_file.filename
+
+        # Uložení do historie
+        tts_params_dict = {
+            "speed": tts_speed,
+            "engine": "f5-tts"
+        }
+
+        history_entry = HistoryManager.add_entry(
+            audio_url=audio_url,
+            filename=filename,
+            text=text,
+            voice_type=voice_type,
+            voice_name=voice_name,
+            tts_params=tts_params_dict
+        )
+
+        if job_id:
+            ProgressManager.update(job_id, percent=99, stage="final", message="Ukládám do historie a odesílám…")
+            ProgressManager.done(job_id)
+
+        return {
+            "audio_url": audio_url,
+            "filename": filename,
+            "success": True,
+            "history_id": history_entry["id"],
+            "job_id": job_id,
+            "reference_quality": reference_quality,
+        }
+
+    except HTTPException:
+        if job_id:
+            ProgressManager.fail(job_id, "HTTPException")
+        raise
+    except Exception as e:
+        msg = str(e)
+        if job_id:
+            ProgressManager.fail(job_id, msg)
+        raise HTTPException(status_code=500, detail=f"Chyba při generování F5-TTS: {msg}")
+
+
+@app.post("/api/tts/generate-f5-sk")
+async def generate_speech_f5_sk(
+    text: str = Form(...),
+    job_id: str = Form(None),
+    voice_file: UploadFile = File(None),
+    demo_voice: str = Form(None),
+    ref_text: str = Form(None),  # Volitelně: přepis reference audio pro lepší kvalitu
+    speed: str = Form(None),
+    temperature: float = Form(None),  # Ignorováno u F5, ale přijímáme pro kompatibilitu
+    length_penalty: float = Form(None),  # Ignorováno
+    repetition_penalty: float = Form(None),  # Ignorováno
+    top_k: int = Form(None),  # Ignorováno
+    top_p: float = Form(None),  # Ignorováno
+    quality_mode: str = Form(None),  # Ignorováno (můžeme mapovat na NFE později)
+    enhancement_preset: str = Form(None),
+    enable_enhancement: str = Form(None),
+    seed: int = Form(None),  # Ignorováno (F5 může mít vlastní seed handling)
+    enable_vad: str = Form(None),
+    use_hifigan: str = Form(None),
+    enable_normalization: str = Form(None),
+    enable_denoiser: str = Form(None),
+    enable_compressor: str = Form(None),
+    enable_deesser: str = Form(None),
+    enable_eq: str = Form(None),
+    enable_trim: str = Form(None),
+    enable_dialect_conversion: str = Form(None),
+    dialect_code: str = Form(None),
+    dialect_intensity: str = Form(None),
+    hifigan_refinement_intensity: str = Form(None),
+    hifigan_normalize_output: str = Form(None),
+    hifigan_normalize_gain: str = Form(None),
+    enable_whisper: str = Form(None),
+    whisper_intensity: str = Form(None),
+    target_headroom_db: str = Form(None),
+    auto_enhance_voice: str = Form(None),
+    allow_poor_voice: str = Form(None),
+):
+    """
+    Generuje řeč z textu pomocí F5-TTS slovenského modelu
+
+    Body:
+        text: Text k syntéze (slovensky)
+        voice_file: Nahraný audio soubor (volitelné)
+        demo_voice: Název demo hlasu (volitelné)
+        ref_text: Přepis reference audio (volitelné, pro lepší kvalitu)
+        speed: Rychlost řeči (0.5-2.0, výchozí: 1.0)
+        enhancement_preset: Preset pro audio enhancement (high_quality, natural, fast)
+        enable_enhancement: Zapnout/vypnout audio enhancement (true/false, výchozí: true)
+        (ostatní parametry jako v /api/tts/generate-f5, ale některé jsou ignorovány u F5)
+    """
+    try:
+        # Zaregistruj job_id
+        if job_id:
+            ProgressManager.start(
+                job_id,
+                meta={
+                    "text_length": len(text or ""),
+                    "endpoint": "/api/tts/generate-f5-sk",
+                },
+            )
+
+        # Lazy loading F5-TTS Slovak (CLI check)
+        if not f5_tts_slovak_engine.is_loaded:
+            if job_id:
+                ProgressManager.update(job_id, percent=5, stage="load", message="Kontroluji F5-TTS Slovak CLI…")
+            await f5_tts_slovak_engine.load_model()
+        else:
+            if job_id:
+                ProgressManager.update(job_id, percent=10, stage="load", message="F5-TTS Slovak je připraven, začínám syntézu…")
+
+        # Zpracování parametrů (stejné jako F5-TTS)
+        if speed is not None:
+            try:
+                tts_speed = float(speed) if isinstance(speed, str) else float(speed)
+            except (ValueError, TypeError):
+                tts_speed = TTS_SPEED
+        else:
+            tts_speed = TTS_SPEED
+
+        # Enhancement nastavení
+        enable_enh_flag = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
+        enhancement_preset_value = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
+
+        # Boolean flags
+        enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
+        use_hifigan_flag = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
+        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
+        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
+        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
+        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
+        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
+        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+
+        # Dialect conversion není podporováno pro slovenštinu
+        use_dialect = False
+        dialect_code_value = None
+        dialect_intensity_value = 1.0
+
+        # HiFi-GAN parametry
+        try:
+            hifigan_refinement_intensity_value = float(hifigan_refinement_intensity) if hifigan_refinement_intensity else None
+            if hifigan_refinement_intensity_value is not None and not (0.0 <= hifigan_refinement_intensity_value <= 1.0):
+                raise HTTPException(status_code=400, detail="hifigan_refinement_intensity musí být mezi 0.0 a 1.0")
+        except (ValueError, TypeError):
+            hifigan_refinement_intensity_value = None
+
+        hifigan_normalize_output_value = (hifigan_normalize_output.lower() == "true") if isinstance(hifigan_normalize_output, str) else None
+
+        try:
+            hifigan_normalize_gain_value = float(hifigan_normalize_gain) if hifigan_normalize_gain else None
+            if hifigan_normalize_gain_value is not None and not (0.0 <= hifigan_normalize_gain_value <= 1.0):
+                raise HTTPException(status_code=400, detail="hifigan_normalize_gain musí být mezi 0.0 a 1.0")
+        except (ValueError, TypeError):
+            hifigan_normalize_gain_value = None
+
+        # Whisper efekt
+        enable_whisper_value = (enable_whisper.lower() == "true") if isinstance(enable_whisper, str) else None
+        try:
+            whisper_intensity_value = float(whisper_intensity) if whisper_intensity else None
+            if whisper_intensity_value is not None and not (0.0 <= whisper_intensity_value <= 1.0):
+                raise HTTPException(status_code=400, detail="whisper_intensity musí být mezi 0.0 a 1.0")
+        except (ValueError, TypeError):
+            whisper_intensity_value = None
+
+        # Headroom
+        try:
+            target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
+            if target_headroom_db_value is not None and not (-20.0 <= target_headroom_db_value <= 0.0):
+                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -20.0 a 0.0 dB")
+        except (ValueError, TypeError):
+            target_headroom_db_value = None
+
+        # Zpracování hlasu (stejné jako F5-TTS)
+        speaker_wav = None
+        reference_quality = None
+
+        if voice_file:
+            file_ext = Path(voice_file.filename).suffix
+            temp_filename = f"{uuid.uuid4()}{file_ext}"
+            temp_path = UPLOADS_DIR / temp_filename
+
+            async with aiofiles.open(temp_path, 'wb') as f:
+                content = await voice_file.read()
+                await f.write(content)
+
+            processed_path, error = AudioProcessor.process_uploaded_file(str(temp_path))
+            if error:
+                raise HTTPException(status_code=400, detail=error)
+            speaker_wav = processed_path
+
+        elif demo_voice:
+            demo_voice_clean = demo_voice.strip()
+            if os.path.sep in demo_voice_clean or '/' in demo_voice_clean:
+                demo_voice_clean = Path(demo_voice_clean).stem
+
+            demo_path = DEMO_VOICES_DIR / f"{demo_voice_clean}.wav"
+            if not demo_path.exists():
+                found = None
+                available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+                for voice_file_item in available_voices:
+                    if voice_file_item.stem.lower() == demo_voice_clean.lower():
+                        found = voice_file_item
+                        break
+
+                if found:
+                    speaker_wav = str(found)
+                elif available_voices:
+                    speaker_wav = str(available_voices[0])
+                else:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Demo hlas '{demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici."
+                    )
+            else:
+                speaker_wav = str(demo_path)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Musí být zadán buď voice_file nebo demo_voice"
+            )
+
+        # Quality gate (stejné jako F5-TTS)
+        try:
+            from backend.config import (
+                ENABLE_REFERENCE_QUALITY_GATE,
+                ENABLE_REFERENCE_AUTO_ENHANCE,
+                REFERENCE_ALLOW_POOR_BY_DEFAULT,
+            )
+            auto_enhance_flag = (auto_enhance_voice.lower() == "true") if isinstance(auto_enhance_voice, str) else ENABLE_REFERENCE_AUTO_ENHANCE
+            allow_poor_flag = (allow_poor_voice.lower() == "true") if isinstance(allow_poor_voice, str) else REFERENCE_ALLOW_POOR_BY_DEFAULT
+
+            if ENABLE_REFERENCE_QUALITY_GATE:
+                reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav)
+                if reference_quality["score"] == "poor" and not allow_poor_flag:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Kvalita referenčního audia je příliš nízká (SNR: {reference_quality['snr']:.1f} dB). "
+                               f"Použijte allow_poor_voice=true pro povolení."
+                    )
+                if auto_enhance_flag and reference_quality["score"] != "good":
+                    # Auto-enhance reference audio
+                    enhanced_path = UPLOADS_DIR / f"enhanced_{uuid.uuid4().hex[:10]}.wav"
+                    ok, enh_err = AudioProcessor.enhance_voice_sample(speaker_wav, str(enhanced_path))
+                    if ok:
+                        speaker_wav = str(enhanced_path)
+                        reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav)
+                        print(f"[INFO] Referenční audio bylo automaticky vylepšeno")
+                    else:
+                        print(f"⚠️ Auto-enhance referenčního hlasu selhal: {enh_err}")
+        except Exception as e:
+            print(f"[WARN] Quality gate selhal: {e}")
+
+        # Validace speed
+        if not (0.5 <= tts_speed <= 2.0):
+            raise HTTPException(status_code=400, detail="Speed musí být mezi 0.5 a 2.0")
+
+        # Generování řeči pomocí F5-TTS Slovak
+        if job_id:
+            ProgressManager.update(job_id, percent=1, stage="f5_tts_slovak", message="Generujem reč (F5-TTS Slovak)…")
+
+        output_path = await f5_tts_slovak_engine.generate(
+            text=text,
+            speaker_wav=speaker_wav,
+            language="sk",
+            speed=tts_speed,
+            temperature=0.7,  # Ignorováno, ale předáváme pro kompatibilitu
+            length_penalty=1.0,
+            repetition_penalty=2.0,
+            top_k=50,
+            top_p=0.85,
+            quality_mode=quality_mode,
+            seed=seed,
+            enhancement_preset=enhancement_preset_value,
+            enable_vad=enable_vad_flag,
+            use_hifigan=use_hifigan_flag,
+            enable_normalization=enable_norm,
+            enable_denoiser=enable_den,
+            enable_compressor=enable_comp,
+            enable_deesser=enable_deess,
+            enable_eq=enable_eq_flag,
+            enable_trim=enable_trim_flag,
+            enable_dialect_conversion=use_dialect,
+            dialect_code=dialect_code_value,
+            dialect_intensity=dialect_intensity_value,
+            enable_whisper=enable_whisper_value,
+            whisper_intensity=whisper_intensity_value,
+            target_headroom_db=target_headroom_db_value,
+            hifigan_refinement_intensity=hifigan_refinement_intensity_value,
+            hifigan_normalize_output=hifigan_normalize_output_value,
+            hifigan_normalize_gain=hifigan_normalize_gain_value,
+            job_id=job_id,
+            ref_text=ref_text
+        )
+
+        filename = Path(output_path).name
+        audio_url = f"/api/audio/{filename}"
+
+        voice_type = "upload" if voice_file else "demo"
+        voice_name = None
+        if demo_voice:
+            voice_name = demo_voice
+        elif voice_file:
+            voice_name = voice_file.filename
+
+        # Uložit do historie
+        if job_id:
+            ProgressManager.update(job_id, percent=100, stage="done", message="Hotovo!")
+            # ProgressManager má metodu done(), ne complete()
+            ProgressManager.done(job_id)
+
+        try:
+            history_manager.save_generation(
+                text=text,
+                audio_url=audio_url,
+                voice_type=voice_type,
+                voice_name=voice_name,
+                engine="f5-tts-slovak"
+            )
+        except Exception as e:
+            print(f"[WARN] Uložení do historie selhalo: {e}")
+
+        return {
+            "success": True,
+            "audio_url": audio_url,
+            "filename": filename,
+            "voice_type": voice_type,
+            "voice_name": voice_name,
+            "engine": "f5-tts-slovak",
+            "reference_quality": reference_quality
+        }
+
+    except HTTPException:
+        if job_id:
+            ProgressManager.fail(job_id, "HTTPException")
+        raise
+    except Exception as e:
+        msg = str(e)
+        if job_id:
+            ProgressManager.fail(job_id, msg)
+        raise HTTPException(status_code=500, detail=f"Chyba při generování F5-TTS Slovak: {msg}")
 
 
 @app.get("/api/music/ambience/list")

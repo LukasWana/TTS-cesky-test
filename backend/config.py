@@ -97,6 +97,20 @@ DEVICE_FORCED = FORCE_DEVICE != "auto"
 ENABLE_AUDIO_ENHANCEMENT = os.getenv("ENABLE_AUDIO_ENHANCEMENT", "True").lower() == "true"
 AUDIO_ENHANCEMENT_PRESET = os.getenv("AUDIO_ENHANCEMENT_PRESET", "natural")  # high_quality, natural, fast
 OUTPUT_SAMPLE_RATE = int(os.getenv("OUTPUT_SAMPLE_RATE", "44100"))  # 22050, 24000, 44100 (výchozí: 44100 = CD kvalita)
+
+# F5-TTS model configuration
+F5_MODEL_NAME = os.getenv("F5_MODEL_NAME", "F5TTS_v1_Base")
+F5_DEFAULT_NFE = int(os.getenv("F5_DEFAULT_NFE", "16"))  # Number of function evaluations (kroky)
+F5_DEVICE = DEVICE  # Reuse stejný device jako XTTS
+F5_OUTPUT_SAMPLE_RATE = OUTPUT_SAMPLE_RATE  # Sladit s OUTPUT_SAMPLE_RATE
+
+# F5-TTS Slovak model configuration
+F5_SLOVAK_MODEL_NAME = os.getenv("F5_SLOVAK_MODEL_NAME", "petercheben/F5_TTS_Slovak")
+F5_SLOVAK_MODEL_DIR = MODELS_DIR / "f5-tts-slovak"
+F5_SLOVAK_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+F5_SLOVAK_DEFAULT_NFE = int(os.getenv("F5_SLOVAK_DEFAULT_NFE", "16"))  # Number of function evaluations (kroky)
+ENABLE_SLOVAK_TEXT_PROCESSING = os.getenv("ENABLE_SLOVAK_TEXT_PROCESSING", "True").lower() == "true"
+
 ENABLE_EQ_CORRECTION = os.getenv("ENABLE_EQ_CORRECTION", "True").lower() == "true"
 ENABLE_ADVANCED_NOISE_REDUCTION = os.getenv("ENABLE_ADVANCED_NOISE_REDUCTION", "False").lower() == "true"
 ENABLE_DEESSER = os.getenv("ENABLE_DEESSER", "True").lower() == "true"
