@@ -7,8 +7,27 @@ import SliderRow from './ui/SliderRow'
 import SelectRow from './ui/SelectRow'
 import { generateBark, getBarkProgress, subscribeToBarkProgress } from '../services/api'
 
+function ensureBracketedBarkPresetPrompt(raw) {
+  const s = (raw ?? '').trim()
+  if (!s) return ''
+
+  // Pokud prompt začíná jedním tokenem [..] a za ním je "holý" text,
+  // obal tento zbytek do dalších hranatých závorek: "[music] text" -> "[music] [text]".
+  const m = s.match(/^(\[[^\]]+\])\s*(.+)$/)
+  if (!m) return s
+
+  const firstToken = m[1]
+  const rest = (m[2] ?? '').trim()
+  if (!rest) return firstToken
+  if (rest.startsWith('[')) return `${firstToken} ${rest}`
+
+  return `${firstToken} [${rest}]`
+}
+
 function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
-  const [internalPrompt, setInternalPrompt] = useState('[music] calm meditative ambient music, soft pads, slow evolving, no drums, no vocals, peaceful and relaxing')
+  const [internalPrompt, setInternalPrompt] = useState(() =>
+    ensureBracketedBarkPresetPrompt('[music] calm meditative ambient music, soft pads, slow evolving, no drums, no vocals, peaceful and relaxing')
+  )
 
   // Synchronizace s propsem (pro obnovu z historie)
   const prompt = promptProp !== undefined ? promptProp : internalPrompt
@@ -308,7 +327,7 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
       const found = barkPresets[category].find(p => p.value === value)
       if (found) {
         setPresetCategory(category)
-        setPrompt(found.prompt)
+        setPrompt(ensureBracketedBarkPresetPrompt(found.prompt))
         if (found.temperature !== undefined) {
           setTemperature(found.temperature)
         }
