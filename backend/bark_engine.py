@@ -9,6 +9,7 @@ Implementace používá oficiální bark knihovnu (suno-ai/bark).
 
 from __future__ import annotations
 
+import os
 import threading
 import uuid
 from pathlib import Path
@@ -27,6 +28,8 @@ class BarkEngine:
         self._lock = threading.Lock()
         self._model_loaded = False
         self._model_size: Optional[str] = None
+        self._model_mode: Optional[str] = None
+        self._offload_cpu: Optional[bool] = None
         self._device: Optional[str] = None
         self._sample_rate: int = 24000  # Bark používá 24 kHz
 
@@ -36,22 +39,93 @@ class BarkEngine:
             size = "small"
         return size
 
-    def _ensure_loaded(self, model_size: str, job_id: Optional[str] = None) -> None:
+    def _resolve_model_mode(self, model_mode: Optional[str]) -> str:
+        """
+        Režim načtení Bark submodelů:
+        - auto: zachová staré chování (small => vše small, large => vše large)
+        - full: vše large
+        - mixed: text large, ostatní small (šetří VRAM)
+        - small: vše small
+        """
+        mm = (model_mode or os.getenv("BARK_MODEL_MODE", "auto") or "auto").strip().lower()
+        if mm not in ("auto", "full", "mixed", "small"):
+            mm = "auto"
+        return mm
+
+    def _ensure_loaded(
+        self,
+        model_size: str,
+        *,
+        model_mode: Optional[str] = None,
+        offload_cpu: Optional[bool] = None,
+        job_id: Optional[str] = None,
+    ) -> None:
         target = self._resolve_model_size(model_size)
+        mode = self._resolve_model_mode(model_mode)
+        # offload_cpu: explicitní parametr má přednost, jinak env SUNO_OFFLOAD_CPU
+        eff_offload = bool(offload_cpu) if offload_cpu is not None else (os.getenv("SUNO_OFFLOAD_CPU", "False").lower() == "true")
         with self._lock:
-            if self._model_loaded and self._model_size == target:
+            if self._model_loaded and self._model_size == target and self._model_mode == mode and self._offload_cpu == eff_offload:
                 if job_id:
                     ProgressManager.update(job_id, percent=10, stage="bark", message="Model je již v paměti, začínám generovat…")
                 return
 
             if job_id:
-                ProgressManager.update(job_id, percent=5, stage="bark", message=f"Načítám Bark model ({target})…")
+                ProgressManager.update(job_id, percent=5, stage="bark", message=f"Načítám Bark model ({target}, mode={mode}, offload_cpu={eff_offload})…")
 
             try:
                 from bark import SAMPLE_RATE, preload_models
                 # Bark používá preload_models() místo explicitního modelu
                 # Podporuje text_use_small=True/False pro small/large model
-                preload_models(text_use_small=(target == "small"))
+                #
+                # Pozn.: API Bark se mezi verzemi mění, proto voláme opatrně:
+                # - nejprve zkusíme "novější" signature s coarse/fine/codec + offload_cpu
+                # - pak fallback jen na text_use_small
+
+                # Nastav env pro kompatibilitu (některé verze Bark čtou env místo kwargs)
+                os.environ["SUNO_OFFLOAD_CPU"] = "True" if eff_offload else "False"
+
+                if mode == "small":
+                    text_use_small = True
+                    coarse_use_small = True
+                    fine_use_small = True
+                    codec_use_small = True
+                elif mode == "full":
+                    text_use_small = False
+                    coarse_use_small = False
+                    fine_use_small = False
+                    codec_use_small = False
+                elif mode == "mixed":
+                    # když uživatel chce small model_size, drž vše small
+                    if target == "small":
+                        text_use_small = True
+                        coarse_use_small = True
+                        fine_use_small = True
+                        codec_use_small = True
+                    else:
+                        # text large, zbytek small (šetří VRAM, kvalita často téměř jako full)
+                        text_use_small = False
+                        coarse_use_small = True
+                        fine_use_small = True
+                        codec_use_small = True
+                else:
+                    # auto: zachovej původní chování podle model_size
+                    text_use_small = (target == "small")
+                    coarse_use_small = (target == "small")
+                    fine_use_small = (target == "small")
+                    codec_use_small = (target == "small")
+
+                try:
+                    preload_models(
+                        text_use_small=text_use_small,
+                        coarse_use_small=coarse_use_small,
+                        fine_use_small=fine_use_small,
+                        codec_use_small=codec_use_small,
+                        offload_cpu=eff_offload,
+                    )
+                except TypeError:
+                    # starší bark: typicky jen text_use_small
+                    preload_models(text_use_small=text_use_small)
                 self._sample_rate = SAMPLE_RATE
             except ImportError as e:
                 raise RuntimeError(
@@ -63,6 +137,8 @@ class BarkEngine:
             device = DEVICE if DEVICE in ("cpu", "cuda") else ("cuda" if torch.cuda.is_available() else "cpu")
             self._model_loaded = True
             self._model_size = target
+            self._model_mode = mode
+            self._offload_cpu = eff_offload
             self._device = device
 
     def generate(
@@ -70,6 +146,8 @@ class BarkEngine:
         text: str,
         *,
         model_size: str = "small",
+        model_mode: Optional[str] = None,
+        offload_cpu: Optional[bool] = None,
         temperature: float = 0.7,
         seed: Optional[int] = None,
         duration_s: Optional[float] = None,
@@ -91,7 +169,7 @@ class BarkEngine:
         if not text or not text.strip():
             raise ValueError("Textový prompt je prázdný")
 
-        self._ensure_loaded(model_size, job_id=job_id)
+        self._ensure_loaded(model_size, model_mode=model_mode, offload_cpu=offload_cpu, job_id=job_id)
 
         if seed is not None:
             s = int(seed)

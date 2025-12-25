@@ -383,6 +383,9 @@ export async function generateMusic(prompt, params = {}, jobId = null) {
   if (jobId) formData.append('job_id', jobId)
 
   if (params.model) formData.append('model', params.model) // small|medium|large
+  if (params.precision !== undefined && params.precision !== null) formData.append('precision', String(params.precision)) // auto|fp32|fp16|bf16
+  if (params.offload !== undefined && params.offload !== null) formData.append('offload', params.offload ? 'true' : 'false')
+  if (params.maxVramGb !== undefined && params.maxVramGb !== null && params.maxVramGb !== '') formData.append('max_vram_gb', String(params.maxVramGb))
   if (params.duration !== undefined && params.duration !== null) formData.append('duration', String(params.duration))
   if (params.temperature !== undefined && params.temperature !== null) formData.append('temperature', String(params.temperature))
   if (params.topK !== undefined && params.topK !== null) formData.append('top_k', String(params.topK))
@@ -514,6 +517,8 @@ export async function generateBark(text, params = {}, jobId = null) {
   if (jobId) formData.append('job_id', jobId)
 
   if (params.modelSize) formData.append('model_size', params.modelSize)
+  if (params.mode !== undefined && params.mode !== null) formData.append('mode', String(params.mode)) // auto|full|mixed|small
+  if (params.offloadCpu !== undefined && params.offloadCpu !== null) formData.append('offload_cpu', params.offloadCpu ? 'true' : 'false')
   if (params.temperature !== undefined && params.temperature !== null) formData.append('temperature', String(params.temperature))
   if (params.seed !== undefined && params.seed !== null && params.seed !== '') formData.append('seed', String(params.seed))
   if (params.duration !== undefined && params.duration !== null) formData.append('duration', String(params.duration))

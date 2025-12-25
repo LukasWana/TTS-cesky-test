@@ -751,6 +751,9 @@ async def generate_music(
     top_p: float = Form(0.0),
     seed: int = Form(None),
     model: str = Form("small"),
+    precision: str = Form("auto"),  # auto|fp32|fp16|bf16
+    offload: bool = Form(False),  # True = device_map/offload (šetří VRAM, ale zpomalí)
+    max_vram_gb: float = Form(None),  # např. 6.0; použije se jen když offload=True
     ambience: str = Form("none"),  # none|stream|birds|both
     ambience_gain_db: float = Form(-18.0),  # typicky -22 až -14
     ambience_seed: int = Form(None),
@@ -764,6 +767,9 @@ async def generate_music(
         prompt: Textový prompt (doporučeno přidat "no vocals" pro instrumentál)
         duration: délka v sekundách (1-30)
         model: small|medium|large (pro 6GB VRAM doporučeno small)
+        precision: auto|fp32|fp16|bf16 (pro CUDA doporučeno fp16)
+        offload: True = část modelu na CPU (menší VRAM, pomalejší)
+        max_vram_gb: limit VRAM pro offload režim (např. 6)
         job_id: volitelné pro progress (SSE/polling)
     """
     try:
@@ -784,6 +790,9 @@ async def generate_music(
                 top_p=top_p,
                 seed=seed,
                 model_size=model,
+                precision=precision,
+                enable_offload=bool(offload),
+                max_vram_gb=float(max_vram_gb) if max_vram_gb is not None else None,
                 job_id=job_id,
             )
         )
@@ -881,6 +890,9 @@ async def generate_music(
                 "top_k": top_k,
                 "top_p": top_p,
                 "seed": seed,
+                "precision": precision,
+                "offload": bool(offload),
+                "max_vram_gb": float(max_vram_gb) if max_vram_gb is not None else None,
                 "ambience": ambience_clean,
                 "ambience_gain_db": ambience_gain_db,
                 "ambience_files": ambience_files_list,
@@ -912,6 +924,8 @@ async def generate_bark(
     text: str = Form(...),
     job_id: str = Form(None),
     model_size: str = Form("small"),  # "small" nebo "large"
+    mode: str = Form("auto"),  # auto|full|mixed|small
+    offload_cpu: bool = Form(False),
     temperature: float = Form(0.7),
     seed: int = Form(None),
     duration: float = Form(None),  # Délka v sekundách (None = použít výchozí ~14s)
@@ -922,6 +936,8 @@ async def generate_bark(
     Body:
         text: Textový prompt (může obsahovat [smích], [hudba], [pláč] apod.)
         model_size: Velikost modelu ("small" nebo "large")
+        mode: Režim načtení submodelů (auto=staré chování, full=vše large, mixed=text large + zbytek small, small=vše small)
+        offload_cpu: Část modelu na CPU (šetří VRAM, zpomaluje)
         temperature: Teplota generování (0.0-1.0, vyšší = kreativnější)
         seed: Seed pro reprodukovatelnost (volitelné)
         duration: Délka v sekundách (1-120s, None = výchozí ~14s, delší segmenty se zacyklí)
@@ -937,6 +953,10 @@ async def generate_bark(
         if model_size not in ("small", "large"):
             model_size = "small"
 
+        mode_clean = (mode or "auto").strip().lower()
+        if mode_clean not in ("auto", "full", "mixed", "small"):
+            mode_clean = "auto"
+
         # Validace délky
         duration_s = None
         if duration is not None:
@@ -949,6 +969,8 @@ async def generate_bark(
             lambda: bark_engine.generate(
                 text=text,
                 model_size=model_size,
+                model_mode=mode_clean,
+                offload_cpu=bool(offload_cpu),
                 temperature=float(temperature) if temperature else 0.7,
                 seed=int(seed) if seed else None,
                 duration_s=duration_s,
@@ -967,6 +989,8 @@ async def generate_bark(
             prompt=text,
             bark_params={
                 "model_size": model_size,
+                "mode": mode_clean,
+                "offload_cpu": bool(offload_cpu),
                 "temperature": float(temperature) if temperature else 0.7,
                 "seed": int(seed) if seed else None,
                 "duration": duration_s,

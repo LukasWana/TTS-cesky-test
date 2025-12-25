@@ -35,6 +35,9 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
   const [temperature, setTemperature] = useState(0.7)
   const [seed, setSeed] = useState('')
   const [duration, setDuration] = useState(14) // Výchozí délka (Bark generuje ~14s)
+  const [modelSize, setModelSize] = useState('small') // small|large
+  const [mode, setMode] = useState('auto') // auto|full|mixed|small
+  const [offloadCpu, setOffloadCpu] = useState(false)
   const [presetCategory, setPresetCategory] = useState('meditation')
   const [preset, setPreset] = useState('med_calm')
 
@@ -143,7 +146,9 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
       const result = await generateBark(
         prompt,
         {
-          modelSize: 'small', // Vždy používáme small model
+          modelSize,
+          mode,
+          offloadCpu,
           temperature,
           seed: seed === '' ? null : Number(seed),
           duration: duration
@@ -437,6 +442,47 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
             onToggle={() => setMainExpanded(!mainExpanded)}
           >
             <div className="settings-grid">
+              <SelectRow
+                label="Velikost modelu"
+                icon="cpu"
+                value={modelSize}
+                onChange={setModelSize}
+                infoIcon="large má vyšší nároky na VRAM; pokud padá na paměť, použij 'Režim modelu' = mixed nebo zapni offload."
+                options={[
+                  { value: 'small', label: 'Small (nižší VRAM, rychlejší)' },
+                  { value: 'large', label: 'Large (vyšší kvalita, vyšší VRAM)' }
+                ]}
+              />
+
+              <SelectRow
+                label="Režim modelu (VRAM)"
+                icon="settings"
+                value={mode}
+                onChange={setMode}
+                infoIcon="auto = původní chování (small->small, large->full). mixed často drží kvalitu, ale výrazně šetří VRAM."
+                options={[
+                  { value: 'auto', label: 'Auto (původní chování)' },
+                  { value: 'full', label: 'Full (vše large)' },
+                  { value: 'mixed', label: 'Mixed (text large + zbytek small)' },
+                  { value: 'small', label: 'Small (vše small)' }
+                ]}
+              />
+
+              <div className="setting-item">
+                <label className="bark-label">CPU offload</label>
+                <label className="bark-toggle">
+                  <input
+                    type="checkbox"
+                    checked={offloadCpu}
+                    onChange={(e) => setOffloadCpu(e.target.checked)}
+                  />
+                  <span>Zapnout offload na CPU (šetří VRAM, zpomalí)</span>
+                </label>
+                <small style={{ opacity: 0.7, fontSize: '0.85rem', marginTop: '6px', display: 'block' }}>
+                  Doporučeno, pokud <strong>large</strong> padá na paměť. V kombinaci s <strong>mixed</strong> je to nejšetrnější.
+                </small>
+              </div>
+
               <div>
                 <label className="bark-label">Textový prompt</label>
                 <textarea
