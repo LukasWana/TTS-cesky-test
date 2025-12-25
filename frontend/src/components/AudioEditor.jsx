@@ -772,6 +772,7 @@ function AudioEditor() {
   const isLoadingStateRef = useRef(false)
   const saveTimeoutRef = useRef(null)
   const layerIdCounterRef = useRef(0) // Counter pro unikátní ID
+  const didHydrateFromStorageRef = useRef(false) // ochrana proti dvojitému běhu useEffect v React.StrictMode (DEV)
 
   const computedMaxDuration = useMemo(() => {
     const max = layers.reduce((acc, layer) => {
@@ -860,6 +861,10 @@ function AudioEditor() {
 
   // Načtení stavu z localStorage
   useEffect(() => {
+    // React 18 StrictMode (DEV) spustí effect 2× (setup/cleanup/setup). Tento guard zabrání duplicitnímu přidání vrstev.
+    if (didHydrateFromStorageRef.current) return
+    didHydrateFromStorageRef.current = true
+
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
@@ -890,17 +895,32 @@ function AudioEditor() {
 
         // Načtení vrstev - pouze metadata, audio se načte znovu
         if (state.layers && Array.isArray(state.layers)) {
-          // Načíst vrstvy postupně
-          state.layers.forEach(async (layerData) => {
+          const makeNewLayerId = () =>
+            `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`
+
+          const hydrate = async () => {
             try {
-              if (layerData.audioUrl) {
-                // Vrstva z historie
+              // Vždy hydratovat jako "replace", ne append (eliminuje duplikace a race conditions).
+              const usedIds = new Set()
+              const layerDatas = state.layers.filter(ld => ld && ld.audioUrl)
+
+              const loadedLayers = []
+              for (const layerData of layerDatas) {
                 const audioBuffer = await loadAudioFromUrl(layerData.audioUrl)
-                const newLayer = {
-                  id: layerData.id || `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`,
+
+                let id = layerData.id || makeNewLayerId()
+                let attempts = 0
+                while (usedIds.has(id) && attempts < 10) {
+                  id = makeNewLayerId()
+                  attempts++
+                }
+                usedIds.add(id)
+
+                loadedLayers.push({
+                  id,
                   name: layerData.name,
                   file: null,
-                  audioBuffer: audioBuffer,
+                  audioBuffer,
                   audioUrl: layerData.audioUrl,
                   startTime: layerData.startTime || 0,
                   duration: layerData.duration || audioBuffer.duration,
@@ -914,23 +934,24 @@ function AudioEditor() {
                     ? layerData.loopAnchorTime
                     : (layerData.startTime || 0),
                   historyEntry: layerData.historyEntry
-                }
-                setLayers(prev => {
-                  // Kontrola duplicitních ID - pokud existuje, vygenerovat nové unikátní ID
-                  let finalId = newLayer.id
-                  let attempts = 0
-                  while (prev.some(l => l.id === finalId) && attempts < 10) {
-                    finalId = `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`
-                    attempts++
-                  }
-                  newLayer.id = finalId
-                  return [...prev, newLayer]
                 })
               }
+
+              setLayers(loadedLayers)
+
+              // Pokud uložený selectedLayerId neexistuje, vyber první vrstvu.
+              if (state.selectedLayerId !== undefined) {
+                const exists = loadedLayers.some(l => l.id === state.selectedLayerId)
+                if (!exists) {
+                  setSelectedLayerId(loadedLayers[0]?.id ?? null)
+                }
+              }
             } catch (err) {
-              console.error('Chyba při načítání vrstvy:', err)
+              console.error('Chyba při načítání vrstev:', err)
             }
-          })
+          }
+
+          hydrate()
         }
 
         setTimeout(() => {
