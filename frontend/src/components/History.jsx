@@ -6,15 +6,16 @@ import {
 } from '../services/api'
 import { deleteWaveformCache, clearWaveformCache } from '../utils/waveformCache'
 import AudioPlayer from './AudioPlayer'
+import Icon from './ui/Icons'
 import './History.css'
 
 // Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome
 const API_BASE_URL = 'http://127.0.0.1:8000'
 
 const HISTORY_TYPES = {
-  tts: { label: 'mluvené slovo', icon: '🎤' },
-  music: { label: 'hudba', icon: '🎵' },
-  bark: { label: 'FX & English', icon: '🔊' }
+  tts: { label: 'mluvené slovo', icon: 'microphone' },
+  music: { label: 'hudba', icon: 'music' },
+  bark: { label: 'FX & English', icon: 'speaker' }
 }
 
 function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
@@ -163,7 +164,7 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
     <div className="history-container">
       <div className="history-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <h2>📜 Historie</h2>
+          <h2>Historie</h2>
           <div className="history-filter-buttons">
             {Object.entries(HISTORY_TYPES).map(([key, { label, icon }]) => (
               <button
@@ -171,7 +172,8 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
                 className={`history-filter-btn ${historyType === key ? 'active' : ''}`}
                 onClick={() => setHistoryType(key)}
               >
-                {icon} {label}
+                <Icon name={icon} size={16} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
+                {label}
               </button>
             ))}
           </div>
@@ -184,7 +186,8 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
           )}
           {history.length > 0 && (
             <button className="btn-clear-all" onClick={handleClearAll}>
-              🗑️ Vymazat vše
+              <Icon name="trash" size={16} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
+              Vymazat vše
             </button>
           )}
         </div>
@@ -192,13 +195,14 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
 
       {error && (
         <div className="history-error">
-          ⚠️ {error}
+          <Icon name="warning" size={16} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
+          {error}
         </div>
       )}
 
       {history.length === 0 ? (
         <div className="history-empty">
-          <p>📭 Historie je prázdná</p>
+          <p><Icon name="inbox" size={16} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} /> Historie je prázdná</p>
           <p className="history-empty-hint">Zde se zobrazí všechny generované audio soubory</p>
         </div>
       ) : (
@@ -228,7 +232,7 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
                   onClick={(e) => handleDelete(entry.id, e)}
                   title="Smazat záznam"
                 >
-                  🗑️
+                  <Icon name="trash" size={16} />
                 </button>
               </div>
 

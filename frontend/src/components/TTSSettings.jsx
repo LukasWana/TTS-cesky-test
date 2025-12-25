@@ -70,13 +70,14 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
   return (
     <div className="tts-settings">
       <Section
-        title="⚙️ Nastavení hlasu"
+        title="Nastavení hlasu"
+        icon="settings"
         isExpanded={isExpanded}
         onToggle={() => setIsExpanded(!isExpanded)}
       >
         <Section
           title="TTS parametry"
-          icon="🎛️"
+          icon="grid"
           isExpanded={ttsParamsExpanded}
           onToggle={() => setTtsParamsExpanded(!ttsParamsExpanded)}
           onReset={() => {
@@ -204,14 +205,14 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
 
         <Section
           title="Kvalita výstupu"
-          icon="🎵"
+          icon="music"
           isExpanded={qualityExpanded}
           onToggle={() => setQualityExpanded(!qualityExpanded)}
         >
           <div className="quality-section-content">
             <SelectRow
               label="Režim kvality"
-              icon="✨"
+              icon="star"
               value={quality.qualityMode || ''}
               onChange={(val) => onQualityChange && onQualityChange({
                 ...quality,
@@ -259,7 +260,7 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
 
             <SelectRow
               label="Audio enhancement preset"
-              icon="🪄"
+              icon="wand"
               value={quality.enhancementPreset || 'natural'}
               onChange={(val) => onQualityChange && onQualityChange({
                 ...quality,
@@ -397,7 +398,7 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
         {/* Pokročilé funkce */}
         <Section
           title="Pokročilé funkce"
-          icon="⚙️"
+          icon="settings"
           isExpanded={advancedExpanded}
           onToggle={() => setAdvancedExpanded(!advancedExpanded)}
         >
@@ -520,11 +521,11 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
 
               {quality.enableDialectConversion && (
                 <div className="dialect-settings" style={{ marginTop: '15px', marginLeft: '54px' }}>
-                  <h5 style={{ marginTop: '0', marginBottom: '15px', fontSize: '14px', fontWeight: '600' }}>🌍 Nastavení nářečí</h5>
+                  <h5 style={{ marginTop: '0', marginBottom: '15px', fontSize: '14px', fontWeight: '600' }}>Nastavení nářečí</h5>
 
                   <SelectRow
                     label="Vyberte nářečí"
-                    icon="🌍"
+                    icon="globe"
                     value={quality.dialectCode || 'moravske'}
                     onChange={(val) => onQualityChange && onQualityChange({
                       ...quality,

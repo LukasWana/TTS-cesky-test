@@ -1,4 +1,5 @@
 import React from 'react'
+import Icon from './Icons'
 import './ui.css'
 
 function SelectRow({
@@ -13,7 +14,11 @@ function SelectRow({
   return (
     <div className={`ui-select-row ${className}`}>
       <label className="ui-select-label">
-        {icon && <span className="ui-select-icon">{icon}</span>}
+        {icon && (
+          <span className="ui-select-icon">
+            {typeof icon === 'string' ? <Icon name={icon} size={14} /> : icon}
+          </span>
+        )}
         {label}
         {infoIcon && <span className="ui-info-icon" title={infoIcon}>ⓘ</span>}
       </label>

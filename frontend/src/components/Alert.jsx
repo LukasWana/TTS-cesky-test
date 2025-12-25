@@ -1,4 +1,5 @@
 import React from 'react'
+import Icon from './ui/Icons'
 import './Alert.css'
 
 function Alert({
@@ -15,18 +16,22 @@ function Alert({
   const combinedClass = `${baseClass} ${typeClass} ${className}`.trim()
 
   const defaultIcons = {
-    success: '✓',
-    error: '✕',
-    warning: '⚠',
-    info: 'ℹ'
+    success: 'check',
+    error: 'close',
+    warning: 'warning',
+    info: 'info'
   }
 
-  const displayIcon = icon || defaultIcons[type]
+  const displayIconName = icon || defaultIcons[type]
 
   return (
     <div className={combinedClass} {...props}>
       <div className="alert-content">
-        {displayIcon && <span className="alert-icon">{displayIcon}</span>}
+        {displayIconName && (
+          <span className="alert-icon">
+            {typeof displayIconName === 'string' ? <Icon name={displayIconName} size={18} /> : displayIconName}
+          </span>
+        )}
         <div className="alert-text">
           {title && <div className="alert-title">{title}</div>}
           {message && <div className="alert-message">{message}</div>}
@@ -34,7 +39,7 @@ function Alert({
       </div>
       {onClose && (
         <button className="alert-close" onClick={onClose} aria-label="Zavřít">
-          ×
+          <Icon name="close" size={18} />
         </button>
       )}
     </div>

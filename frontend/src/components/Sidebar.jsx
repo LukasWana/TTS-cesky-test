@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import Icon from './ui/Icons'
 import './Sidebar.css'
 
 function Sidebar({ activeTab, onTabChange, tabs, isOpen, onClose, modelStatus }) {
@@ -27,7 +28,7 @@ function Sidebar({ activeTab, onTabChange, tabs, isOpen, onClose, modelStatus })
             <span className="sidebar-logo-text">Voice Studio</span>
           </div>
           <button className="sidebar-close" onClick={onClose} aria-label="Zavřít menu">
-            ×
+            <Icon name="close" size={20} />
           </button>
         </div>
 
@@ -35,9 +36,9 @@ function Sidebar({ activeTab, onTabChange, tabs, isOpen, onClose, modelStatus })
           <div className="sidebar-model-status">
             <div className={`sidebar-status-indicator ${modelStatus.loaded ? 'loaded' : modelStatus.loading ? 'loading' : 'idle'}`}>
               {modelStatus.loaded
-                ? '✓ Model načten'
+                ? <><Icon name="check" size={14} style={{ display: 'inline-block', marginRight: '4px', verticalAlign: 'middle' }} /> Model načten</>
                 : modelStatus.loading
-                  ? '⏳ Načítání modelu...'
+                  ? <><Icon name="clock" size={14} style={{ display: 'inline-block', marginRight: '4px', verticalAlign: 'middle' }} /> Načítání modelu...</>
                   : 'Připraven (On-Demand)'}
             </div>
             <div className="sidebar-device-info">
@@ -59,7 +60,11 @@ function Sidebar({ activeTab, onTabChange, tabs, isOpen, onClose, modelStatus })
                 onTabChange(tab.id)
               }}
             >
-              {tab.icon && <span className="sidebar-nav-icon">{tab.icon}</span>}
+              {tab.icon && (
+                <span className="sidebar-nav-icon">
+                  <Icon name={tab.icon} size={20} />
+                </span>
+              )}
               <span className="sidebar-nav-label">{tab.label}</span>
             </button>
           ))}

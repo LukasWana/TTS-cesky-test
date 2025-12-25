@@ -12,6 +12,7 @@ import AudioEditor from './components/AudioEditor'
 import Sidebar from './components/Sidebar'
 import Alert from './components/Alert'
 import Button from './components/ui/Button'
+import Icon from './components/ui/Icons'
 import { generateSpeech, getDemoVoices, getModelStatus, getTtsProgress, subscribeToTtsProgress } from './services/api'
 import './App.css'
 
@@ -296,11 +297,11 @@ function App() {
   const [qualitySettings, setQualitySettings] = useState(defaultSlotForInit.qualitySettings)
 
   const tabs = [
-    { id: 'generate', label: 'mluvené slovo', icon: '🎤' },
-    { id: 'musicgen', label: 'hudba', icon: '🎵' },
-    { id: 'bark', label: 'FX & English', icon: '🔊' },
-    { id: 'audioeditor', label: 'Audio Editor', icon: '🎚️' },
-    { id: 'history', label: 'Historie', icon: '📜' }
+    { id: 'generate', label: 'mluvené slovo', icon: 'microphone' },
+    { id: 'musicgen', label: 'hudba', icon: 'music' },
+    { id: 'bark', label: 'FX & English', icon: 'speaker' },
+    { id: 'audioeditor', label: 'Audio Editor', icon: 'sliders' },
+    { id: 'history', label: 'Historie', icon: 'scroll' }
   ]
 
   // Ref pro sledování, zda se právě načítá nastavení (aby se neukládalo při načítání)
@@ -912,7 +913,11 @@ function App() {
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label="Otevřít menu"
           >
-            ☰
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
           </button>
         </header>
 
@@ -934,7 +939,17 @@ function App() {
                 onClick={() => setShowSettings(!showSettings)}
                 title={showSettings ? "Skrýt nastavení" : "Zobrazit nastavení"}
               >
-                {showSettings ? '✕ Skrýt nastavení' : '⚙️ Nastavení'}
+                {showSettings ? (
+                  <>
+                    <Icon name="close" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
+                    Skrýt nastavení
+                  </>
+                ) : (
+                  <>
+                    <Icon name="settings" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
+                    Nastavení
+                  </>
+                )}
               </button>
             )}
           </div>
@@ -971,7 +986,7 @@ function App() {
                     onClick={handleGenerate}
                     disabled={loading || !text.trim()}
                     fullWidth
-                    icon={loading ? '⏳' : '🔊'}
+                    icon={loading ? <Icon name="clock" size={16} /> : <Icon name="speaker" size={16} />}
                   >
                     {loading ? 'Generuji...' : 'Generovat řeč'}
                   </Button>
