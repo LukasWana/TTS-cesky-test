@@ -298,8 +298,8 @@ function App() {
   const [qualitySettings, setQualitySettings] = useState(defaultSlotForInit.qualitySettings)
 
   const tabs = [
-    { id: 'generate', label: 'mluvené slovo', icon: 'microphone' },
-    { id: 'f5tts', label: 'F5-TTS', icon: 'speaker' },
+    { id: 'generate', label: 'české slovo', icon: 'microphone' },
+    { id: 'f5tts', label: 'slovenské slovo', icon: 'speaker' },
     { id: 'musicgen', label: 'hudba', icon: 'music' },
     { id: 'bark', label: 'FX & English', icon: 'speaker' },
     { id: 'audioeditor', label: 'Audio Editor', icon: 'sliders' },
@@ -970,6 +970,7 @@ function App() {
                   onVoiceRecord={handleVoiceRecord}
                   onYouTubeImport={handleYouTubeImport}
                   voiceQuality={voiceQuality}
+                  language="cs"
                 />
 
                 <TextInput
