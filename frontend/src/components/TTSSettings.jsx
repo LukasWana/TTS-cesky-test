@@ -16,11 +16,14 @@ const DEFAULT_TTS_SETTINGS = {
   seed: null
 }
 
-function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityChange, activeVariant, onVariantChange }) {
+function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityChange, activeVariant, onVariantChange, engine = 'xtts' }) {
   const [isExpanded, setIsExpanded] = useState(true) // Hlavní panel otevřený
   const [ttsParamsExpanded, setTtsParamsExpanded] = useState(true)
   const [qualityExpanded, setQualityExpanded] = useState(true)
   const [advancedExpanded, setAdvancedExpanded] = useState(false)
+
+  const isF5 = engine === 'f5' || engine === 'f5-slovak'
+  const isSlovak = engine === 'f5-slovak'
 
   const variants = [
     { id: 'variant1', label: 'Varianta 1' },
@@ -111,93 +114,97 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
               showTicks={true}
             />
 
-            {/* Teplota */}
-            <SliderRow
-              label="Teplota (Temperature)"
-              value={settings.temperature}
-              min={0.01}
-              max={1.0}
-              step={0.05}
-              onChange={(v) => handleChange('temperature', v)}
-              onReset={() => handleChange('temperature', DEFAULT_TTS_SETTINGS.temperature)}
-              formatValue={(v) => v.toFixed(2)}
-              showTicks={true}
-            />
+            {!isF5 && (
+              <>
+                {/* Teplota */}
+                <SliderRow
+                  label="Teplota (Temperature)"
+                  value={settings.temperature}
+                  min={0.01}
+                  max={1.0}
+                  step={0.05}
+                  onChange={(v) => handleChange('temperature', v)}
+                  onReset={() => handleChange('temperature', DEFAULT_TTS_SETTINGS.temperature)}
+                  formatValue={(v) => v.toFixed(2)}
+                  showTicks={true}
+                />
 
-            {/* Length Penalty */}
-            <SliderRow
-              label="Length Penalty"
-              value={settings.lengthPenalty}
-              min={0.5}
-              max={2.0}
-              step={0.1}
-              onChange={(v) => handleChange('lengthPenalty', v)}
-              onReset={() => handleChange('lengthPenalty', DEFAULT_TTS_SETTINGS.lengthPenalty)}
-              formatValue={(v) => v.toFixed(2)}
-              showTicks={true}
-            />
+                {/* Length Penalty */}
+                <SliderRow
+                  label="Length Penalty"
+                  value={settings.lengthPenalty}
+                  min={0.5}
+                  max={2.0}
+                  step={0.1}
+                  onChange={(v) => handleChange('lengthPenalty', v)}
+                  onReset={() => handleChange('lengthPenalty', DEFAULT_TTS_SETTINGS.lengthPenalty)}
+                  formatValue={(v) => v.toFixed(2)}
+                  showTicks={true}
+                />
 
-            {/* Repetition Penalty */}
-            <SliderRow
-              label="Repetition Penalty"
-              value={settings.repetitionPenalty}
-              min={1.0}
-              max={5.0}
-              step={0.1}
-              onChange={(v) => handleChange('repetitionPenalty', v)}
-              onReset={() => handleChange('repetitionPenalty', DEFAULT_TTS_SETTINGS.repetitionPenalty)}
-              formatValue={(v) => v.toFixed(2)}
-              showTicks={true}
-            />
+                {/* Repetition Penalty */}
+                <SliderRow
+                  label="Repetition Penalty"
+                  value={settings.repetitionPenalty}
+                  min={1.0}
+                  max={5.0}
+                  step={0.1}
+                  onChange={(v) => handleChange('repetitionPenalty', v)}
+                  onReset={() => handleChange('repetitionPenalty', DEFAULT_TTS_SETTINGS.repetitionPenalty)}
+                  formatValue={(v) => v.toFixed(2)}
+                  showTicks={true}
+                />
 
-            {/* Top-K */}
-            <SliderRow
-              label="Top-K Sampling"
-              value={settings.topK}
-              min={1}
-              max={100}
-              step={1}
-              onChange={(v) => handleChange('topK', v)}
-              onReset={() => handleChange('topK', DEFAULT_TTS_SETTINGS.topK)}
-              formatValue={(v) => v}
-              showTicks={true}
-            />
+                {/* Top-K */}
+                <SliderRow
+                  label="Top-K Sampling"
+                  value={settings.topK}
+                  min={1}
+                  max={100}
+                  step={1}
+                  onChange={(v) => handleChange('topK', v)}
+                  onReset={() => handleChange('topK', DEFAULT_TTS_SETTINGS.topK)}
+                  formatValue={(v) => v}
+                  showTicks={true}
+                />
 
-            {/* Top-P */}
-            <SliderRow
-              label="Top-P Sampling"
-              value={settings.topP}
-              min={0.0}
-              max={1.0}
-              step={0.05}
-              onChange={(v) => handleChange('topP', v)}
-              onReset={() => handleChange('topP', DEFAULT_TTS_SETTINGS.topP)}
-              formatValue={(v) => v.toFixed(2)}
-              showTicks={true}
-            />
+                {/* Top-P */}
+                <SliderRow
+                  label="Top-P Sampling"
+                  value={settings.topP}
+                  min={0.0}
+                  max={1.0}
+                  step={0.05}
+                  onChange={(v) => handleChange('topP', v)}
+                  onReset={() => handleChange('topP', DEFAULT_TTS_SETTINGS.topP)}
+                  formatValue={(v) => v.toFixed(2)}
+                  showTicks={true}
+                />
 
-            {/* Seed */}
-            <div className="setting-item">
-              <label htmlFor="seed">
-                Seed (pro reprodukovatelnost)
-                <span className="setting-value">
-                  {settings.seed !== null && settings.seed !== undefined ? settings.seed : 'Auto (42)'}
-                </span>
-              </label>
-              <input
-                type="number"
-                id="seed"
-                min="0"
-                step="1"
-                value={settings.seed !== null && settings.seed !== undefined ? settings.seed : ''}
-                onChange={(e) => handleChange('seed', e.target.value)}
-                placeholder="Prázdné = Auto (42)"
-              />
-              <div className="setting-description">
-                Seed pro reprodukovatelnost generování. Stejný seed + stejné parametry = stejné audio.
-                Prázdné pole použije fixní seed 42.
-              </div>
-            </div>
+                {/* Seed */}
+                <div className="setting-item">
+                  <label htmlFor="seed">
+                    Seed (pro reprodukovatelnost)
+                    <span className="setting-value">
+                      {settings.seed !== null && settings.seed !== undefined ? settings.seed : 'Auto (42)'}
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    id="seed"
+                    min="0"
+                    step="1"
+                    value={settings.seed !== null && settings.seed !== undefined ? settings.seed : ''}
+                    onChange={(e) => handleChange('seed', e.target.value)}
+                    placeholder="Prázdné = Auto (42)"
+                  />
+                  <div className="setting-description">
+                    Seed pro reprodukovatelnost generování. Stejný seed + stejné parametry = stejné audio.
+                    Prázdné pole použije fixní seed 42.
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </Section>
 
@@ -403,25 +410,27 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
             <div className="quality-section-content">
 
             <div className="features-grid">
-              {/* Multi-pass generování */}
-              <div className="feature-checkbox-item">
-                <input
-                  type="checkbox"
-                  id="multiPass"
-                  className="large-checkbox"
-                  checked={quality.multiPass || false}
-                  onChange={(e) => onQualityChange && onQualityChange({
-                    ...quality,
-                    multiPass: e.target.checked
-                  })}
-                />
-                <label htmlFor="multiPass" className="feature-checkbox-text">
-                  <span className="feature-title">Multi-pass generování (více variant)</span>
-                  <span className="feature-description">Vygeneruje více variant a umožní výběr nejlepší</span>
-                </label>
-              </div>
+              {/* Multi-pass generování - schovat pro F5 */}
+              {!isF5 && (
+                <div className="feature-checkbox-item">
+                  <input
+                    type="checkbox"
+                    id="multiPass"
+                    className="large-checkbox"
+                    checked={quality.multiPass || false}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      multiPass: e.target.checked
+                    })}
+                  />
+                  <label htmlFor="multiPass" className="feature-checkbox-text">
+                    <span className="feature-title">Multi-pass generování (více variant)</span>
+                    <span className="feature-description">Vygeneruje více variant a umožní výběr nejlepší</span>
+                  </label>
+                </div>
+              )}
 
-              {quality.multiPass && (
+              {!isF5 && quality.multiPass && (
                 <div style={{ marginTop: '-10px', marginBottom: '20px', marginLeft: '54px' }}>
                   <SliderRow
                     label="Počet variant"
@@ -461,23 +470,25 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 </label>
               </div>
 
-              {/* Batch processing */}
-              <div className="feature-checkbox-item">
-                <input
-                  type="checkbox"
-                  id="enableBatch"
-                  className="large-checkbox"
-                  checked={quality.enableBatch !== false}
-                  onChange={(e) => onQualityChange && onQualityChange({
-                    ...quality,
-                    enableBatch: e.target.checked
-                  })}
-                />
-                <label htmlFor="enableBatch" className="feature-checkbox-text">
-                  <span className="feature-title">Batch processing (pro dlouhé texty)</span>
-                  <span className="feature-description">Automaticky rozdělí dlouhé texty na části a spojí je</span>
-                </label>
-              </div>
+              {/* Batch processing - schovat pro F5 */}
+              {!isF5 && (
+                <div className="feature-checkbox-item">
+                  <input
+                    type="checkbox"
+                    id="enableBatch"
+                    className="large-checkbox"
+                    checked={quality.enableBatch !== false}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      enableBatch: e.target.checked
+                    })}
+                  />
+                  <label htmlFor="enableBatch" className="feature-checkbox-text">
+                    <span className="feature-title">Batch processing (pro dlouhé texty)</span>
+                    <span className="feature-description">Automaticky rozdělí dlouhé texty na části a spojí je</span>
+                  </label>
+                </div>
+              )}
 
               {/* HiFi-GAN vocoder */}
               <div className="feature-checkbox-item">
@@ -497,27 +508,29 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                 </label>
               </div>
 
-              {/* Dialect Conversion */}
-              <div className="feature-checkbox-item">
-                <input
-                  type="checkbox"
-                  id="enableDialectConversion"
-                  className="large-checkbox"
-                  checked={quality.enableDialectConversion || false}
-                  onChange={(e) => onQualityChange && onQualityChange({
-                    ...quality,
-                    enableDialectConversion: e.target.checked,
-                    // Pokud se vypne, vymaž dialect_code
-                    dialectCode: e.target.checked ? (quality.dialectCode || 'moravske') : null
-                  })}
-                />
-                <label htmlFor="enableDialectConversion" className="feature-checkbox-text">
-                  <span className="feature-title">Převod na nářečí</span>
-                  <span className="feature-description">Převede text ze standardní češtiny na zvolené nářečí před syntézou</span>
-                </label>
-              </div>
+              {/* Dialect Conversion - schovat pro F5/Slovensko */}
+              {!isF5 && (
+                <div className="feature-checkbox-item">
+                  <input
+                    type="checkbox"
+                    id="enableDialectConversion"
+                    className="large-checkbox"
+                    checked={quality.enableDialectConversion || false}
+                    onChange={(e) => onQualityChange && onQualityChange({
+                      ...quality,
+                      enableDialectConversion: e.target.checked,
+                      // Pokud se vypne, vymaž dialect_code
+                      dialectCode: e.target.checked ? (quality.dialectCode || 'moravske') : null
+                    })}
+                  />
+                  <label htmlFor="enableDialectConversion" className="feature-checkbox-text">
+                    <span className="feature-title">Převod na nářečí</span>
+                    <span className="feature-description">Převede text ze standardní češtiny na zvolené nářečí před syntézou</span>
+                  </label>
+                </div>
+              )}
 
-              {quality.enableDialectConversion && (
+              {!isF5 && quality.enableDialectConversion && (
                 <div className="dialect-settings" style={{ marginTop: '15px', marginLeft: '54px' }}>
                   <h5 style={{ marginTop: '0', marginBottom: '15px', fontSize: '14px', fontWeight: '600' }}>Nastavení nářečí</h5>
 

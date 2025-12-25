@@ -248,6 +248,10 @@ const DEFAULT_QUALITY_SETTINGS = BASE_QUALITY_SETTINGS
 // Klíče pro localStorage - varianty jsou vázané na konkrétní hlas (id)
 const getVariantStorageKey = (voiceId, variantId) => `xtts_voice_${voiceId}_variant_${variantId}`
 
+// Klíče pro localStorage - text a historie verzí podle záložky
+const getTabTextStorageKey = (tabId) => `app_text_${tabId}`
+const getTabVersionsStorageKey = (tabId) => `app_text_versions_${tabId}`
+
 // Pomocné funkce pro localStorage
 const saveVariantSettings = (voiceId, variantId, settings) => {
   try {
@@ -269,6 +273,44 @@ const loadVariantSettings = (voiceId, variantId) => {
   return null
 }
 
+// Pomocné funkce pro ukládání/načítání textu podle záložky
+const saveTabText = (tabId, text) => {
+  try {
+    localStorage.setItem(getTabTextStorageKey(tabId), text)
+  } catch (err) {
+    console.error('Chyba při ukládání textu:', err)
+  }
+}
+
+const loadTabText = (tabId) => {
+  try {
+    return localStorage.getItem(getTabTextStorageKey(tabId)) || ''
+  } catch (err) {
+    console.error('Chyba při načítání textu:', err)
+    return ''
+  }
+}
+
+const saveTabVersions = (tabId, versions) => {
+  try {
+    localStorage.setItem(getTabVersionsStorageKey(tabId), JSON.stringify(versions))
+  } catch (err) {
+    console.error('Chyba při ukládání historie verzí:', err)
+  }
+}
+
+const loadTabVersions = (tabId) => {
+  try {
+    const stored = localStorage.getItem(getTabVersionsStorageKey(tabId))
+    if (stored) {
+      return JSON.parse(stored)
+    }
+  } catch (err) {
+    console.error('Chyba při načítání historie verzí:', err)
+  }
+  return []
+}
+
 function App() {
   const [activeVariant, setActiveVariant] = useState('variant1') // 'variant1' | 'variant2' | ... | 'variant5'
   const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'f5tts' | 'musicgen' | 'bark' | 'history'
@@ -279,7 +321,22 @@ function App() {
   const [voiceType, setVoiceType] = useState('demo') // 'demo' | 'upload' | 'record' | 'youtube'
   const [uploadedVoice, setUploadedVoice] = useState(null)
   const [uploadedVoiceFileName, setUploadedVoiceFileName] = useState(null)
-  const [text, setText] = useState('')
+  // Text pro každou záložku - každý model má svůj vlastní prompt
+  const [textsByTab, setTextsByTab] = useState({
+    generate: '',
+    f5tts: '',
+    musicgen: '',
+    bark: '',
+    audioeditor: ''
+  })
+  // Aktuální text pro zobrazení (podle activeTab)
+  const text = textsByTab[activeTab] || ''
+  const setText = (newText) => {
+    setTextsByTab(prev => ({
+      ...prev,
+      [activeTab]: newText
+    }))
+  }
   const [generatedAudio, setGeneratedAudio] = useState(null)
   const [generatedVariants, setGeneratedVariants] = useState([])
   const [loading, setLoading] = useState(false)
@@ -331,27 +388,75 @@ function App() {
     }
   }, [ttsSettings, qualitySettings])
 
+  // Ref pro sledování, zda se právě načítá text (aby se neukládalo při načítání)
+  const isLoadingTextRef = useRef(false)
+  // Ref pro sledování, zda už proběhla inicializace
+  const isInitializedRef = useRef(false)
+  // Ref pro předchozí záložku (pro ukládání textu před změnou)
+  const previousTabRef = useRef(activeTab)
+
   // Načtení rozpracovaného textu a historie verzí z localStorage při startu
   useEffect(() => {
-    const savedText = localStorage.getItem('xtts_current_text')
-    if (savedText) setText(savedText)
+    if (isInitializedRef.current) return
 
-    const savedVersions = localStorage.getItem('xtts_text_versions')
-    if (savedVersions) {
-      try {
-        setTextVersions(JSON.parse(savedVersions))
-      } catch (e) {
-        console.error('Chyba při načítání historie verzí:', e)
-      }
+    isLoadingTextRef.current = true
+
+    // Načíst texty pro všechny záložky
+    const loadedTexts = {
+      generate: loadTabText('generate'),
+      f5tts: loadTabText('f5tts'),
+      musicgen: loadTabText('musicgen'),
+      bark: loadTabText('bark'),
+      audioeditor: loadTabText('audioeditor')
     }
-  }, [])
+    setTextsByTab(loadedTexts)
 
-  // Auto-save aktuálního textu
+    // Načíst historii verzí pro aktuální záložku
+    const savedVersions = loadTabVersions(activeTab)
+    if (savedVersions && savedVersions.length > 0) {
+      setTextVersions(savedVersions)
+    }
+
+    isLoadingTextRef.current = false
+    isInitializedRef.current = true
+    previousTabRef.current = activeTab
+  }, []) // Pouze při startu
+
+  // Auto-save aktuálního textu při změně textu
   useEffect(() => {
-    localStorage.setItem('xtts_current_text', text)
-  }, [text])
+    if (isLoadingTextRef.current) return
+    if (!isInitializedRef.current) return // Neukládat před inicializací
+    // Uložit text pro aktuální záložku
+    saveTabText(activeTab, text)
+  }, [text, activeTab]) // Ukládat při změně textu pro aktuální záložku
 
-  // Funkce pro uložení verze textu
+  // Ukládání a načítání textu a historie verzí při změně záložky
+  useEffect(() => {
+    if (!isInitializedRef.current) return // Nečíst před inicializací
+
+    // Uložit text a historii verzí pro předchozí záložku před přepnutím
+    if (previousTabRef.current !== activeTab) {
+      const previousText = textsByTab[previousTabRef.current] || ''
+      // Uložit text pro předchozí záložku
+      saveTabText(previousTabRef.current, previousText)
+      // Uložit historii verzí pro předchozí záložku
+      saveTabVersions(previousTabRef.current, textVersions)
+    }
+
+    isLoadingTextRef.current = true
+
+    // Načíst historii verzí pro novou záložku
+    const savedVersions = loadTabVersions(activeTab)
+    setTextVersions(savedVersions || [])
+
+    // Text pro novou záložku se načte automaticky z textsByTab[activeTab]
+    // (textsByTab se načte při startu a aktualizuje se při změně textu)
+
+    isLoadingTextRef.current = false
+    previousTabRef.current = activeTab
+  }, [activeTab, textsByTab])
+
+  // Funkce pro uložení verze textu (podle aktuální záložky)
   const saveTextVersion = (textToSave) => {
     if (!textToSave || !textToSave.trim()) return
 
@@ -363,13 +468,13 @@ function App() {
 
     const updatedVersions = [newVersion, ...textVersions.slice(0, 19)] // Max 20 verzí
     setTextVersions(updatedVersions)
-    localStorage.setItem('xtts_text_versions', JSON.stringify(updatedVersions))
+    saveTabVersions(activeTab, updatedVersions)
   }
 
   const deleteTextVersion = (versionId) => {
     const updatedVersions = textVersions.filter(v => v.id !== versionId)
     setTextVersions(updatedVersions)
-    localStorage.setItem('xtts_text_versions', JSON.stringify(updatedVersions))
+    saveTabVersions(activeTab, updatedVersions)
   }
 
   // Debounce timer pro ukládání
