@@ -21,7 +21,7 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
   const [ttsProgress, setTtsProgress] = useState(null)
   const [generatedAudio, setGeneratedAudio] = useState(null)
   const [error, setError] = useState(null)
-  const [showSettings, setShowSettings] = useState(false)
+  const [showSettings, setShowSettings] = useState(true)
   // F5TTS je v tomto projektu fixně pro slovenštinu (nepřepíná se do češtiny).
   const language = 'sk'
   const [uploadedVoiceFileName, setUploadedVoiceFileName] = useState(null)

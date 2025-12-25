@@ -745,7 +745,7 @@ function AudioEditor() {
   const [timelineHover, setTimelineHover] = useState({ visible: false, percent: 0, time: 0 })
   const [draggingClip, setDraggingClip] = useState(null)
   const [resizingClip, setResizingClip] = useState(null)
-  const [historyType, setHistoryType] = useState('all') // 'all' | 'tts' | 'music' | 'bark'
+  const [historyType, setHistoryType] = useState('all') // 'all' | 'tts' | 'f5tts' | 'music' | 'bark'
   const [history, setHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [showHistory, setShowHistory] = useState(true)
@@ -1192,14 +1192,29 @@ function AudioEditor() {
       let allHistory = []
 
       // Načíst data z API (rychle, bez waveformů)
-      if (historyType === 'all' || historyType === 'tts') {
+      if (historyType === 'all' || historyType === 'tts' || historyType === 'f5tts') {
         try {
           const ttsData = await getHistory(100, 0)
-          const ttsEntries = (ttsData.history || []).map(entry => ({
-            ...entry,
-            source: 'tts',
-            sourceLabel: '🎤 mluvené slovo'
-          }))
+          const ttsEntries = (ttsData.history || []).map(entry => {
+            // Rozlišení mezi českým a slovenským slovem podle engine v tts_params
+            const engine = entry.tts_params?.engine || ''
+            const isSlovak = engine === 'f5-tts-slovak'
+
+            // Filtrování podle typu
+            if (historyType === 'tts' && isSlovak) {
+              return null // České slovo - přeskočit slovenské
+            }
+            if (historyType === 'f5tts' && !isSlovak) {
+              return null // Slovenské slovo - přeskočit ostatní
+            }
+
+            return {
+              ...entry,
+              source: isSlovak ? 'f5tts' : 'tts',
+              sourceLabel: isSlovak ? '🇸🇰 slovenské slovo' : '🎤 české slovo'
+            }
+          }).filter(entry => entry !== null) // Odstranit null hodnoty
+
           allHistory = [...allHistory, ...ttsEntries]
         } catch (err) {
           console.error('Chyba při načítání TTS historie:', err)
@@ -2949,7 +2964,8 @@ function AudioEditor() {
                 className="history-type-select"
               >
                 <option value="all">Vše</option>
-                <option value="tts">🎤 mluvené slovo</option>
+                <option value="tts">🎤 české slovo</option>
+                <option value="f5tts">🇸🇰 slovenské slovo</option>
                 <option value="music">🎵 hudba</option>
                 <option value="bark">🔊 FX & English</option>
               </select>

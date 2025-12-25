@@ -98,20 +98,18 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
           </div>
 
           <div className="settings-grid">
-            {/* Rychlost řeči - zobrazit pro meditative/whisper nebo pokud je explicitně v Advanced */}
-            {(quality.qualityMode === 'meditative' || quality.qualityMode === 'whisper') && (
-              <SliderRow
-                label="Rychlost řeči (Tempo)"
-                value={settings.speed}
-                min={0.5}
-                max={1.5}
-                step={0.05}
-                onChange={(v) => handleChange('speed', v)}
-                onReset={() => handleChange('speed', DEFAULT_TTS_SETTINGS.speed)}
-                formatValue={(v) => `${v.toFixed(2)}x`}
-                showTicks={true}
-              />
-            )}
+            {/* Rychlost řeči - vždy zobrazit */}
+            <SliderRow
+              label="Rychlost řeči (Tempo)"
+              value={settings.speed}
+              min={0.5}
+              max={1.5}
+              step={0.05}
+              onChange={(v) => handleChange('speed', v)}
+              onReset={() => handleChange('speed', DEFAULT_TTS_SETTINGS.speed)}
+              formatValue={(v) => `${v.toFixed(2)}x`}
+              showTicks={true}
+            />
 
             {/* Teplota */}
             <SliderRow

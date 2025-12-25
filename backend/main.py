@@ -1317,22 +1317,25 @@ async def generate_speech_f5_sk(
         elif voice_file:
             voice_name = voice_file.filename
 
-        # Uložit do historie
+        # Uložení do historie
+        tts_params_dict = {
+            "speed": tts_speed,
+            "engine": "f5-tts-slovak"
+        }
+
+        history_entry = HistoryManager.add_entry(
+            audio_url=audio_url,
+            filename=filename,
+            text=text,
+            voice_type=voice_type,
+            voice_name=voice_name,
+            tts_params=tts_params_dict
+        )
+
         if job_id:
             ProgressManager.update(job_id, percent=100, stage="done", message="Hotovo!")
             # ProgressManager má metodu done(), ne complete()
             ProgressManager.done(job_id)
-
-        try:
-            history_manager.save_generation(
-                text=text,
-                audio_url=audio_url,
-                voice_type=voice_type,
-                voice_name=voice_name,
-                engine="f5-tts-slovak"
-            )
-        except Exception as e:
-            print(f"[WARN] Uložení do historie selhalo: {e}")
 
         return {
             "success": True,
