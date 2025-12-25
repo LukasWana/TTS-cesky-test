@@ -10,13 +10,19 @@ BASE_DIR = Path(__file__).parent.parent
 MODELS_DIR = BASE_DIR / "models"
 UPLOADS_DIR = BASE_DIR / "uploads"
 OUTPUTS_DIR = BASE_DIR / "outputs"
-DEMO_VOICES_DIR = BASE_DIR / "frontend" / "assets" / "demo-voices"
+# Demo hlasy (po přesunu do assets/...)
+# Pozn.: názvy složek obsahují mezery, Path s tím nemá problém.
+DEMO_VOICES_CS_DIR = BASE_DIR / "assets" / "czech voices"
+DEMO_VOICES_SK_DIR = BASE_DIR / "assets" / "slovak voices"
+# Backward-compatible alias (většina aplikace historicky počítá s češtinou jako default)
+DEMO_VOICES_DIR = DEMO_VOICES_CS_DIR
 
 # Vytvoření adresářů pokud neexistují
 MODELS_DIR.mkdir(exist_ok=True)
 UPLOADS_DIR.mkdir(exist_ok=True)
 OUTPUTS_DIR.mkdir(exist_ok=True)
-DEMO_VOICES_DIR.mkdir(parents=True, exist_ok=True)
+DEMO_VOICES_CS_DIR.mkdir(parents=True, exist_ok=True)
+DEMO_VOICES_SK_DIR.mkdir(parents=True, exist_ok=True)
 
 # Device detection with manual override
 # Můžete vynutit device přes environment variable:

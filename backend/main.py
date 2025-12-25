@@ -10,7 +10,7 @@ import time
 import re
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,6 +62,8 @@ try:
         OUTPUTS_DIR,
         UPLOADS_DIR,
         DEMO_VOICES_DIR,
+        DEMO_VOICES_CS_DIR,
+        DEMO_VOICES_SK_DIR,
         MAX_TEXT_LENGTH,
         MIN_VOICE_DURATION,
         TTS_SPEED,
@@ -336,17 +338,17 @@ async def generate_speech(
                     raise HTTPException(status_code=400, detail=error)
                 default_speaker_wav = processed_path
             elif demo_voice:
-                demo_path = get_demo_voice_path(demo_voice)
+                demo_path = get_demo_voice_path(demo_voice, lang="cs")
                 if demo_path:
                     default_speaker_wav = demo_path
                 else:
-                    available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+                    available_voices = list(DEMO_VOICES_CS_DIR.glob("*.wav"))
                     if available_voices:
                         default_speaker_wav = str(available_voices[0])
                     else:
                         raise HTTPException(status_code=404, detail="Žádné demo hlasy nejsou k dispozici")
             else:
-                available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+                available_voices = list(DEMO_VOICES_CS_DIR.glob("*.wav"))
                 if available_voices:
                     default_speaker_wav = str(available_voices[0])
                 else:
@@ -363,7 +365,7 @@ async def generate_speech(
             speaker_map = {}
             if speaker_ids:
                 for sid in speaker_ids:
-                    demo_path = get_demo_voice_path(sid)
+                    demo_path = get_demo_voice_path(sid, lang="cs")
                     if demo_path:
                         speaker_map[sid] = demo_path
                     elif Path(sid).exists():
@@ -504,27 +506,10 @@ async def generate_speech(
 
         elif demo_voice:
             # Použití demo hlasu
-            # Extrahuj pouze název souboru, pokud demo_voice obsahuje cestu
-            demo_voice_clean = demo_voice.strip()
-            if os.path.sep in demo_voice_clean or '/' in demo_voice_clean:
-                # Je to cesta - extrahuj pouze název souboru bez přípony
-                demo_voice_clean = Path(demo_voice_clean).stem
-
-            demo_path = DEMO_VOICES_DIR / f"{demo_voice_clean}.wav"
-            if not demo_path.exists():
-                # Zkus najít soubor podle názvu (case-insensitive)
-                found = None
-                available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
-                for voice_file in available_voices:
-                    if voice_file.stem.lower() == demo_voice_clean.lower():
-                        found = voice_file
-                        break
-
-                if found:
-                    speaker_wav = str(found)
-                    print(f"Demo voice '{demo_voice}' found as: {speaker_wav}")
-                elif available_voices:
-                    # Použij první dostupný demo hlas
+            demo_path = get_demo_voice_path(demo_voice, lang="cs")
+            if not demo_path:
+                available_voices = list(DEMO_VOICES_CS_DIR.glob("*.wav"))
+                if available_voices:
                     speaker_wav = str(available_voices[0])
                     print(f"Demo voice '{demo_voice}' not found, using: {speaker_wav}")
                 else:
@@ -533,7 +518,7 @@ async def generate_speech(
                         detail=f"Demo hlas '{demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici. Prosím nahrajte audio soubor."
                     )
             else:
-                speaker_wav = str(demo_path)
+                speaker_wav = demo_path
         else:
             raise HTTPException(
                 status_code=400,
@@ -561,11 +546,19 @@ async def generate_speech(
                 # Explicitní allow_poor_voice=true/false má přednost; pokud není zadáno a jde o demo hlas, povol.
                 is_demo_voice = False
                 try:
-                    is_demo_voice = Path(speaker_wav).resolve().is_relative_to(DEMO_VOICES_DIR.resolve())
+                    speaker_resolved = Path(speaker_wav).resolve()
+                    is_demo_voice = (
+                        speaker_resolved.is_relative_to(DEMO_VOICES_CS_DIR.resolve())
+                        or speaker_resolved.is_relative_to(DEMO_VOICES_SK_DIR.resolve())
+                    )
                 except Exception:
                     # fallback pro starší Python / edge případy
                     try:
-                        is_demo_voice = str(Path(speaker_wav).resolve()).startswith(str(DEMO_VOICES_DIR.resolve()))
+                        speaker_resolved_str = str(Path(speaker_wav).resolve())
+                        is_demo_voice = (
+                            speaker_resolved_str.startswith(str(DEMO_VOICES_CS_DIR.resolve()))
+                            or speaker_resolved_str.startswith(str(DEMO_VOICES_SK_DIR.resolve()))
+                        )
                     except Exception:
                         is_demo_voice = False
 
@@ -906,22 +899,10 @@ async def generate_speech_f5(
             speaker_wav = processed_path
 
         elif demo_voice:
-            demo_voice_clean = demo_voice.strip()
-            if os.path.sep in demo_voice_clean or '/' in demo_voice_clean:
-                demo_voice_clean = Path(demo_voice_clean).stem
-
-            demo_path = DEMO_VOICES_DIR / f"{demo_voice_clean}.wav"
-            if not demo_path.exists():
-                found = None
-                available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
-                for voice_file_item in available_voices:
-                    if voice_file_item.stem.lower() == demo_voice_clean.lower():
-                        found = voice_file_item
-                        break
-
-                if found:
-                    speaker_wav = str(found)
-                elif available_voices:
+            demo_path = get_demo_voice_path(demo_voice, lang="cs")
+            if not demo_path:
+                available_voices = list(DEMO_VOICES_CS_DIR.glob("*.wav"))
+                if available_voices:
                     speaker_wav = str(available_voices[0])
                 else:
                     raise HTTPException(
@@ -929,7 +910,7 @@ async def generate_speech_f5(
                         detail=f"Demo hlas '{demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici."
                     )
             else:
-                speaker_wav = str(demo_path)
+                speaker_wav = demo_path
         else:
             raise HTTPException(
                 status_code=400,
@@ -953,10 +934,18 @@ async def generate_speech_f5(
 
                 is_demo_voice = False
                 try:
-                    is_demo_voice = Path(speaker_wav).resolve().is_relative_to(DEMO_VOICES_DIR.resolve())
+                    speaker_resolved = Path(speaker_wav).resolve()
+                    is_demo_voice = (
+                        speaker_resolved.is_relative_to(DEMO_VOICES_CS_DIR.resolve())
+                        or speaker_resolved.is_relative_to(DEMO_VOICES_SK_DIR.resolve())
+                    )
                 except Exception:
                     try:
-                        is_demo_voice = str(Path(speaker_wav).resolve()).startswith(str(DEMO_VOICES_DIR.resolve()))
+                        speaker_resolved_str = str(Path(speaker_wav).resolve())
+                        is_demo_voice = (
+                            speaker_resolved_str.startswith(str(DEMO_VOICES_CS_DIR.resolve()))
+                            or speaker_resolved_str.startswith(str(DEMO_VOICES_SK_DIR.resolve()))
+                        )
                     except Exception:
                         is_demo_voice = False
 
@@ -1227,22 +1216,10 @@ async def generate_speech_f5_sk(
             speaker_wav = processed_path
 
         elif demo_voice:
-            demo_voice_clean = demo_voice.strip()
-            if os.path.sep in demo_voice_clean or '/' in demo_voice_clean:
-                demo_voice_clean = Path(demo_voice_clean).stem
-
-            demo_path = DEMO_VOICES_DIR / f"{demo_voice_clean}.wav"
-            if not demo_path.exists():
-                found = None
-                available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
-                for voice_file_item in available_voices:
-                    if voice_file_item.stem.lower() == demo_voice_clean.lower():
-                        found = voice_file_item
-                        break
-
-                if found:
-                    speaker_wav = str(found)
-                elif available_voices:
+            demo_path = get_demo_voice_path(demo_voice, lang="sk")
+            if not demo_path:
+                available_voices = list(DEMO_VOICES_SK_DIR.glob("*.wav"))
+                if available_voices:
                     speaker_wav = str(available_voices[0])
                 else:
                     raise HTTPException(
@@ -1250,7 +1227,7 @@ async def generate_speech_f5_sk(
                         detail=f"Demo hlas '{demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici."
                     )
             else:
-                speaker_wav = str(demo_path)
+                speaker_wav = demo_path
         else:
             raise HTTPException(
                 status_code=400,
@@ -1908,7 +1885,18 @@ async def clear_bark_history():
         raise HTTPException(status_code=500, detail=f"Chyba při mazání bark historie: {str(e)}")
 
 
-def get_demo_voice_path(demo_voice_name: str) -> Optional[str]:
+def _normalize_demo_lang(lang: Optional[str]) -> str:
+    """Normalizuje jazyk pro výběr adresáře demo hlasů."""
+    l = (lang or "cs").strip().lower()
+    return "sk" if l.startswith("sk") else "cs"
+
+
+def _get_demo_voices_dir(lang: Optional[str]) -> Path:
+    """Vrátí adresář pro demo hlasy podle jazyka."""
+    return DEMO_VOICES_SK_DIR if _normalize_demo_lang(lang) == "sk" else DEMO_VOICES_CS_DIR
+
+
+def get_demo_voice_path(demo_voice_name: str, lang: Optional[str] = None) -> Optional[str]:
     """
     Vrátí cestu k demo hlasu nebo None pokud neexistuje
 
@@ -1917,6 +1905,7 @@ def get_demo_voice_path(demo_voice_name: str) -> Optional[str]:
 
     Args:
         demo_voice_name: Název demo hlasu (např. "buchty01", "Pohadka_muz", "Klepl-Bolzakov-rusky")
+        lang: Volitelně jazyk ("cs" / "sk"). Pokud není zadán, použije se default "cs".
 
     Returns:
         Cesta k WAV souboru nebo None
@@ -1927,18 +1916,26 @@ def get_demo_voice_path(demo_voice_name: str) -> Optional[str]:
     # Odstraň mezery na začátku/konci
     demo_voice_name = demo_voice_name.strip()
 
+    # Podpora prefixu "cs:" / "sk:" nebo "cs/" / "sk/" (kvůli jednoznačnému mapování / preview_url)
+    m = re.match(r"^(cs|sk)\s*[:/]\s*(.+)$", demo_voice_name, flags=re.IGNORECASE)
+    if m:
+        lang = m.group(1).lower()
+        demo_voice_name = m.group(2).strip()
+
     # Pokud je to cesta, extrahuj pouze název souboru bez přípony
     if os.path.sep in demo_voice_name or '/' in demo_voice_name:
         demo_voice_name = Path(demo_voice_name).stem
 
+    demo_dir = _get_demo_voices_dir(lang)
+
     # Nejdříve zkus přesný název (case-sensitive)
-    demo_path = DEMO_VOICES_DIR / f"{demo_voice_name}.wav"
+    demo_path = demo_dir / f"{demo_voice_name}.wav"
     if demo_path.exists():
         return str(demo_path)
 
     # Pak zkus case-insensitive vyhledávání
     # Projdeme všechny WAV soubory a porovnáme názvy (bez přípony)
-    for wav_file in DEMO_VOICES_DIR.glob("*.wav"):
+    for wav_file in demo_dir.glob("*.wav"):
         file_stem = wav_file.stem.strip()  # Název bez přípony, bez mezer
         # Porovnej case-insensitive
         if file_stem.lower() == demo_voice_name.lower():
@@ -2035,12 +2032,12 @@ async def generate_speech_multi(
             default_speaker_wav = processed_path
 
         elif default_demo_voice:
-            demo_path = get_demo_voice_path(default_demo_voice)
+            demo_path = get_demo_voice_path(default_demo_voice, lang=default_language)
             if demo_path:
                 default_speaker_wav = demo_path
             else:
                 # Zkus najít jakýkoliv WAV soubor v demo-voices
-                available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+                available_voices = list(_get_demo_voices_dir(default_language).glob("*.wav"))
                 if available_voices:
                     default_speaker_wav = str(available_voices[0])
                     print(f"Demo voice '{default_demo_voice}' not found, using: {default_speaker_wav}")
@@ -2051,7 +2048,7 @@ async def generate_speech_multi(
                     )
         else:
             # Zkus použít první dostupný demo hlas
-            available_voices = list(DEMO_VOICES_DIR.glob("*.wav"))
+            available_voices = list(_get_demo_voices_dir(default_language).glob("*.wav"))
             if available_voices:
                 default_speaker_wav = str(available_voices[0])
                 print(f"Žádný výchozí hlas zadán, používám: {default_speaker_wav}")
@@ -2073,7 +2070,7 @@ async def generate_speech_multi(
 
         # Automaticky mapuj demo hlasy podle jejich názvů
         for sid in speaker_ids_from_text:
-            demo_path = get_demo_voice_path(sid)
+            demo_path = get_demo_voice_path(sid, lang=default_language)
             if demo_path:
                 speaker_map[sid] = demo_path
                 print(f"🎤 Auto-mapování: Speaker '{sid}' -> demo hlas: {demo_path}")
@@ -2091,7 +2088,7 @@ async def generate_speech_multi(
                         speaker_map[speaker_id] = voice_ref
                     else:
                         # Zkus demo hlas
-                        demo_path = get_demo_voice_path(voice_ref)
+                        demo_path = get_demo_voice_path(voice_ref, lang=default_language)
                         if demo_path:
                             speaker_map[speaker_id] = demo_path
                         else:
@@ -2344,13 +2341,10 @@ async def transcribe_reference_audio(
                 raise HTTPException(status_code=400, detail=error)
             audio_path = processed_path
         else:
-            demo_voice_clean = demo_voice.strip()
-            if os.path.sep in demo_voice_clean or "/" in demo_voice_clean:
-                demo_voice_clean = Path(demo_voice_clean).stem
-            demo_path = DEMO_VOICES_DIR / f"{demo_voice_clean}.wav"
-            if not demo_path.exists():
+            demo_path = get_demo_voice_path(demo_voice, lang=language)
+            if not demo_path:
                 raise HTTPException(status_code=404, detail=f"Demo hlas '{demo_voice}' nebyl nalezen.")
-            audio_path = str(demo_path)
+            audio_path = demo_path
 
         # Whisper ASR
         res = asr_engine.transcribe_file(
@@ -2377,7 +2371,8 @@ async def transcribe_reference_audio(
 @app.post("/api/voice/record")
 async def record_voice(
     audio_blob: str = Form(...),
-    filename: str = Form(None)
+    filename: str = Form(None),
+    lang: str = Form("cs"),
 ):
     """
     Uloží audio nahrané z mikrofonu jako demo hlas
@@ -2408,7 +2403,8 @@ async def record_voice(
             f.write(audio_data)
 
         # Zpracování pomocí AudioProcessor (44100 Hz, mono, pokročilé zpracování - CD kvalita)
-        output_path = DEMO_VOICES_DIR / filename
+        demo_dir = _get_demo_voices_dir(lang)
+        output_path = demo_dir / filename
         success, error = AudioProcessor.convert_audio(
             str(temp_path),
             str(output_path),
@@ -2448,7 +2444,7 @@ async def record_voice(
             raise HTTPException(status_code=400, detail="Nepodporovaný formát")
 
         # Vytvoření URL pro přístup k souboru
-        audio_url = f"/api/audio/demo/{filename}"
+        audio_url = f"/api/audio/demo/{_normalize_demo_lang(lang)}/{filename}"
 
         # Analýza kvality
         quality_info = AudioProcessor.analyze_audio_quality(str(output_path))
@@ -2468,11 +2464,14 @@ async def record_voice(
 
 
 @app.get("/api/voices/demo")
-async def get_demo_voices():
+async def get_demo_voices(lang: str = Query("cs")):
     """Vrátí seznam dostupných demo hlasů"""
     demo_voices = []
 
-    for voice_file in DEMO_VOICES_DIR.glob("*.wav"):
+    lang_norm = _normalize_demo_lang(lang)
+    demo_dir = _get_demo_voices_dir(lang_norm)
+
+    for voice_file in demo_dir.glob("*.wav"):
         voice_id = voice_file.stem
         voice_id_lower = voice_id.lower()
 
@@ -2533,7 +2532,8 @@ async def get_demo_voices():
             "name": formatted_name,
             "display_name": display_name,
             "gender": gender,
-            "preview_url": f"/api/audio/demo/{voice_file.name}"
+            "lang": lang_norm,
+            "preview_url": f"/api/audio/demo/{lang_norm}/{voice_file.name}"
         })
 
     return {"voices": demo_voices}
@@ -2579,17 +2579,32 @@ async def get_audio(filename: str):
     )
 
 
-@app.get("/api/audio/demo/{filename}")
+@app.get("/api/audio/demo/{filename:path}")
 async def get_demo_audio(filename: str):
     """Vrátí demo audio soubor"""
-    # Validace filename proti path traversal
-    if '..' in filename or '/' in filename or '\\' in filename:
+    # Podpora /api/audio/demo/{lang}/{filename} i původního /api/audio/demo/{filename}
+    norm = filename.replace("\\", "/").strip("/")
+    if norm == "" or ".." in norm:
         raise HTTPException(status_code=400, detail="Neplatný název souboru")
 
-    # Resolve cesty a kontrola, že zůstává v DEMO_VOICES_DIR
+    parts = norm.split("/", 1)
+    if len(parts) == 2 and parts[0].lower() in ("cs", "sk"):
+        lang_norm = _normalize_demo_lang(parts[0])
+        fname = parts[1]
+    else:
+        lang_norm = "cs"
+        fname = norm
+
+    # fname nesmí obsahovat další podsložky
+    if "/" in fname or "\\" in fname or ".." in fname:
+        raise HTTPException(status_code=400, detail="Neplatný název souboru")
+
+    demo_dir = _get_demo_voices_dir(lang_norm)
+
+    # Resolve cesty a kontrola, že zůstává v demo_dir
     try:
-        file_path = (DEMO_VOICES_DIR / filename).resolve()
-        demo_dir_resolved = DEMO_VOICES_DIR.resolve()
+        file_path = (demo_dir / fname).resolve()
+        demo_dir_resolved = demo_dir.resolve()
 
         # Kontrola, že file_path je uvnitř DEMO_VOICES_DIR
         if not str(file_path).startswith(str(demo_dir_resolved)):
@@ -2617,7 +2632,8 @@ async def download_youtube_voice(
     url: str = Form(...),
     start_time: float = Form(None),
     duration: float = Form(None),
-    filename: str = Form(None)
+    filename: str = Form(None),
+    lang: str = Form("cs"),
 ):
     """
     Stáhne audio z YouTube a uloží jako demo hlas
@@ -2681,7 +2697,8 @@ async def download_youtube_voice(
             filename = f"{filename}.wav"
 
         # Výstupní cesta
-        output_path = DEMO_VOICES_DIR / filename
+        demo_dir = _get_demo_voices_dir(lang)
+        output_path = demo_dir / filename
 
         # Stáhnutí a zpracování audio
         success, error = download_youtube_audio(
@@ -2695,7 +2712,7 @@ async def download_youtube_voice(
             raise HTTPException(status_code=500, detail=error)
 
         # Vytvoření URL pro přístup k souboru
-        audio_url = f"/api/audio/demo/{filename}"
+        audio_url = f"/api/audio/demo/{_normalize_demo_lang(lang)}/{filename}"
 
         return {
             "success": True,
