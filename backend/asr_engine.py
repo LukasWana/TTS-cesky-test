@@ -64,7 +64,10 @@ class ASREngine:
                 pipeline,
             )
 
-            torch_dtype = torch.float16 if self._device_index >= 0 else torch.float32
+            # POZN.: Na Windows/CUDA se u Whisper pipeline občas objeví dtype mismatch:
+            #   input: FloatTensor vs weights: HalfTensor
+            # protože pipeline nevynutí autocast. Pro stabilitu držíme model v fp32 i na GPU.
+            torch_dtype = torch.float32
             model = AutoModelForSpeechSeq2Seq.from_pretrained(
                 self.model_id,
                 torch_dtype=torch_dtype,
