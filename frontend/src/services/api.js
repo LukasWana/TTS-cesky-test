@@ -536,6 +536,36 @@ export async function downloadYouTubeVoice(url, startTime = null, duration = nul
 }
 
 /**
+ * Přepíše referenční audio na text (ref_text) pomocí backend ASR (Whisper).
+ * - buď pošle voice_file (upload)
+ * - nebo demo_voice (id bez přípony)
+ */
+export async function transcribeReferenceAudio({ voiceFile = null, demoVoice = null, language = 'sk' } = {}) {
+  const formData = new FormData()
+  if (voiceFile) {
+    formData.append('voice_file', voiceFile)
+  }
+  if (demoVoice) {
+    formData.append('demo_voice', demoVoice)
+  }
+  if (language) {
+    formData.append('language', language)
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/asr/transcribe`, {
+    method: 'POST',
+    body: formData
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při přepisu audia')
+  }
+
+  return await response.json()
+}
+
+/**
  * Získá historii generovaných audio souborů
  */
 export async function getHistory(limit = 50, offset = 0) {

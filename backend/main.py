@@ -46,6 +46,7 @@ try:
     from backend.tts_engine import XTTSEngine
     from backend.f5_tts_engine import F5TTSEngine
     from backend.f5_tts_slovak_engine import F5TTSSlovakEngine
+    from backend.asr_engine import get_asr_engine
     from backend.audio_processor import AudioProcessor
     from backend.history_manager import HistoryManager
     from backend.youtube_downloader import (
@@ -84,6 +85,7 @@ except ImportError:
     from tts_engine import XTTSEngine
     from f5_tts_engine import F5TTSEngine
     from f5_tts_slovak_engine import F5TTSSlovakEngine
+    from asr_engine import get_asr_engine
     from audio_processor import AudioProcessor
     from history_manager import HistoryManager
     from youtube_downloader import (
@@ -124,6 +126,9 @@ f5_tts_engine = F5TTSEngine()
 f5_tts_slovak_engine = F5TTSSlovakEngine()
 music_engine = MusicGenEngine()
 bark_engine = BarkEngine()
+
+# ASR (Whisper) – lazy singleton
+asr_engine = get_asr_engine()
 
 # Ověření dostupnosti F5-TTS CLI při startu (neblokující)
 async def check_f5_tts_availability():
@@ -2303,6 +2308,70 @@ async def upload_voice(voice_file: UploadFile = File(...)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chyba při uploadu: {str(e)}")
+
+
+@app.post("/api/asr/transcribe")
+async def transcribe_reference_audio(
+    voice_file: UploadFile = File(None),
+    demo_voice: str = Form(None),
+    language: str = Form("sk"),
+):
+    """
+    Přepíše referenční audio na text (ref_text) pomocí Whisper.
+
+    Vstup:
+      - voice_file: nahraný soubor (upload)
+      - demo_voice: id/název demo hlasu (bez přípony)
+      - language: "sk" (výchozí) nebo "cs"/"auto" (zatím používáme hlavně pro SK prompt)
+    """
+    try:
+        if (voice_file is None) == (demo_voice is None):
+            raise HTTPException(status_code=400, detail="Zadejte buď voice_file, nebo demo_voice.")
+
+        audio_path = None
+
+        if voice_file is not None:
+            # Ulož do uploads a zpracuj na WAV (mono, sr, apod.) pro stabilnější ASR
+            file_ext = Path(voice_file.filename).suffix
+            temp_filename = f"{uuid.uuid4()}{file_ext}"
+            temp_path = UPLOADS_DIR / temp_filename
+            async with aiofiles.open(temp_path, "wb") as f:
+                content = await voice_file.read()
+                await f.write(content)
+
+            processed_path, error = AudioProcessor.process_uploaded_file(str(temp_path))
+            if error:
+                raise HTTPException(status_code=400, detail=error)
+            audio_path = processed_path
+        else:
+            demo_voice_clean = demo_voice.strip()
+            if os.path.sep in demo_voice_clean or "/" in demo_voice_clean:
+                demo_voice_clean = Path(demo_voice_clean).stem
+            demo_path = DEMO_VOICES_DIR / f"{demo_voice_clean}.wav"
+            if not demo_path.exists():
+                raise HTTPException(status_code=404, detail=f"Demo hlas '{demo_voice}' nebyl nalezen.")
+            audio_path = str(demo_path)
+
+        # Whisper ASR
+        res = asr_engine.transcribe_file(
+            audio_path,
+            language=language or "sk",
+            task="transcribe",
+            return_timestamps=True,
+        )
+
+        return {
+            "success": True,
+            "text": res.text,
+            "cleaned_text": res.cleaned_text,
+            "language": res.language,
+            "segments": res.segments,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chyba při přepisu audia: {str(e)}")
 
 
 @app.post("/api/voice/record")

@@ -6,7 +6,7 @@ import LoadingSpinner from './LoadingSpinner'
 import TTSSettings from './TTSSettings'
 import Button from './ui/Button'
 import Icon from './ui/Icons'
-import { generateF5TTS, generateF5TTSSlovak, getDemoVoices, subscribeToTtsProgress, uploadVoice, recordVoice, downloadYouTubeVoice } from '../services/api'
+import { generateF5TTS, generateF5TTSSlovak, getDemoVoices, subscribeToTtsProgress, uploadVoice, recordVoice, downloadYouTubeVoice, transcribeReferenceAudio } from '../services/api'
 import './F5TTS.css'
 
 function F5TTS({ text: textProp, setText: setTextProp }) {
@@ -25,6 +25,9 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
   const [language, setLanguage] = useState('cs') // 'cs' nebo 'sk'
   const [uploadedVoiceFileName, setUploadedVoiceFileName] = useState(null)
   const [voiceQuality, setVoiceQuality] = useState(null)
+  const [refText, setRefText] = useState('')
+  const [autoTranscribe, setAutoTranscribe] = useState(true)
+  const [refTextLoading, setRefTextLoading] = useState(false)
 
   // TTS nastavení (stejné jako XTTS)
   const [ttsSettings, setTtsSettings] = useState({
@@ -103,6 +106,18 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
     setVoiceType('upload')
     setUploadedVoiceFileName(file.name)
     setVoiceQuality(null) // Reset quality for new upload
+
+    if (autoTranscribe) {
+      try {
+        setRefTextLoading(true)
+        const res = await transcribeReferenceAudio({ voiceFile: file, language })
+        setRefText(res.cleaned_text || res.text || '')
+      } catch (e) {
+        console.error('ASR přepis selhal:', e)
+      } finally {
+        setRefTextLoading(false)
+      }
+    }
   }
 
   const handleVoiceRecord = async (result) => {
@@ -121,6 +136,20 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
         if (result && result.filename) {
           const voiceId = result.filename.replace('.wav', '')
           setSelectedVoice(voiceId)
+
+          if (autoTranscribe) {
+            ;(async () => {
+              try {
+                setRefTextLoading(true)
+                const res = await transcribeReferenceAudio({ demoVoice: voiceId, language })
+                setRefText(res.cleaned_text || res.text || '')
+              } catch (e) {
+                console.error('ASR přepis selhal:', e)
+              } finally {
+                setRefTextLoading(false)
+              }
+            })()
+          }
         }
       }, 500)
     } catch (err) {
@@ -145,6 +174,20 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
         if (result && result.filename) {
           const voiceId = result.filename.replace('.wav', '')
           setSelectedVoice(voiceId)
+
+          if (autoTranscribe) {
+            ;(async () => {
+              try {
+                setRefTextLoading(true)
+                const res = await transcribeReferenceAudio({ demoVoice: voiceId, language })
+                setRefText(res.cleaned_text || res.text || '')
+              } catch (e) {
+                console.error('ASR přepis selhal:', e)
+              } finally {
+                setRefTextLoading(false)
+              }
+            })()
+          }
         }
       }, 500)
     } catch (err) {
@@ -202,7 +245,8 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
       const ttsParams = {
         ...ttsSettings,
         ...qualitySettings,
-        refText: null // Můžeme přidat UI pro ref_text později
+        // Volitelný přepis referenčního audia (zlepšuje výslovnost/stabilitu, když sedí k referenci)
+        refText: refText || null
       }
 
       // Spuštění SSE pro progress tracking
@@ -289,6 +333,64 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
             uploadedVoiceFileName={uploadedVoiceFileName}
             voiceQuality={voiceQuality}
           />
+
+          <div className="reftext-section" style={{ marginTop: '12px' }}>
+            <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>
+              Přepis referenčního audia (ref_text) – volitelné
+            </label>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '13px', opacity: 0.9 }}>
+                <input
+                  type="checkbox"
+                  checked={autoTranscribe}
+                  onChange={(e) => setAutoTranscribe(e.target.checked)}
+                />
+                Auto přepis po nahrání
+              </label>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={refTextLoading || (!selectedVoice && !uploadedVoiceFileName)}
+                onClick={async () => {
+                  try {
+                    setRefTextLoading(true)
+                    if (voiceType === 'upload' && selectedVoice instanceof File) {
+                      const res = await transcribeReferenceAudio({ voiceFile: selectedVoice, language })
+                      setRefText(res.cleaned_text || res.text || '')
+                    } else if (selectedVoice) {
+                      const res = await transcribeReferenceAudio({ demoVoice: selectedVoice, language })
+                      setRefText(res.cleaned_text || res.text || '')
+                    }
+                  } catch (e) {
+                    console.error('ASR přepis selhal:', e)
+                    setError(e.message || 'Chyba při přepisu audia')
+                  } finally {
+                    setRefTextLoading(false)
+                  }
+                }}
+              >
+                {refTextLoading ? 'Přepisuji…' : 'Přepsat referenci'}
+              </Button>
+            </div>
+            <textarea
+              value={refText}
+              onChange={(e) => setRefText(e.target.value)}
+              placeholder="Sem vlož přepis toho, co je namluveno v referenčním audiu. Když sedí s audiodatem, často to zlepší výslovnost."
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(0,0,0,0.15)',
+                color: 'inherit',
+                resize: 'vertical'
+              }}
+            />
+            <div style={{ opacity: 0.8, fontSize: '12px', marginTop: '6px' }}>
+              Tip: nejvíc pomáhá u vlastních hlasů (upload/record/YouTube). Pokud ref_text nesedí k referenci, může kvalitu naopak zhoršit.
+            </div>
+          </div>
 
           <div className="generate-section">
             <Button
