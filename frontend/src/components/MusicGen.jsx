@@ -14,6 +14,9 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
   const prompt = promptProp !== undefined ? promptProp : internalPrompt
   const setPrompt = setPromptProp !== undefined ? setPromptProp : setInternalPrompt
   const [model, setModel] = useState('small')
+  const [precision, setPrecision] = useState('auto') // auto|fp32|fp16|bf16
+  const [offload, setOffload] = useState(false)
+  const [maxVramGb, setMaxVramGb] = useState('6')
   const [duration, setDuration] = useState(12)
   const [temperature, setTemperature] = useState(1.0)
   const [topK, setTopK] = useState(250)
@@ -147,6 +150,9 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
         prompt,
         {
           model,
+          precision,
+          offload,
+          maxVramGb: offload ? (maxVramGb === '' ? null : Number(maxVramGb)) : null,
           duration,
           temperature,
           topK,
@@ -451,6 +457,19 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
           >
             <div className="settings-grid">
               <SelectRow
+                label="Velikost modelu"
+                icon="cpu"
+                value={model}
+                onChange={setModel}
+                infoIcon="large má výrazně vyšší nároky na VRAM. Pokud padá, zkus fp16 + offload."
+                options={[
+                  { value: 'small', label: 'Small (rychlejší, méně VRAM)' },
+                  { value: 'medium', label: 'Medium (střední kvalita/VRAM)' },
+                  { value: 'large', label: 'Large (nejvyšší kvalita, nejvíc VRAM)' }
+                ]}
+              />
+
+              <SelectRow
                 label="Kategorie presetů"
                 icon="📁"
                 value={presetCategory}
@@ -599,6 +618,53 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
             onToggle={() => setAdvancedExpanded(!advancedExpanded)}
           >
             <div className="settings-grid">
+              <SelectRow
+                label="Precision (VRAM)"
+                icon="settings"
+                value={precision}
+                onChange={setPrecision}
+                infoIcon="auto = fp32 (původní chování). Pro CUDA typicky doporučeno fp16 (méně VRAM, často rychlejší)."
+                options={[
+                  { value: 'auto', label: 'Auto (fp32 – kompatibilní)' },
+                  { value: 'fp16', label: 'FP16 (méně VRAM)' },
+                  { value: 'bf16', label: 'BF16 (pokud GPU podporuje)' },
+                  { value: 'fp32', label: 'FP32 (nejvyšší přesnost)' }
+                ]}
+              />
+
+              <div className="setting-item">
+                <label className="musicgen-label">Offload (device_map)</label>
+                <label className="musicgen-toggle">
+                  <input
+                    type="checkbox"
+                    checked={offload}
+                    onChange={(e) => setOffload(e.target.checked)}
+                  />
+                  <span>Povolit offload na CPU (šetří VRAM, zpomalí)</span>
+                </label>
+                <div className="setting-description">
+                  Pokud ti <strong>medium/large</strong> padá na VRAM, offload často pomůže. Vyžaduje <code>accelerate</code>; backend má fallback.
+                </div>
+              </div>
+
+              {offload && (
+                <div className="setting-item">
+                  <label className="musicgen-label">Max VRAM (GiB)</label>
+                  <input
+                    className="musicgen-input"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={maxVramGb}
+                    onChange={(e) => setMaxVramGb(e.target.value)}
+                    placeholder="např. 6"
+                  />
+                  <div className="setting-description">
+                    Limit pro offload režim. Pokud necháš prázdné, nechá se to na automatice.
+                  </div>
+                </div>
+              )}
+
               <SliderRow
                 label="Temperature (kreativita)"
                 value={temperature}

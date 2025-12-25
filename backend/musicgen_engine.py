@@ -9,15 +9,16 @@ Implementace používá HuggingFace Transformers (facebook/musicgen-*).
 
 from __future__ import annotations
 
+import os
 import threading
 import uuid
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 
 import torch
 import soundfile as sf
 
-from backend.config import OUTPUTS_DIR, DEVICE
+from backend.config import OUTPUTS_DIR, DEVICE, MODELS_DIR
 from backend.progress_manager import ProgressManager
 
 
@@ -29,6 +30,7 @@ class MusicGenEngine:
         self._model_name: Optional[str] = None
         self._device: Optional[str] = None
         self._sample_rate: int = 32000
+        self._load_signature: Optional[Tuple[str, str, bool, Optional[float]]] = None  # (model_id, precision, offload, max_vram_gb)
 
     def _resolve_model_name(self, model_size: str) -> str:
         size = (model_size or "small").strip().lower()
@@ -36,16 +38,81 @@ class MusicGenEngine:
             size = "small"
         return f"facebook/musicgen-{size}"
 
-    def _ensure_loaded(self, model_size: str, job_id: Optional[str] = None) -> None:
+    def _infer_input_device(self) -> torch.device:
+        """
+        U device_map sharded modelů nemusí být self._model.device spolehlivé.
+        Tohle je opatrný způsob jak vybrat zařízení, kam poslat input tensors.
+        """
+        if self._model is None:
+            return torch.device("cpu")
+        dev = getattr(self._model, "device", None)
+        if isinstance(dev, torch.device):
+            return dev
+        # Zkus najít první parametr, který není meta
+        try:
+            for p in self._model.parameters():
+                if getattr(p, "device", None) is not None and p.device.type != "meta":
+                    return p.device
+        except Exception:
+            pass
+        return torch.device("cpu")
+
+    def _has_meta_params(self) -> bool:
+        if self._model is None:
+            return False
+        try:
+            for p in self._model.parameters():
+                if getattr(p, "is_meta", False) or (getattr(p, "device", None) is not None and p.device.type == "meta"):
+                    return True
+        except Exception:
+            return False
+        return False
+
+    def _resolve_precision(self, precision: Optional[str], device: str) -> str:
+        # auto = zachová staré chování (float32), aby to bylo "opatrné" / kompatibilní
+        p = (precision or os.getenv("MUSICGEN_PRECISION", "auto") or "auto").strip().lower()
+        if p not in ("auto", "fp32", "fp16", "bf16"):
+            p = "auto"
+        # BF16 má smysl jen na některých GPU; necháme uživatele explicitně
+        if device != "cuda" and p in ("fp16", "bf16"):
+            # na CPU se drž raději fp32 (rychlost i kompatibilita)
+            return "fp32" if p == "auto" else "fp32"
+        return p
+
+    def _precision_to_dtype(self, precision: str, device: str) -> torch.dtype:
+        if device != "cuda":
+            return torch.float32
+        if precision == "fp16":
+            return torch.float16
+        if precision == "bf16":
+            return torch.bfloat16
+        # auto/fp32
+        return torch.float32
+
+    def _ensure_loaded(
+        self,
+        model_size: str,
+        *,
+        precision: Optional[str] = None,
+        enable_offload: Optional[bool] = None,
+        max_vram_gb: Optional[float] = None,
+        job_id: Optional[str] = None,
+    ) -> None:
         target = self._resolve_model_name(model_size)
         with self._lock:
-            if self._model is not None and self._model_name == target:
+            device = DEVICE if DEVICE in ("cpu", "cuda") else ("cuda" if torch.cuda.is_available() else "cpu")
+            prec = self._resolve_precision(precision, device)
+            offload = bool(enable_offload) if enable_offload is not None else (os.getenv("MUSICGEN_ENABLE_OFFLOAD", "False").lower() == "true")
+            max_gb = float(max_vram_gb) if max_vram_gb is not None else None
+
+            signature = (target, prec, offload, max_gb)
+            if self._model is not None and self._model_name == target and self._load_signature == signature:
                 if job_id:
                     ProgressManager.update(job_id, percent=10, stage="musicgen", message="Model je již v paměti, začínám generovat…")
                 return
 
             if job_id:
-                ProgressManager.update(job_id, percent=5, stage="musicgen", message=f"Načítám model {target}…")
+                ProgressManager.update(job_id, percent=5, stage="musicgen", message=f"Načítám model {target} (precision={prec}, offload={offload})…")
 
             try:
                 from transformers import AutoProcessor, MusicgenForConditionalGeneration  # type: ignore
@@ -54,11 +121,73 @@ class MusicGenEngine:
                     "MusicGen závislosti nejsou nainstalované. Nainstalujte: pip install transformers accelerate sentencepiece"
                 ) from e
 
-            device = DEVICE if DEVICE in ("cpu", "cuda") else ("cuda" if torch.cuda.is_available() else "cpu")
+            dtype = self._precision_to_dtype(prec, device)
+
             processor = AutoProcessor.from_pretrained(target)
-            model = MusicgenForConditionalGeneration.from_pretrained(target)
-            model.to(device)
+
+            # Offload / device_map režim (šetří VRAM, ale může být pomalejší)
+            if offload:
+                # device_map vyžaduje accelerate; pokud chybí, raději fallback na standard load
+                try:
+                    import accelerate  # noqa: F401
+                except Exception:
+                    print("[MusicGen] accelerate není dostupné; vypínám offload a načítám standardně.")
+                    offload = False
+
+            if offload:
+                offload_dir = (MODELS_DIR / "hf_offload").resolve()
+                offload_dir.mkdir(parents=True, exist_ok=True)
+
+                kwargs: Dict[str, Any] = {
+                    "torch_dtype": dtype,
+                    # DŮLEŽITÉ: u některých buildů / kombinací (MusicGen + weight_norm)
+                    # meta-init (low_cpu_mem_usage=True) vede k chybě aten::_weight_norm_interface na Meta backendu.
+                    # Proto v offload režimu raději nepoužívej meta init.
+                    "low_cpu_mem_usage": False,
+                    "device_map": "auto",
+                    "offload_folder": str(offload_dir),
+                    "offload_state_dict": True,
+                }
+
+                # max_memory je užitečné hlavně při CUDA; pokud max_gb není zadané,
+                # necháme to na accelerate (ať je to kompatibilní).
+                if device == "cuda" and max_gb is not None and max_gb > 0:
+                    kwargs["max_memory"] = {0: f"{max_gb:.0f}GiB", "cpu": "32GiB"}
+
+                try:
+                    model = MusicgenForConditionalGeneration.from_pretrained(target, **kwargs)
+                except Exception as e:
+                    print(f"[MusicGen] Offload load failed ({e}); falling back to standard load.")
+                    model = MusicgenForConditionalGeneration.from_pretrained(
+                        target,
+                        torch_dtype=dtype,
+                        low_cpu_mem_usage=False,
+                    )
+                    model.to(device)
+            else:
+                # Standardní režim (původní chování): float32 a celý model na device
+                model = MusicgenForConditionalGeneration.from_pretrained(
+                    target,
+                    torch_dtype=dtype,
+                    # Stejný důvod jako výše: některé kombinace nesnáší meta init.
+                    # Je to konzervativnější, ale výrazně stabilnější na Windows.
+                    low_cpu_mem_usage=False,
+                )
+                model.to(device)
             model.eval()
+
+            # Opatrnost: pokud některé váhy zůstaly na "meta", inference spadne (např. weight_norm).
+            # V tom případě spadneme na standard load (funkční > úsporné).
+            self._model = model
+            if self._has_meta_params():
+                print("[MusicGen] Detekovány META parametry po offload loadu; reload bez offloadu (fallback).")
+                model = MusicgenForConditionalGeneration.from_pretrained(
+                    target,
+                    torch_dtype=dtype,
+                    low_cpu_mem_usage=False,
+                )
+                model.to(device)
+                model.eval()
 
             sr = 32000
             try:
@@ -72,8 +201,13 @@ class MusicGenEngine:
             self._model = model
             self._processor = processor
             self._model_name = target
-            self._device = device
+            # self._device = pouze pro logy / status
+            try:
+                self._device = str(self._infer_input_device())
+            except Exception:
+                self._device = device
             self._sample_rate = sr
+            self._load_signature = signature
 
     def _duration_to_tokens(self, duration_s: float) -> int:
         """
@@ -91,6 +225,9 @@ class MusicGenEngine:
         top_p: float = 0.0,
         seed: Optional[int] = None,
         model_size: str = "small",
+        precision: Optional[str] = None,
+        enable_offload: Optional[bool] = None,
+        max_vram_gb: Optional[float] = None,
         job_id: Optional[str] = None,
     ) -> str:
         if not prompt or not prompt.strip():
@@ -112,7 +249,13 @@ class MusicGenEngine:
         if not (0.0 <= top_p <= 1.0):
             raise ValueError("top_p musí být 0.0–1.0")
 
-        self._ensure_loaded(model_size, job_id=job_id)
+        self._ensure_loaded(
+            model_size,
+            precision=precision,
+            enable_offload=enable_offload,
+            max_vram_gb=max_vram_gb,
+            job_id=job_id,
+        )
 
         if seed is not None:
             s = int(seed)
@@ -132,7 +275,8 @@ class MusicGenEngine:
                 ProgressManager.update(job_id, percent=25, stage="musicgen", message="Generuji hudbu…")
 
             inputs = self._processor(text=[prompt], padding=True, return_tensors="pt")
-            inputs = {k: v.to(self._device) for k, v in inputs.items()}
+            input_device = self._infer_input_device()
+            inputs = {k: v.to(input_device) for k, v in inputs.items()}
 
             # HF: délka je řízená max_new_tokens
             max_new_tokens = self._duration_to_tokens(duration_s)

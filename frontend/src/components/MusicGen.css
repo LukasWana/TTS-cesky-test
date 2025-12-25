@@ -135,6 +135,24 @@
   border-radius: 6px;
 }
 
+.musicgen-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.95rem;
+}
+
+.musicgen-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #6366f1;
+}
+
 @media (max-width: 1200px) {
   .musicgen-grid {
     grid-template-columns: 1fr;
