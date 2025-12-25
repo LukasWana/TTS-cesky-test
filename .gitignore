@@ -70,3 +70,6 @@ Thumbs.db
 
 music_history.json
 bark_history.json
+
+# Speaker cache (temporary processed reference audio)
+speaker_cache/
