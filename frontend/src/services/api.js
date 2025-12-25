@@ -456,12 +456,15 @@ export async function uploadVoice(voiceFile) {
 /**
  * Uloží audio nahrané z mikrofonu jako demo hlas
  */
-export async function recordVoice(audioBlobBase64, filename = null) {
+export async function recordVoice(audioBlobBase64, filename = null, lang = 'cs') {
   const formData = new FormData()
   formData.append('audio_blob', audioBlobBase64)
 
   if (filename) {
     formData.append('filename', filename)
+  }
+  if (lang) {
+    formData.append('lang', lang)
   }
 
   const response = await fetch(`${API_BASE_URL}/api/voice/record`, {
@@ -480,8 +483,9 @@ export async function recordVoice(audioBlobBase64, filename = null) {
 /**
  * Získá seznam demo hlasů
  */
-export async function getDemoVoices() {
-  const response = await fetch(`${API_BASE_URL}/api/voices/demo`)
+export async function getDemoVoices(lang = 'cs') {
+  const q = lang ? `?lang=${encodeURIComponent(lang)}` : ''
+  const response = await fetch(`${API_BASE_URL}/api/voices/demo${q}`)
 
   if (!response.ok) {
     throw new Error('Chyba při načítání demo hlasů')
@@ -506,7 +510,7 @@ export async function getModelStatus() {
 /**
  * Stáhne audio z YouTube a uloží jako demo hlas
  */
-export async function downloadYouTubeVoice(url, startTime = null, duration = null, filename = null) {
+export async function downloadYouTubeVoice(url, startTime = null, duration = null, filename = null, lang = 'cs') {
   const formData = new FormData()
   formData.append('url', url)
 
@@ -520,6 +524,9 @@ export async function downloadYouTubeVoice(url, startTime = null, duration = nul
 
   if (filename) {
     formData.append('filename', filename)
+  }
+  if (lang) {
+    formData.append('lang', lang)
   }
 
   const response = await fetch(`${API_BASE_URL}/api/voice/youtube`, {

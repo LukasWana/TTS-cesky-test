@@ -3,7 +3,7 @@ import { downloadYouTubeVoice } from '../services/api'
 import LoadingSpinner from './LoadingSpinner'
 import './YouTubeImporter.css'
 
-function YouTubeImporter({ onImportComplete, onError }) {
+function YouTubeImporter({ onImportComplete, onError, language = 'cs' }) {
   const [url, setUrl] = useState('')
   const [startTime, setStartTime] = useState('')
   const [duration, setDuration] = useState('')
@@ -105,7 +105,8 @@ function YouTubeImporter({ onImportComplete, onError }) {
         url.trim(),
         startSeconds,
         durationSeconds,
-        filename.trim() || null
+        filename.trim() || null,
+        language
       )
 
       setSuccess(`✓ Audio úspěšně staženo a uloženo jako: ${result.filename}`)

@@ -14,7 +14,8 @@ function VoiceSelector({
   onVoiceUpload,
   onVoiceRecord,
   onYouTubeImport,
-  voiceQuality
+  voiceQuality,
+  language = 'cs'
 }) {
   const handleFileChange = (e) => {
     const file = e.target.files[0]
@@ -95,7 +96,7 @@ function VoiceSelector({
             </div>
           ) : (
             <p className="no-demo-voices">
-              Žádné demo hlasy nejsou k dispozici. Přidejte je do frontend/assets/demo-voices/
+              Žádné demo hlasy nejsou k dispozici. Přidejte je do assets/{language === 'sk' ? 'slovak voices' : 'czech voices'}/
             </p>
           )}
         </div>
@@ -123,7 +124,7 @@ function VoiceSelector({
 
       {voiceType === 'record' && (
         <div className="record-section">
-          <AudioRecorder onRecordComplete={handleRecordComplete} />
+          <AudioRecorder onRecordComplete={handleRecordComplete} language={language} />
           {uploadedVoiceFileName && (
             <p className="record-status">✓ {uploadedVoiceFileName}</p>
           )}
@@ -135,6 +136,7 @@ function VoiceSelector({
           <YouTubeImporter
             onImportComplete={onYouTubeImport}
             onError={(err) => console.error('YouTube import error:', err)}
+            language={language}
           />
         </div>
       )}

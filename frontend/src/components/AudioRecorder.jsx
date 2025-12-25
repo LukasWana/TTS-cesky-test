@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react'
 import { recordVoice } from '../services/api'
 import './AudioRecorder.css'
 
-function AudioRecorder({ onRecordComplete }) {
+function AudioRecorder({ onRecordComplete, language = 'cs' }) {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [error, setError] = useState(null)
@@ -72,7 +72,7 @@ function AudioRecorder({ onRecordComplete }) {
       reader.onloadend = async () => {
         try {
           const base64data = reader.result
-          const result = await recordVoice(base64data)
+          const result = await recordVoice(base64data, null, language)
           if (onRecordComplete) {
             onRecordComplete(result)  // Předat result místo blob
           }
