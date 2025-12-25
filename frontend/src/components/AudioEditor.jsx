@@ -759,7 +759,7 @@ function AudioEditor() {
   const masterGainNodeRef = useRef(null)
   const analyserNodeRef = useRef(null)
   const sourceNodesRef = useRef({})
-  const gainNodesRef = useRef({}) // Uložení gain nodes pro každou vrstvu
+  const gainNodesRef = useRef({}) // Uložení gain nodes pro každou vrstvu (objekt: { envelopeGain, volumeGain })
   const animationFrameRef = useRef(null)
   const playbackStartTimeRef = useRef(0)
   const pausedTimeRef = useRef(0)
@@ -924,7 +924,8 @@ function AudioEditor() {
                   audioUrl: layerData.audioUrl,
                   startTime: layerData.startTime || 0,
                   duration: layerData.duration || audioBuffer.duration,
-                  volume: layerData.volume || 1.0,
+                  // Pozor: volume může být 0 (mute) => nesmí spadnout na 1.0
+                  volume: layerData.volume ?? 1.0,
                   fadeIn: layerData.fadeIn || 0,
                   fadeOut: layerData.fadeOut || 0,
                   trimStart: layerData.trimStart || 0,
@@ -1097,6 +1098,32 @@ function AudioEditor() {
       masterGainNodeRef.current.gain.value = masterVolume
     }
   }, [masterVolume])
+
+  // Realtime aktualizace hlasitosti vrstev během přehrávání.
+  // Používáme separátní volume gain node (bez automatizace), aby změna slideru fungovala i "za běhu"
+  // a zároveň nenarušila fade-in/fade-out automatizaci na envelope gain node.
+  useEffect(() => {
+    if (!isPlaying) return
+    const ctx = audioContextRef.current
+    if (!ctx) return
+    const now = ctx.currentTime
+
+    for (const layer of layers) {
+      const nodes = gainNodesRef.current?.[layer.id]
+      const volumeGain = nodes?.volumeGain
+      if (!volumeGain) continue
+      const v = Number(layer.volume)
+      const safeV = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1.0
+      try {
+        // jemný smoothing, aby to neklikalo
+        volumeGain.gain.setTargetAtTime(safeV, now, 0.01)
+      } catch (e) {
+        try {
+          volumeGain.gain.setValueAtTime(safeV, now)
+        } catch (e2) {}
+      }
+    }
+  }, [layers, isPlaying])
 
   // Pokud se změní délka projektu, ohlídat currentTime + playhead
   useEffect(() => {
@@ -1824,15 +1851,20 @@ function AudioEditor() {
         // Pokud je loop zapnutý, použít nativní loop na jednom zdroji
         if (layer.loop) {
           const source = audioContextRef.current.createBufferSource()
-          const gainNode = audioContextRef.current.createGain()
+          const envelopeGain = audioContextRef.current.createGain()
+          const volumeGain = audioContextRef.current.createGain()
 
           source.buffer = layer.audioBuffer
           source.loop = true
           source.loopStart = trimStart
           source.loopEnd = trimEnd
 
-          source.connect(gainNode)
-          gainNode.connect(masterGainNodeRef.current)
+          source.connect(envelopeGain)
+          envelopeGain.connect(volumeGain)
+          volumeGain.connect(masterGainNodeRef.current)
+
+          // Realtime volume (bez automatizace)
+          volumeGain.gain.setValueAtTime(Number.isFinite(Number(layer.volume)) ? layer.volume : 1.0, now)
 
           const startAt = now + delay
           const durationToPlay = Math.max(0, playDuration)
@@ -1859,17 +1891,17 @@ function AudioEditor() {
             durationToPlay: durationToPlay
           })
 
-          // Gain + fade in/out
-          gainNode.gain.setValueAtTime(0, startAt)
+          // Envelope gain (0..1) + fade in/out
+          envelopeGain.gain.setValueAtTime(0, startAt)
           if (fadeInDuration > 0) {
-            gainNode.gain.linearRampToValueAtTime(layer.volume, startAt + Math.min(fadeInDuration, durationToPlay))
+            envelopeGain.gain.linearRampToValueAtTime(1, startAt + Math.min(fadeInDuration, durationToPlay))
           } else {
-            gainNode.gain.setValueAtTime(layer.volume, startAt)
+            envelopeGain.gain.setValueAtTime(1, startAt)
           }
           if (fadeOutDuration > 0 && durationToPlay > fadeOutDuration) {
             const fadeOutStart = durationToPlay - fadeOutDuration
-            gainNode.gain.setValueAtTime(layer.volume, startAt + fadeOutStart)
-            gainNode.gain.linearRampToValueAtTime(0, startAt + durationToPlay)
+            envelopeGain.gain.setValueAtTime(1, startAt + fadeOutStart)
+            envelopeGain.gain.linearRampToValueAtTime(0, startAt + durationToPlay)
           }
 
           try {
@@ -1879,7 +1911,7 @@ function AudioEditor() {
               // Stop se zavolá až když vrstva končí (ne okamžitě)
               source.stop(startAt + durationToPlay)
               sourceNodesRef.current[layer.id] = source
-              gainNodesRef.current[layer.id] = gainNode
+              gainNodesRef.current[layer.id] = { envelopeGain, volumeGain }
             }
           } catch (err) {
             console.error('Chyba při startování loop audio zdroje:', err)
@@ -1887,31 +1919,36 @@ function AudioEditor() {
         } else {
           // Bez loopu - normální přehrávání
           const source = audioContextRef.current.createBufferSource()
-          const gainNode = audioContextRef.current.createGain()
+          const envelopeGain = audioContextRef.current.createGain()
+          const volumeGain = audioContextRef.current.createGain()
 
           source.buffer = layer.audioBuffer
-          source.connect(gainNode)
-          gainNode.connect(masterGainNodeRef.current)
+          source.connect(envelopeGain)
+          envelopeGain.connect(volumeGain)
+          volumeGain.connect(masterGainNodeRef.current)
+
+          // Realtime volume (bez automatizace)
+          volumeGain.gain.setValueAtTime(Number.isFinite(Number(layer.volume)) ? layer.volume : 1.0, now)
 
           // Nastavit hlasitost s fade in
-          gainNode.gain.setValueAtTime(0, now + delay)
+          envelopeGain.gain.setValueAtTime(0, now + delay)
           if (fadeInDuration > 0) {
-            gainNode.gain.linearRampToValueAtTime(layer.volume, now + delay + fadeInDuration)
+            envelopeGain.gain.linearRampToValueAtTime(1, now + delay + fadeInDuration)
           } else {
-            gainNode.gain.setValueAtTime(layer.volume, now + delay)
+            envelopeGain.gain.setValueAtTime(1, now + delay)
           }
 
           // Nastavit fade out
           if (fadeOutDuration > 0 && trimmedDuration > fadeOutDuration) {
             const fadeOutStart = trimmedDuration - fadeOutDuration
-            gainNode.gain.setValueAtTime(layer.volume, now + delay + fadeOutStart)
-            gainNode.gain.linearRampToValueAtTime(0, now + delay + trimmedDuration)
+            envelopeGain.gain.setValueAtTime(1, now + delay + fadeOutStart)
+            envelopeGain.gain.linearRampToValueAtTime(0, now + delay + trimmedDuration)
           }
 
           try {
             source.start(now + delay, trimStart, trimmedDuration)
             sourceNodesRef.current[layer.id] = source
-            gainNodesRef.current[layer.id] = gainNode
+            gainNodesRef.current[layer.id] = { envelopeGain, volumeGain }
           } catch (err) {
             console.error('Chyba při startování audio zdroje:', err)
           }
@@ -1934,15 +1971,20 @@ function AudioEditor() {
       // Pokud je loop zapnutý, přehrát opakovaně
       if (layer.loop) {
         const source = audioContextRef.current.createBufferSource()
-        const gainNode = audioContextRef.current.createGain()
+        const envelopeGain = audioContextRef.current.createGain()
+        const volumeGain = audioContextRef.current.createGain()
 
         source.buffer = layer.audioBuffer
         source.loop = true
         source.loopStart = trimStart
         source.loopEnd = trimEnd
 
-        source.connect(gainNode)
-        gainNode.connect(masterGainNodeRef.current)
+        source.connect(envelopeGain)
+        envelopeGain.connect(volumeGain)
+        volumeGain.connect(masterGainNodeRef.current)
+
+        // Realtime volume (bez automatizace)
+        volumeGain.gain.setValueAtTime(Number.isFinite(Number(layer.volume)) ? layer.volume : 1.0, now)
 
         // Když spouštíme uprostřed vrstvy, offset je posunutý v rámci cyklu podle anchoru
         const cycle = Math.max(0.05, trimmedDuration)
@@ -1978,16 +2020,16 @@ function AudioEditor() {
 
         // Pokud už jsme ve fade-in, nastavíme počáteční hlasitost podle progressu
         const fadeInProgress = fadeInDuration > 0 ? Math.min(layerTimeOffset / fadeInDuration, 1) : 1
-        gainNode.gain.setValueAtTime(layer.volume * fadeInProgress, now)
+        envelopeGain.gain.setValueAtTime(1 * fadeInProgress, now)
         if (fadeInDuration > 0 && layerTimeOffset < fadeInDuration) {
-          gainNode.gain.linearRampToValueAtTime(layer.volume, now + (fadeInDuration - layerTimeOffset))
+          envelopeGain.gain.linearRampToValueAtTime(1, now + (fadeInDuration - layerTimeOffset))
         }
 
         // Fade-out v čase konce vrstvy
         if (fadeOutDuration > 0 && durationToPlay > fadeOutDuration) {
           const fadeOutStart = durationToPlay - fadeOutDuration
-          gainNode.gain.setValueAtTime(layer.volume, now + fadeOutStart)
-          gainNode.gain.linearRampToValueAtTime(0, now + durationToPlay)
+          envelopeGain.gain.setValueAtTime(1, now + fadeOutStart)
+          envelopeGain.gain.linearRampToValueAtTime(0, now + durationToPlay)
         }
 
         try {
@@ -1996,18 +2038,23 @@ function AudioEditor() {
           // Stop se zavolá až když vrstva končí (ne okamžitě)
           source.stop(now + durationToPlay)
           sourceNodesRef.current[layer.id] = source
-          gainNodesRef.current[layer.id] = gainNode
+          gainNodesRef.current[layer.id] = { envelopeGain, volumeGain }
         } catch (err) {
           console.error('Chyba při startování loop audio zdroje:', err)
         }
       } else {
         // Bez loopu - normální přehrávání
         const source = audioContextRef.current.createBufferSource()
-        const gainNode = audioContextRef.current.createGain()
+        const envelopeGain = audioContextRef.current.createGain()
+        const volumeGain = audioContextRef.current.createGain()
 
         source.buffer = layer.audioBuffer
-        source.connect(gainNode)
-        gainNode.connect(masterGainNodeRef.current)
+        source.connect(envelopeGain)
+        envelopeGain.connect(volumeGain)
+        volumeGain.connect(masterGainNodeRef.current)
+
+        // Realtime volume (bez automatizace)
+        volumeGain.gain.setValueAtTime(Number.isFinite(Number(layer.volume)) ? layer.volume : 1.0, now)
 
         const audioOffset = Math.max(trimStart, Math.min(trimStart + layerTimeOffset, trimEnd))
         const remainingDuration = Math.max(0, Math.min(trimmedDuration - layerTimeOffset, remainingLayerTime))
@@ -2025,27 +2072,27 @@ function AudioEditor() {
         const fadeInProgress = fadeInDuration > 0
           ? Math.min(layerTimeOffset / fadeInDuration, 1)
           : 1
-        const initialVolume = layer.volume * fadeInProgress
+        const initialEnvelope = 1 * fadeInProgress
 
-        gainNode.gain.setValueAtTime(initialVolume, now)
+        envelopeGain.gain.setValueAtTime(initialEnvelope, now)
 
         // Dokončit fade in, pokud ještě probíhá
         if (fadeInDuration > 0 && layerTimeOffset < fadeInDuration) {
           const fadeInRemaining = fadeInDuration - layerTimeOffset
-          gainNode.gain.linearRampToValueAtTime(layer.volume, now + fadeInRemaining)
+          envelopeGain.gain.linearRampToValueAtTime(1, now + fadeInRemaining)
         }
 
         // Fade out
         if (fadeOutDuration > 0 && remainingDuration > fadeOutDuration) {
           const fadeOutStart = remainingDuration - fadeOutDuration
-          gainNode.gain.setValueAtTime(layer.volume, now + fadeOutStart)
-          gainNode.gain.linearRampToValueAtTime(0, now + remainingDuration)
+          envelopeGain.gain.setValueAtTime(1, now + fadeOutStart)
+          envelopeGain.gain.linearRampToValueAtTime(0, now + remainingDuration)
         }
 
         try {
           source.start(now, audioOffset, remainingDuration)
           sourceNodesRef.current[layer.id] = source
-          gainNodesRef.current[layer.id] = gainNode
+          gainNodesRef.current[layer.id] = { envelopeGain, volumeGain }
         } catch (err) {
           console.error('Chyba při startování audio zdroje:', err)
         }
@@ -2302,7 +2349,8 @@ function AudioEditor() {
     setSelectedLayerId(null)
     setCurrentTime(0)
     setPlaybackPosition(0)
-    setMasterVolume(project.masterVolume || 1.0)
+    // masterVolume může být 0 => nesmí se přepsat na 1.0
+    setMasterVolume(project.masterVolume ?? 1.0)
     setCurrentProjectId(project.id)
     setProjectName(project.name)
     setManualMaxDuration((typeof project.manualMaxDuration === 'number' && Number.isFinite(project.manualMaxDuration) && project.manualMaxDuration > 0)
@@ -2323,7 +2371,8 @@ function AudioEditor() {
               audioUrl: layerData.audioUrl,
               startTime: layerData.startTime || 0,
               duration: layerData.duration || audioBuffer.duration,
-              volume: layerData.volume || 1.0,
+              // Pozor: volume může být 0 (mute) => nesmí spadnout na 1.0
+              volume: layerData.volume ?? 1.0,
               fadeIn: layerData.fadeIn || 0,
               fadeOut: layerData.fadeOut || 0,
               trimStart: layerData.trimStart || 0,
