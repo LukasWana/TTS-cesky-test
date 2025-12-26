@@ -10,6 +10,8 @@ if not "%1"=="INTERNAL" (
 REM %~dp0 vraci cestu s backslashem na konci, ale pro jistotu zajistime
 set "ROOT=%~dp0"
 if not "%ROOT:~-1%"=="\" set "ROOT=%ROOT%\"
+set "LOG_DIR=%ROOT%logs"
+set "BACKEND_LOG=%LOG_DIR%\backend.log"
 
 echo XTTS-v2 Demo - START ALL
 echo =======================
@@ -273,19 +275,38 @@ echo [8/11] Starting backend...
 set "BACKEND_DIR=%ROOT%backend"
 set "VENV_ACTIVATE=%ROOT%venv\Scripts\activate.bat"
 
+REM Priprav log soubor, abychom mohli cekat na "Application startup complete."
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+if exist "%BACKEND_LOG%" del /q "%BACKEND_LOG%" >nul 2>&1
+
 REM Předání FORCE_DEVICE do backend procesu (pokud je nastaveno)
 REM Pouzit -X utf8 flag misto PYTHONUTF8 env var (aby se vyhnulo konfliktu s globalnim nastavenim)
 if defined FORCE_DEVICE (
   echo Device mode: %FORCE_DEVICE%
-  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-9.0 && set FORCE_DEVICE=%FORCE_DEVICE% && python -X utf8 main.py"
+  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && set FORCE_DEVICE=%FORCE_DEVICE% && powershell -NoProfile -ExecutionPolicy Bypass -Command ""python -X utf8 main.py --reload 2^>^&1 ^| Tee-Object -FilePath '%BACKEND_LOG%'"""
 ) else (
-  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-9.0 && python -X utf8 main.py"
+  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && powershell -NoProfile -ExecutionPolicy Bypass -Command ""python -X utf8 main.py --reload 2^>^&1 ^| Tee-Object -FilePath '%BACKEND_LOG%'"""
 )
 
-REM 9) Backend uz bezi, frontend spustime hned (backend se spustil v novem okne)
-echo [10/11] Backend is starting in separate window...
-timeout /t 2 /nobreak >nul 2>&1
-echo Frontend will start now (backend is already running).
+REM 9) Pockej, az backend dokonci startup (hlaska z uvicornu)
+echo [9/11] Waiting for backend readiness...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$log = '%BACKEND_LOG%';" ^
+  "$needle = 'Application startup complete.';" ^
+  "$deadline = (Get-Date).AddMinutes(3);" ^
+  "while((Get-Date) -lt $deadline) {" ^
+  "  if(Test-Path $log) { if(Select-String -Path $log -SimpleMatch $needle -Quiet) { Write-Host 'Backend ready.'; exit 0 } }" ^
+  "  Start-Sleep -Milliseconds 250" ^
+  "}" ^
+  "Write-Host 'ERROR: Backend nedokoncil startup do 3 minut (nenalezena hlaska Application startup complete.).'; exit 1"
+if errorlevel 1 (
+  echo.
+  echo ERROR: Backend se nejevi jako ready. Frontend se nespusti.
+  echo Tip: zkontrolujte log: "%BACKEND_LOG%"
+  echo.
+  pause
+  exit /b 1
+)
 echo.
 
 REM 10) Spust frontend v novem okne
