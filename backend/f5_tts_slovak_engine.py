@@ -89,6 +89,7 @@ class F5TTSSlovakEngine:
         hifigan_normalize_gain: Optional[float] = None,
         job_id: Optional[str] = None,
         ref_text: Optional[str] = None,  # Volitelně: přepis reference audio pro lepší kvalitu
+        enable_enhancement: Optional[bool] = None,
     ) -> str:
         """
         Generuje řeč pomocí F5-TTS slovenského modelu
@@ -179,7 +180,8 @@ class F5TTSSlovakEngine:
             hifigan_refinement_intensity,
             hifigan_normalize_output,
             hifigan_normalize_gain,
-            job_id
+            job_id,
+            enable_enhancement
         )
 
         return str(output_path)
@@ -402,7 +404,8 @@ class F5TTSSlovakEngine:
         hifigan_refinement_intensity: Optional[float],
         hifigan_normalize_output: Optional[bool],
         hifigan_normalize_gain: Optional[float],
-        job_id: Optional[str]
+        job_id: Optional[str],
+        enable_enhancement: Optional[bool] = None
     ):
         """
         Aplikuje stejný post-processing jako XTTS pro konzistenci
@@ -462,8 +465,8 @@ class F5TTSSlovakEngine:
             sf.write(output_path, audio, sr)
             _progress(65, "post", "Upsampling dokončen")
 
-            # Audio enhancement
-            if ENABLE_AUDIO_ENHANCEMENT:
+            # Audio enhancement (globálně + per-request)
+            if ENABLE_AUDIO_ENHANCEMENT and (enable_enhancement is None or enable_enhancement):
                 try:
                     preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
                     def enhance_progress(percent: float, stage: str, message: str):
@@ -545,7 +548,8 @@ class F5TTSSlovakEngine:
                 except Exception as e:
                     print(f"⚠️ Změna rychlosti selhala: {e}")
 
-            # Finální headroom
+            # Finální headroom (po VŠEM): aby UI headroom měl efekt i když enhancement neběží / selže,
+            # a aby se headroom dorovnal po HiFi-GAN / změně rychlosti.
             try:
                 _progress(97, "final", "Finální úpravy (headroom)…")
                 audio, sr = librosa.load(output_path, sr=None)
@@ -557,12 +561,13 @@ class F5TTSSlovakEngine:
                             target_peak = 10 ** (float(final_headroom_db) / 20.0)
                         else:
                             target_peak = 0.999
+                        # Headroom jako "ceiling": pouze ztlumit, nikdy nezesilovat (lepší UX pro posuvník)
                         if peak > target_peak:
                             audio = audio * (target_peak / peak)
                     if not np.isfinite(audio).all():
                         audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
                     sf.write(output_path, audio, sr)
-                    print(f"🔉 Finální headroom guard: {final_headroom_db} dB")
+                    print(f"🔉 Finální headroom ceiling: {final_headroom_db} dB (aplikováno jen pokud peak přesáhl cíl)")
             except Exception as e:
                 print(f"⚠️ Finální headroom selhal: {e}")
 

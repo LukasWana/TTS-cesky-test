@@ -516,6 +516,7 @@ class XTTSEngine:
         quality_mode: Optional[str] = None,
         seed: Optional[int] = None,
         enhancement_preset: Optional[str] = None,
+        enable_enhancement: Optional[bool] = None,
         multi_pass: bool = False,
         multi_pass_count: int = 3,
         enable_batch: Optional[bool] = None,
@@ -649,6 +650,13 @@ class XTTSEngine:
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
                 enable_trim=enable_trim,
+                enable_whisper=enable_whisper,
+                whisper_intensity=whisper_intensity,
+                target_headroom_db=target_headroom_db,
+                hifigan_refinement_intensity=hifigan_refinement_intensity,
+                hifigan_normalize_output=hifigan_normalize_output,
+                hifigan_normalize_gain=hifigan_normalize_gain,
+                enable_enhancement=enable_enhancement,
                 job_id=job_id
             )
 
@@ -925,6 +933,7 @@ class XTTSEngine:
             hifigan_normalize_output,
             hifigan_normalize_gain,
             job_id,
+            enable_enhancement,
             prosody_metadata,
         )
 
@@ -964,6 +973,7 @@ class XTTSEngine:
         hifigan_normalize_output: Optional[bool] = None,
         hifigan_normalize_gain: Optional[float] = None,
         job_id: Optional[str] = None,
+        enable_enhancement: Optional[bool] = None,
         prosody_metadata: Optional[Dict] = None
     ):
         # DEBUG: Ověření, že speed parametr skutečně přichází
@@ -1539,7 +1549,7 @@ class XTTSEngine:
                 # Pokračujeme s původním audio
 
             # Post-processing audio enhancement (pokud je zapnuto)
-            if ENABLE_AUDIO_ENHANCEMENT:
+            if ENABLE_AUDIO_ENHANCEMENT and (enable_enhancement is None or enable_enhancement):
                 try:
                     # Použít předaný enhancement_preset, nebo výchozí z configu (pro kompatibilitu se starým kódem)
                     preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
@@ -1683,9 +1693,8 @@ class XTTSEngine:
                 # Normální rychlost
                 pass
 
-            # Finální headroom (po VŠEM): stáhne hlasitost, aby výstup nepůsobil "přebuzile"
-            # Aplikuje se i když je normalizace/komprese vypnutá, protože samotný model může generovat hodně "hot" signál.
-            # Použij target_headroom_db pokud je zadán, jinak globální OUTPUT_HEADROOM_DB
+            # Finální headroom (po VŠEM): vždy, aby UI headroom měl efekt i když enhancement neběží / selže,
+            # a aby se headroom dorovnal po HiFi-GAN / změně rychlosti.
             try:
                 _progress(97, "final", "Finální úpravy (headroom)…")
                 import librosa
@@ -1693,30 +1702,45 @@ class XTTSEngine:
 
                 audio, sr = librosa.load(output_path, sr=None)
                 final_headroom_db = target_headroom_db if target_headroom_db is not None else OUTPUT_HEADROOM_DB
-                # Striktní hlídání headroomu (peak-based):
-                # - nikdy NEnavyšujeme hlasitost
-                # - pokud peak překročí cílový peak podle headroomu, stáhneme celý signál
-                # - vyhneme se tvrdému clipu, který zní "přebuzile"
                 if final_headroom_db is not None:
                     try:
+                        # Headroom funguje jako "ceiling" (strop): pokud je peak nad cílem, ztlumíme.
+                        # Nechceme nikdy zesilovat tiché výstupy, protože to působí, že posuvník "nefunguje".
                         peak = float(np.max(np.abs(audio))) if audio is not None and len(audio) else 0.0
                         if peak > 0:
                             if float(final_headroom_db) < 0:
-                                target_peak = 10 ** (float(final_headroom_db) / 20.0)  # např. -6 dB => ~0.501
+                                target_peak = 10 ** (float(final_headroom_db) / 20.0)
                             else:
-                                # i při 0 dB necháme mikro-peak rezervu (PCM export / numerika)
                                 target_peak = 0.999
+
                             if peak > target_peak:
-                                audio = audio * (target_peak / peak)
-                        # poslední pojistka proti NaN/inf
+                                scale = target_peak / peak
+                                audio = audio * scale
+                                try:
+                                    peak_after = float(np.max(np.abs(audio))) if audio is not None and len(audio) else 0.0
+                                    print(
+                                        f"🔉 Headroom ceiling detail: headroom_db={float(final_headroom_db):.1f} dB, "
+                                        f"peak_before={peak:.4f}, target_peak={target_peak:.4f}, scale={scale:.4f}, peak_after={peak_after:.4f}"
+                                    )
+                                except Exception:
+                                    pass
+                            else:
+                                # Pod cílem nic neděláme (nezesilujeme)
+                                try:
+                                    print(
+                                        f"🔉 Headroom ceiling: headroom_db={float(final_headroom_db):.1f} dB, "
+                                        f"peak_before={peak:.4f} <= target_peak={target_peak:.4f} (bez změny)"
+                                    )
+                                except Exception:
+                                    pass
+
                         if not np.isfinite(audio).all():
                             audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
-                    except Exception as _e:
-                        # fallback: aspoň neclippovat
+                    except Exception:
                         audio = np.clip(audio, -0.999, 0.999)
 
                     sf.write(output_path, audio, sr)
-                    print(f"🔉 Finální headroom guard: {final_headroom_db} dB")
+                    print(f"🔉 Finální headroom ceiling: {final_headroom_db} dB (aplikováno jen pokud peak přesáhl cíl)")
             except Exception as e:
                 print(f"⚠️ Warning: Finální headroom selhal: {e}")
             # 99% necháme až pro úplně poslední krok v backend/main.py (těsně před done=100),
@@ -1799,6 +1823,13 @@ class XTTSEngine:
         enable_deesser: bool = True,
         enable_eq: bool = True,
         enable_trim: bool = True,
+        enable_whisper: Optional[bool] = None,
+        whisper_intensity: Optional[float] = None,
+        target_headroom_db: Optional[float] = None,
+        hifigan_refinement_intensity: Optional[float] = None,
+        hifigan_normalize_output: Optional[bool] = None,
+        hifigan_normalize_gain: Optional[float] = None,
+        enable_enhancement: Optional[bool] = None,
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
@@ -1867,6 +1898,7 @@ class XTTSEngine:
                 quality_mode=quality_mode,
                 seed=variant_seed,
                 enhancement_preset=enhancement_preset,
+                enable_enhancement=enable_enhancement,
                 multi_pass=False,  # Zabrání rekurzi
                 enable_batch=enable_batch,
                 enable_vad=enable_vad,
@@ -1877,6 +1909,12 @@ class XTTSEngine:
                 enable_deesser=enable_deesser,
                 enable_eq=enable_eq,
                 enable_trim=enable_trim,
+                enable_whisper=enable_whisper,
+                whisper_intensity=whisper_intensity,
+                target_headroom_db=target_headroom_db,
+                hifigan_refinement_intensity=hifigan_refinement_intensity,
+                hifigan_normalize_output=hifigan_normalize_output,
+                hifigan_normalize_gain=hifigan_normalize_gain,
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity,

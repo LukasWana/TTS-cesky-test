@@ -122,8 +122,8 @@ ENABLE_ADVANCED_NOISE_REDUCTION = os.getenv("ENABLE_ADVANCED_NOISE_REDUCTION", "
 ENABLE_DEESSER = os.getenv("ENABLE_DEESSER", "True").lower() == "true"
 
 # Výstupní headroom (dB). Pomáhá proti "přebuzelému" pocitu i když to neklipuje.
-# Doporučení: -9.0 dB (klidnější), případně -6.0 dB. (0 až -20)
-OUTPUT_HEADROOM_DB = float(os.getenv("OUTPUT_HEADROOM_DB", "-9.0"))
+# Doporučení: -15.0 dB (výchozí), lze nastavit od -128.0 dB (velmi tišší) do 0.0 dB (hlasitější)
+OUTPUT_HEADROOM_DB = float(os.getenv("OUTPUT_HEADROOM_DB", "-18.0"))
 
 # Multi-pass generování
 ENABLE_MULTI_PASS = os.getenv("ENABLE_MULTI_PASS", "False").lower() == "true"
@@ -182,7 +182,7 @@ HIFIGAN_MODEL_PATH = os.getenv("HIFIGAN_MODEL_PATH", None)
 # HiFi-GAN nastavení
 HIFIGAN_PREFERRED_TYPE = os.getenv("HIFIGAN_PREFERRED_TYPE", "auto").lower()  # auto, parallel-wavegan, vtuber-plan, hifigan-direct
 HIFIGAN_REFINEMENT_INTENSITY = float(os.getenv("HIFIGAN_REFINEMENT_INTENSITY", "1.0"))  # 0.0-1.0 (1.0 = plný refinement, 0.0 = žádný)
-HIFIGAN_NORMALIZE_OUTPUT = os.getenv("HIFIGAN_NORMALIZE_OUTPUT", "True").lower() == "true"
+HIFIGAN_NORMALIZE_OUTPUT = os.getenv("HIFIGAN_NORMALIZE_OUTPUT", "False").lower() == "true"
 HIFIGAN_NORMALIZE_GAIN = float(os.getenv("HIFIGAN_NORMALIZE_GAIN", "0.95"))  # 0.0-1.0 (gain pro normalizaci)
 
 # HiFi-GAN mel-spectrogram parametry

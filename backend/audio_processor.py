@@ -264,7 +264,7 @@ class AudioProcessor:
                     from backend.audio_enhancer import AudioEnhancer
                     audio = AudioEnhancer.remove_dc_offset(audio)
                     audio = AudioEnhancer.apply_fade(audio, target_sr, fade_ms=30)
-                    audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
+                    audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-24.0, rms_target_db=-18.0)
                 except Exception:
                     # Fallback: jednoduchá peak normalizace
                     audio = librosa.util.normalize(audio)
@@ -399,7 +399,7 @@ class AudioProcessor:
             # Finální úpravy: fade + DC + normalizace
             ref = AudioEnhancer.apply_fade(ref, sr, fade_ms=50)
             ref = AudioEnhancer.remove_dc_offset(ref)
-            ref = AudioEnhancer.normalize_audio(ref, peak_target_db=-3.0, rms_target_db=-18.0)
+            ref = AudioEnhancer.normalize_audio(ref, peak_target_db=-24.0, rms_target_db=-18.0)
 
             # Uřízni na cílovou délku (když jsme nabrali víc)
             max_len = int(target_duration_sec * sr)
@@ -553,7 +553,7 @@ class AudioProcessor:
 
             # 7. Finální normalizace podle best practices pro hlas
             # Peak: -3 dB, RMS: -16 až -20 dB
-            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
+            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-24.0, rms_target_db=-18.0)
 
             # Uložení
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
