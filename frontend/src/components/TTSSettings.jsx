@@ -44,7 +44,8 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
     enableDeesser: true,
     enableEq: true,
     enableTrim: true,
-    whisperIntensity: 1.0
+    whisperIntensity: 1.0,
+    targetHeadroomDb: -15.0
   }
 
   const quality = qualitySettings || defaultQualitySettings
@@ -394,11 +395,36 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                       <span className="feature-description">Automatické odstranění ticha na začátku a konci</span>
                     </label>
                   </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Headroom nastavení */}
+              <div style={{ marginTop: '20px', marginLeft: '54px' }}>
+                <SliderRow
+                  label="Výstupní headroom"
+                  value={quality.targetHeadroomDb !== undefined ? quality.targetHeadroomDb : -15.0}
+                  min={-128.0}
+                  max={0.0}
+                  step={1.0}
+                  onChange={(v) => onQualityChange && onQualityChange({
+                    ...quality,
+                    targetHeadroomDb: v
+                  })}
+                  onReset={() => onQualityChange && onQualityChange({
+                    ...quality,
+                    targetHeadroomDb: -15.0
+                  })}
+                  formatValue={(v) => v.toFixed(1)}
+                  valueUnit=" dB"
+                  showTicks={false}
+                />
+                <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
+                  Nižší hodnota = tišší výstup (méně "přebuzelý"), vyšší = hlasitější. Doporučené: -15.0 dB
                 </div>
               </div>
-            )}
             </div>
-        </Section>
+          </Section>
 
         {/* Pokročilé funkce */}
         <Section

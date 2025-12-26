@@ -295,12 +295,14 @@ async def generate_speech(
         use_batch_flag = (enable_batch.lower() == "true") if isinstance(enable_batch, str) else None
         use_hifigan_flag = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
 
-        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
-        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
-        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
-        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
-        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
-        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+        # DŮLEŽITÉ: když tyto parametry z UI nepřijdou, NECHCEME je vynutit na True.
+        # Předáme None -> rozhodnutí udělá tts_engine podle presetů / config defaultů.
+        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else None
+        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else None
+        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else None
+        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else None
+        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else None
+        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else None
 
         # 3. Dialect conversion
         use_dialect = (enable_dialect_conversion.lower() == "true") if isinstance(enable_dialect_conversion, str) else False
@@ -397,12 +399,24 @@ async def generate_speech(
                         enhancement_preset=enhancement_preset,
                         seed=v_seed,
                         enable_vad=enable_vad_flag,
+                        enable_batch=use_batch_flag,
+                        enable_enhancement=enable_enh_flag,
                         enable_normalization=enable_norm,
                         enable_denoiser=enable_den,
                         enable_compressor=enable_comp,
                         enable_deesser=enable_deess,
                         enable_eq=enable_eq_flag,
                         enable_trim=enable_trim_flag,
+                        enable_dialect_conversion=use_dialect,
+                        dialect_code=dialect_code_value,
+                        dialect_intensity=dialect_intensity_value,
+                        enable_whisper=enable_whisper_value,
+                        whisper_intensity=whisper_intensity_value,
+                        target_headroom_db=target_headroom_db_value,
+                        use_hifigan=use_hifigan_flag,
+                        hifigan_refinement_intensity=hifigan_refinement_intensity_value,
+                        hifigan_normalize_output=hifigan_normalize_output_value,
+                        hifigan_normalize_gain=hifigan_normalize_gain_value,
                         job_id=job_id
                     )
                     filename = Path(output_path).name
@@ -440,12 +454,24 @@ async def generate_speech(
                 enhancement_preset=enhancement_preset,
                 seed=seed,
                 enable_vad=enable_vad_flag,
+                enable_batch=use_batch_flag,
+                enable_enhancement=enable_enh_flag,
                 enable_normalization=enable_norm,
                 enable_denoiser=enable_den,
                 enable_compressor=enable_comp,
                 enable_deesser=enable_deess,
                 enable_eq=enable_eq_flag,
                 enable_trim=enable_trim_flag,
+                enable_dialect_conversion=use_dialect,
+                dialect_code=dialect_code_value,
+                dialect_intensity=dialect_intensity_value,
+                enable_whisper=enable_whisper_value,
+                whisper_intensity=whisper_intensity_value,
+                target_headroom_db=target_headroom_db_value,
+                use_hifigan=use_hifigan_flag,
+                hifigan_refinement_intensity=hifigan_refinement_intensity_value,
+                hifigan_normalize_output=hifigan_normalize_output_value,
+                hifigan_normalize_gain=hifigan_normalize_gain_value,
                 job_id=job_id
             )
 
@@ -635,14 +661,15 @@ async def generate_speech(
         # Headroom override (volitelné)
         try:
             target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
-            if target_headroom_db_value is not None and not (-20.0 <= target_headroom_db_value <= 0.0):
-                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -20.0 a 0.0 dB")
+            if target_headroom_db_value is not None and not (-128.0 <= target_headroom_db_value <= 0.0):
+                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -128.0 a 0.0 dB")
         except (ValueError, TypeError):
             target_headroom_db_value = None
 
         # Generování řeči (efektivní nastavení se počítá v tts_engine pomocí _compute_effective_settings)
         if job_id:
             ProgressManager.update(job_id, percent=1, stage="tts", message="Generuji řeč…")
+        print(f"🎚️ UI headroom: target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
         result = await tts_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
@@ -656,6 +683,7 @@ async def generate_speech(
             quality_mode=tts_quality_mode,
             seed=seed,
             enhancement_preset=enhancement_preset_value,
+            enable_enhancement=enable_enh_flag,
             multi_pass=use_multi_pass,
             multi_pass_count=multi_pass_count_value,
             enable_batch=use_batch,
@@ -831,12 +859,14 @@ async def generate_speech_f5(
         # Boolean flags
         enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
         use_hifigan_flag = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
-        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
-        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
-        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
-        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
-        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
-        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+        # DŮLEŽITÉ: když tyto parametry z UI nepřijdou, NECHCEME je vynutit na True.
+        # Předáme None -> rozhodnutí udělá engine podle presetů / config defaultů.
+        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else None
+        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else None
+        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else None
+        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else None
+        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else None
+        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else None
 
         # Dialect conversion
         use_dialect = (enable_dialect_conversion.lower() == "true") if isinstance(enable_dialect_conversion, str) else False
@@ -875,8 +905,8 @@ async def generate_speech_f5(
         # Headroom
         try:
             target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
-            if target_headroom_db_value is not None and not (-20.0 <= target_headroom_db_value <= 0.0):
-                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -20.0 a 0.0 dB")
+            if target_headroom_db_value is not None and not (-128.0 <= target_headroom_db_value <= 0.0):
+                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -128.0 a 0.0 dB")
         except (ValueError, TypeError):
             target_headroom_db_value = None
 
@@ -982,6 +1012,7 @@ async def generate_speech_f5(
         if job_id:
             ProgressManager.update(job_id, percent=1, stage="f5_tts", message="Generuji řeč (F5-TTS)…")
 
+        print(f"🎚️ UI headroom (F5): target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
         output_path = await f5_tts_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
@@ -1012,6 +1043,7 @@ async def generate_speech_f5(
             hifigan_refinement_intensity=hifigan_refinement_intensity_value,
             hifigan_normalize_output=hifigan_normalize_output_value,
             hifigan_normalize_gain=hifigan_normalize_gain_value,
+            enable_enhancement=enable_enh_flag,
             job_id=job_id,
             ref_text=ref_text
         )
@@ -1151,12 +1183,14 @@ async def generate_speech_f5_sk(
         # Boolean flags
         enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
         use_hifigan_flag = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
-        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
-        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
-        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
-        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
-        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
-        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+        # DŮLEŽITÉ: když tyto parametry z UI nepřijdou, NECHCEME je vynutit na True.
+        # Předáme None -> rozhodnutí udělá engine podle presetů / config defaultů.
+        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else None
+        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else None
+        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else None
+        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else None
+        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else None
+        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else None
 
         # Dialect conversion není podporováno pro slovenštinu
         use_dialect = False
@@ -1192,8 +1226,8 @@ async def generate_speech_f5_sk(
         # Headroom
         try:
             target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
-            if target_headroom_db_value is not None and not (-20.0 <= target_headroom_db_value <= 0.0):
-                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -20.0 a 0.0 dB")
+            if target_headroom_db_value is not None and not (-128.0 <= target_headroom_db_value <= 0.0):
+                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -128.0 a 0.0 dB")
         except (ValueError, TypeError):
             target_headroom_db_value = None
 
@@ -1273,6 +1307,7 @@ async def generate_speech_f5_sk(
         if job_id:
             ProgressManager.update(job_id, percent=1, stage="f5_tts_slovak", message="Generujem reč (F5-TTS Slovak)…")
 
+        print(f"🎚️ UI headroom (F5-SK): target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
         output_path = await f5_tts_slovak_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
@@ -1303,6 +1338,7 @@ async def generate_speech_f5_sk(
             hifigan_refinement_intensity=hifigan_refinement_intensity_value,
             hifigan_normalize_output=hifigan_normalize_output_value,
             hifigan_normalize_gain=hifigan_normalize_gain_value,
+            enable_enhancement=enable_enh_flag,
             job_id=job_id,
             ref_text=ref_text
         )
@@ -1973,6 +2009,8 @@ async def generate_speech_multi(
     enable_deesser: str = Form(None),
     enable_eq: str = Form(None),
     enable_trim: str = Form(None),
+    # Headroom override (volitelné)
+    target_headroom_db: str = Form(None),
 ):
     """
     Generuje řeč pro text s více jazyky a mluvčími
@@ -2117,12 +2155,22 @@ async def generate_speech_multi(
         # Enhancement parametry
         enable_enh = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
         enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
-        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else True
-        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else True
-        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else True
-        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else True
-        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else True
-        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else True
+        # DŮLEŽITÉ: když tyto parametry z UI nepřijdou, NECHCEME je vynutit na True.
+        # Předáme None -> rozhodnutí udělá engine podle presetů / config defaultů.
+        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else None
+        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else None
+        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else None
+        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else None
+        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else None
+        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else None
+
+        # Headroom override (volitelné)
+        try:
+            target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
+            if target_headroom_db_value is not None and not (-128.0 <= target_headroom_db_value <= 0.0):
+                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -128.0 a 0.0 dB")
+        except (ValueError, TypeError):
+            target_headroom_db_value = None
 
         # Generuj řeč
         output_path = await tts_engine.generate_multi_lang_speaker(
@@ -2140,12 +2188,14 @@ async def generate_speech_multi(
             enhancement_preset=enhancement_preset,
             seed=seed,
             enable_vad=enable_vad_flag,
+            enable_enhancement=enable_enh,
             enable_normalization=enable_norm,
             enable_denoiser=enable_den,
             enable_compressor=enable_comp,
             enable_deesser=enable_deess,
             enable_eq=enable_eq_flag,
             enable_trim=enable_trim_flag,
+            target_headroom_db=target_headroom_db_value,
             job_id=job_id
         )
 

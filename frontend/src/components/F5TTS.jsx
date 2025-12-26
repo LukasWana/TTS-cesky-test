@@ -35,7 +35,8 @@ const BASE_QUALITY_SETTINGS = {
   enableDialectConversion: false,
   dialectCode: null,
   dialectIntensity: 1.0,
-  whisperIntensity: 1.0
+  whisperIntensity: 1.0,
+  targetHeadroomDb: -15.0
 }
 
 // Defaultní nastavení pro sloty P1-P5 (stejné jako v App.jsx)
@@ -523,7 +524,10 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
           : defaultQuality.dialectIntensity,
         whisperIntensity: typeof saved.qualitySettings.whisperIntensity === 'number'
           ? saved.qualitySettings.whisperIntensity
-          : defaultQuality.whisperIntensity
+          : defaultQuality.whisperIntensity,
+        targetHeadroomDb: typeof saved.qualitySettings.targetHeadroomDb === 'number'
+          ? saved.qualitySettings.targetHeadroomDb
+          : (defaultQuality.targetHeadroomDb !== undefined ? defaultQuality.targetHeadroomDb : -15.0)
       }
     } else {
       // Výchozí nastavení pro novou variantu - použij slot-specifické defaultní hodnoty
@@ -738,6 +742,8 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
         dialectCode: qualitySettings.dialectCode,
         dialectIntensity: qualitySettings.dialectIntensity,
         whisperIntensity: qualitySettings.whisperIntensity,
+        // Headroom
+        targetHeadroomDb: qualitySettings.targetHeadroomDb !== undefined ? qualitySettings.targetHeadroomDb : -15.0,
         // Volitelný přepis referenčního audia (zlepšuje výslovnost/stabilitu, když sedí k referenci)
         refText: refText || null
       }

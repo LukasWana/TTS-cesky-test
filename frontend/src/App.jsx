@@ -56,7 +56,9 @@ const BASE_QUALITY_SETTINGS = {
   dialectCode: null,
   dialectIntensity: 1.0,
   // Whisper efekt
-  whisperIntensity: 1.0
+  whisperIntensity: 1.0,
+  // Headroom
+  targetHeadroomDb: -15.0
 }
 
 // Defaultní nastavení pro sloty P1-P5
@@ -92,7 +94,8 @@ const DEFAULT_SLOT_SETTINGS = {
       enableDialectConversion: false,
       dialectCode: null,
       dialectIntensity: 1.0,
-      whisperIntensity: 1.0
+      whisperIntensity: 1.0,
+      targetHeadroomDb: -15.0
     }
   },
   variant2: { // P2 - Přirozený
@@ -126,7 +129,8 @@ const DEFAULT_SLOT_SETTINGS = {
       enableDialectConversion: false,
       dialectCode: null,
       dialectIntensity: 1.0,
-      whisperIntensity: 1.0
+      whisperIntensity: 1.0,
+      targetHeadroomDb: -15.0
     }
   },
   variant3: { // P3 - Rychlý
@@ -160,7 +164,8 @@ const DEFAULT_SLOT_SETTINGS = {
       enableDialectConversion: false,
       dialectCode: null,
       dialectIntensity: 1.0,
-      whisperIntensity: 1.0
+      whisperIntensity: 1.0,
+      targetHeadroomDb: -15.0
     }
   },
   variant4: { // P4 - Meditativní
@@ -670,7 +675,10 @@ function App() {
           : defaultQuality.dialectIntensity,
         whisperIntensity: typeof saved.qualitySettings.whisperIntensity === 'number'
           ? saved.qualitySettings.whisperIntensity
-          : defaultQuality.whisperIntensity
+          : defaultQuality.whisperIntensity,
+        targetHeadroomDb: typeof saved.qualitySettings.targetHeadroomDb === 'number'
+          ? saved.qualitySettings.targetHeadroomDb
+          : defaultQuality.targetHeadroomDb
       }
     } else {
       // Výchozí nastavení pro novou variantu - použij slot-specifické defaultní hodnoty
@@ -823,7 +831,9 @@ function App() {
         enableWhisper: qualitySettings.qualityMode === 'whisper' ? true : undefined,
         whisperIntensity: qualitySettings.qualityMode === 'whisper' && qualitySettings.whisperIntensity !== undefined
           ? qualitySettings.whisperIntensity
-          : undefined
+          : undefined,
+        // Headroom
+        targetHeadroomDb: qualitySettings.targetHeadroomDb !== undefined ? qualitySettings.targetHeadroomDb : -15.0
       }
 
       // Zrušit předchozí progress SSE spojení, pokud běží

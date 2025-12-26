@@ -140,6 +140,9 @@ export async function generateSpeech(text, voiceFile = null, demoVoice = null, t
   if (ttsParams.dialectIntensity !== undefined && ttsParams.dialectIntensity !== null) {
     formData.append('dialect_intensity', ttsParams.dialectIntensity.toString())
   }
+  if (ttsParams.targetHeadroomDb !== undefined && ttsParams.targetHeadroomDb !== null) {
+    formData.append('target_headroom_db', ttsParams.targetHeadroomDb.toString())
+  }
 
   const response = await fetch(`${API_BASE_URL}/api/tts/generate`, {
     method: 'POST',
