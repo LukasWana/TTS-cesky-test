@@ -27,7 +27,7 @@ class AudioEnhancer:
         enable_noise_reduction: Optional[bool] = None,
         enable_compression: Optional[bool] = None,
         enable_deesser: Optional[bool] = None,
-        enable_normalization: bool = True,
+        enable_normalization: Optional[bool] = None,
         enable_trim: bool = True,
         enable_whisper: bool = False,
         whisper_intensity: float = 1.0,
@@ -87,6 +87,9 @@ class AudioEnhancer:
         # Určení, zda použít VAD
         use_vad = enable_vad if enable_vad is not None else CONFIG_ENABLE_VAD
 
+        # Určení, zda použít normalizaci
+        use_normalization = enable_normalization if enable_normalization is not None else enhancement_config.get("enable_normalization", False)
+
         # Počítáme aktivní kroky pro progress
         active_steps = []
         if enable_trim:
@@ -141,7 +144,7 @@ class AudioEnhancer:
             current_pct += step_size
             if progress_callback:
                 progress_callback(current_pct, "enhance", "Komprese dynamiky…")
-            audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
+            audio = AudioEnhancer.compress_dynamic_range(audio)  # Použije default hodnoty optimalizované pro řeč
 
         # 5. De-esser (pokud zapnuto) - odstranění ostrých sykavek
         if use_deesser:
@@ -165,11 +168,14 @@ class AudioEnhancer:
         audio = AudioEnhancer.remove_dc_offset(audio)
 
         # 7. Finální normalizace podle best practices pro hlas
-        if enable_normalization:
-            # Peak: -3 dB, RMS: -18 dB
-            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
+        if use_normalization:
+            # Použij target_headroom_db pokud je zadán, jinak výchozí -24 dB
+            peak_target = target_headroom_db if target_headroom_db is not None else -24.0
+            # Peak: použije se target_headroom_db z UI (umožňuje ovládat hlasitost výstupu), RMS: -18 dB
+            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=peak_target, rms_target_db=-18.0)
 
-        # 8. Headroom se NEAPLIKUJE zde - aplikuje se až po HiFi-GAN a speed změně
+        # 8. Headroom se aplikuje v normalizaci výše (pokud enable_normalization=True)
+        # Pokud je normalizace vypnutá, headroom se aplikuje až po HiFi-GAN a speed změně
         # (viz tts_engine._generate_sync finální headroom sekce)
 
         # Uložení zpět do souboru
@@ -233,10 +239,10 @@ class AudioEnhancer:
         return audio - np.mean(audio)
 
     @staticmethod
-    def normalize_audio(audio: np.ndarray, peak_target_db: float = -3.0, rms_target_db: float = -18.0) -> np.ndarray:
+    def normalize_audio(audio: np.ndarray, peak_target_db: float = -24.0, rms_target_db: float = -18.0) -> np.ndarray:
         """
         Normalizace audio podle best practices pro hlas:
-        - Peak: -3 dB
+        - Peak: -24 dB (tišší výstup pro češtinu)
         - RMS: -18 dB
         - Ochrana proti extrémnímu zesílení (max +12 dB)
         """
@@ -255,7 +261,7 @@ class AudioEnhancer:
 
             audio = audio * rms_gain
 
-        # 2. Peak normalizace na -3 dB
+        # 2. Peak normalizace na cílovou hodnotu (výchozí -24 dB pro tišší výstup)
         peak_target_linear = 10 ** (peak_target_db / 20)
         current_peak = np.max(np.abs(audio))
         if current_peak > 0:
@@ -448,14 +454,14 @@ class AudioEnhancer:
             return audio
 
     @staticmethod
-    def compress_dynamic_range(audio: np.ndarray, ratio: float = 2.5, threshold: float = -12.0) -> np.ndarray:
+    def compress_dynamic_range(audio: np.ndarray, ratio: float = 2.0, threshold: float = -18.0) -> np.ndarray:
         """
-        Jemná komprese dynamiky pro zvládnutí transientů (zmírněno pro lepší kvalitu)
+        Komprese dynamiky optimalizovaná pro řeč - zlepšuje inteligibilitu a konzistenci
 
         Args:
             audio: Audio data
-            ratio: Kompresní poměr (sníženo z 3.0 na 2.5 pro jemnější kompresi)
-            threshold: Threshold v dB
+            ratio: Kompresní poměr (2.0-4.0 pro řeč, výchozí 2.0 pro jemnou kompresi)
+            threshold: Threshold v dB (-18 dB pro řeč - zachovává přirozenou dynamiku)
 
         Returns:
             Komprimované audio (BEZ normalizace - normalizace bude až na konci)
