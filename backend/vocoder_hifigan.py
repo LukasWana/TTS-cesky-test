@@ -69,14 +69,54 @@ class HiFiGANVocoder:
                 model_path = self._models_dir
                 config_path = model_path / "config.yaml"
                 checkpoint_path = model_path / "checkpoint.pkl"
+                checkpoint_pth_path = model_path / "checkpoint.pth"
 
-                # Pokud lokální model neexistuje, použijeme fallback na pretrained model
-                # (v produkci bychom mohli stáhnout doporučený model)
+                # Zkus nejdřív .pkl, pak .pth (kompatibilita s HuggingFace modely)
+                if not checkpoint_path.exists() and checkpoint_pth_path.exists():
+                    checkpoint_path = checkpoint_pth_path
+
+                # Pokud lokální model neexistuje, zkus fallback na HuggingFace cache
                 if not config_path.exists() or not checkpoint_path.exists():
-                    print("⚠️  Lokální HiFi-GAN model neexistuje v models/hifigan/")
-                    print("   HiFi-GAN refinement bude přeskočen (stáhněte model nebo použijte lokální checkpoint)")
-                    self._model_loaded = True  # Označíme jako "zkoušeno", abychom nezkoušeli opakovaně
-                    return False
+                    print("⚠️  Lokální HiFi-GAN model neexistuje v models/hifigan/, zkouším HuggingFace cache...")
+
+                    # Zkus najít stažený model v HuggingFace cache
+                    hf_cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+                    hf_model_dirs = [
+                        "models--espnet--kan-bayashi_ljspeech_joint_finetune_conformer_fastspeech2_hifigan",
+                        "models--espnet--kan-bayashi_ljspeech_hifigan",
+                        "models--kan-bayashi--ljspeech_hifigan.v1"
+                    ]
+
+                    for model_dir_name in hf_model_dirs:
+                        model_cache_path = hf_cache_dir / model_dir_name
+                        if model_cache_path.exists():
+                            # Najdi nejnovější snapshot
+                            snapshots_dir = model_cache_path / "snapshots"
+                            if snapshots_dir.exists():
+                                snapshots = list(snapshots_dir.glob("*"))
+                                if snapshots:
+                                    latest_snapshot = max(snapshots, key=lambda x: x.stat().st_mtime)
+                                    print(f"📦 Našel HiFi-GAN model v HuggingFace cache: {model_dir_name}")
+
+                                    # Najdi config a checkpoint v snapshotu
+                                    exp_dirs = list(latest_snapshot.glob("exp/*hifigan*"))
+                                    if exp_dirs:
+                                        exp_dir = exp_dirs[0]
+                                        hf_config_path = exp_dir / "config.yaml"
+                                        hf_checkpoint_path = exp_dir / "train.total_count.ave_5best.pth"
+
+                                        if hf_config_path.exists() and hf_checkpoint_path.exists():
+                                            print("✅ Používám HiFi-GAN model z HuggingFace cache")
+                                            config_path = hf_config_path
+                                            checkpoint_path = hf_checkpoint_path
+                                            break
+
+                    # Pokud se stále nepodařilo najít model
+                    if not config_path.exists() or not checkpoint_path.exists():
+                        print("⚠️  HiFi-GAN model nebyl nalezen ani v lokálním adresáři ani v HuggingFace cache")
+                        print("   HiFi-GAN refinement bude přeskočen")
+                        self._model_loaded = True  # Označíme jako "zkoušeno", abychom nezkoušeli opakovaně
+                        return False
 
                 # Načtení modelu z lokálního checkpointu
                 from parallel_wavegan.utils import load_model
@@ -85,7 +125,8 @@ class HiFiGANVocoder:
                 self._model.eval()
                 if torch.cuda.is_available():
                     self._model = self._model.cuda()
-                print("✅ HiFi-GAN model načten z lokálního checkpointu")
+                checkpoint_type = "lokálního checkpointu (.pkl)" if checkpoint_path.suffix == ".pkl" else "HuggingFace cache (.pth)"
+                print(f"✅ HiFi-GAN model načten z {checkpoint_type}")
                 self._model_loaded = True
                 return True
             else:
