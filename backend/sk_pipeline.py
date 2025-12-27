@@ -44,22 +44,19 @@ def preprocess_slovak_text(
         except Exception as e:
             print(f"[WARN] Phonetic translation selhal: {e}")
 
-    # 0.5. Základné slovenské text processing
-    # Poznámka: Slovenský text processor zatiaľ není implementován,
-    # takže použijeme základní normalizaci
+    # 0.5. Pokročilé slovenské text processing pomocí SlovakTextProcessor
     if ENABLE_SLOVAK_TEXT_PROCESSING:
         try:
-            # Základní normalizace pro slovenštinu
-            # - Normalizace mezer kolem interpunkce
-            import re
-            text = re.sub(r'\s+([.,!?;:])', r'\1', text)  # Odstranění mezer před interpunkcí
-            text = re.sub(r'([.,!?;:])\s*([.,!?;:])', r'\1\2', text)  # Více interpunkcí za sebou
-            text = re.sub(r'([.,!?;:])\s*([a-zA-ZáäčďéíĺľňóôŕšťúýžÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽ])', r'\1 \2', text)  # Mezera po interpunkci
-
-            # Základní převod čísel na slova (pro jednoduché případy)
-            # Poznámka: Pro plnou podporu by bylo potřeba slovenský číselný převodník
-            # Zatím ponecháme čísla jako jsou (model by měl zvládnout základní čísla)
-
+            from backend.slovak_text_processor import get_slovak_text_processor
+            slovak_processor = get_slovak_text_processor()
+            text = slovak_processor.process_text(
+                text,
+                apply_voicing=True,  # Aktivované pre lepšiu výslovnosť
+                apply_glottal_stop=True,  # Aktivované pre lepšiu zrozumiteľnosť
+                apply_consonant_groups=False,  # Pre slovenštinu zatiaľ neimplementované
+                expand_abbreviations=True,
+                expand_numbers=True
+            )
         except Exception as e:
             print(f"[WARN] Varovanie: Slovak text processing selhal: {e}")
 
