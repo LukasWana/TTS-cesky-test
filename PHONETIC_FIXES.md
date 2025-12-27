@@ -107,3 +107,4 @@ Zkuste vygenerovat texty s:
 
 
 
+
