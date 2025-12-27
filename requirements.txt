@@ -29,8 +29,8 @@ soundfile==0.12.1
 # librosa: pin kvůli kompatibilitě s TTS (import magphase/pyin) a stabilitě po upgradu deps
 librosa==0.10.0
  pydub==0.25.1
-+# soxr: pro rychlý resampling v librosa (důležité pro mixování na CPU)
-+soxr>=0.3.7
+# soxr: pro rychlý resampling v librosa (důležité pro mixování na CPU)
+soxr>=0.3.7
  # numpy - TTS 0.22.0 specifies version based on Python version, let pip resolve automatically
 # scipy - TTS 0.22.0 specifies its version, let pip resolve automatically
 

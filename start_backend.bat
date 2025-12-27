@@ -7,6 +7,9 @@ set "PYTHONIOENCODING=utf-8"
 set "WANDB_MODE=disabled"
 set "WANDB_SILENT=true"
 
+REM Nastavit kódování konzole na UTF-8 pro správné zobrazování českých znaků
+chcp 65001 >nul 2>&1
+
 REM Kontrola, zda venv existuje
 if not exist "venv\Scripts\activate.bat" (
     echo Virtual environment not found!
