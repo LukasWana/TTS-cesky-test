@@ -1853,7 +1853,7 @@ async def stream_music_progress(job_id: str):
 
 
 @app.get("/api/music/history")
-async def get_music_history(limit: int = 50, offset: int = 0):
+async def get_music_history(limit: Optional[int] = None, offset: int = 0):
     """Samostatná historie MusicGen výstupů."""
     try:
         history = MusicHistoryManager.get_history(limit=limit, offset=offset)
@@ -1899,7 +1899,7 @@ async def clear_music_history():
 
 
 @app.get("/api/bark/history")
-async def get_bark_history(limit: int = 50, offset: int = 0):
+async def get_bark_history(limit: Optional[int] = None, offset: int = 0):
     """Samostatná historie Bark výstupů."""
     try:
         history = BarkHistoryManager.get_history(limit=limit, offset=offset)
@@ -2802,12 +2802,12 @@ async def download_youtube_voice(
 
 
 @app.get("/api/history")
-async def get_history(limit: int = 50, offset: int = 0):
+async def get_history(limit: Optional[int] = None, offset: int = 0):
     """
     Získá historii generovaných audio souborů
 
     Query params:
-        limit: Maximální počet záznamů (výchozí: 50)
+        limit: Maximální počet záznamů (None = všechny, výchozí: None)
         offset: Offset pro stránkování (výchozí: 0)
     """
     try:
@@ -2925,9 +2925,7 @@ if __name__ == "__main__":
         "main:app",
         host=API_HOST,
         port=API_PORT,
-        reload=True,
-        reload_dirs=[str(backend_dir)],  # Sledovat změny v backend adresáři
-        reload_includes=["*.py"],  # Sledovat pouze Python soubory
+        reload=False,  # Reload vypnut - způsoboval pády při změnách souborů
         log_config=LOGGING_CONFIG,
     )
 
