@@ -29,6 +29,23 @@ warnings.filterwarnings("ignore", message=".*resume_download.*", category=Future
 # Potlačení deprecation warning z PyTorch weight_norm (Bark/encodec používá zastaralé API)
 warnings.filterwarnings("ignore", message=".*weight_norm is deprecated.*", category=UserWarning)
 
+# Nastavení loggeru pro aplikaci s UTF-8 podporou
+import logging
+import sys
+
+class ConsoleHandler(logging.StreamHandler):
+    """Custom handler pro Windows konzoli s podporou českých znaků"""
+    def __init__(self, stream=None):
+        super().__init__(stream)
+        # Nastavíme encoding pro Windows konzoli - ignorujeme problematické znaky
+        if hasattr(self.stream, 'reconfigure'):
+            try:
+                self.stream.reconfigure(encoding='cp1252', errors='ignore')
+            except Exception:
+                pass
+
+logger = logging.getLogger(__name__)
+
 # Windows + librosa/numba: na některých sestavách padá numba ufunc (např. _phasor_angles) při pitch shifting.
 # Vypneme JIT (bezpečnější, za cenu menší rychlosti pouze pro tyto operace).
 if os.name == "nt":
@@ -41,8 +58,8 @@ try:
 except Exception:
     pass
 
-from backend.progress_manager import ProgressManager
 try:
+    from backend.progress_manager import ProgressManager
     from backend.tts_engine import XTTSEngine
     from backend.f5_tts_engine import F5TTSEngine
     from backend.f5_tts_slovak_engine import F5TTSSlovakEngine
@@ -74,7 +91,8 @@ try:
         TTS_TOP_P,
         ENABLE_AUDIO_ENHANCEMENT,
         AUDIO_ENHANCEMENT_PRESET,
-        ENABLE_BATCH_PROCESSING
+        ENABLE_BATCH_PROCESSING,
+        LOG_LEVEL
     )
     from backend.musicgen_engine import MusicGenEngine
     from backend.music_history_manager import MusicHistoryManager
@@ -84,6 +102,7 @@ try:
     from backend.bark_engine import BarkEngine
 except ImportError:
     # Fallback pro spuštění z backend/ adresáře
+    from progress_manager import ProgressManager
     from tts_engine import XTTSEngine
     from f5_tts_engine import F5TTSEngine
     from f5_tts_slovak_engine import F5TTSSlovakEngine
@@ -119,7 +138,8 @@ except ImportError:
         TTS_TOP_P,
         ENABLE_AUDIO_ENHANCEMENT,
         AUDIO_ENHANCEMENT_PRESET,
-        ENABLE_BATCH_PROCESSING
+        ENABLE_BATCH_PROCESSING,
+        LOG_LEVEL
     )
 
 # Inicializace engine
@@ -137,10 +157,10 @@ async def check_f5_tts_availability():
     """Ověří dostupnost F5-TTS CLI při startu"""
     try:
         await f5_tts_engine.load_model()
-        print("[OK] F5-TTS CLI je dostupné")
+        logger.info("F5-TTS CLI je dostupné")
     except Exception as e:
-        print(f"[INFO] F5-TTS není dostupné: {e}")
-        print("[INFO] F5-TTS záložka bude dostupná až po instalaci: pip install f5-tts")
+        logger.info(f"F5-TTS není dostupné: {e}")
+        logger.info("F5-TTS záložka bude dostupná až po instalaci: pip install f5-tts")
 
 
 @asynccontextmanager
@@ -150,11 +170,11 @@ async def lifespan(app: FastAPI):
     try:
         # XTTS model nyní načítáme "lazy" až při prvním požadavku v /api/tts/generate
         # To šetří VRAM (zejména pro 6GB karty), pokud chce uživatel generovat jen hudbu.
-        print("Backend startup: ready (models will be loaded on demand)")
+        logger.info("Backend startup: ready (models will be loaded on demand)")
         # Ověření F5-TTS (neblokující, pouze informativní)
         asyncio.create_task(check_f5_tts_availability())
     except Exception as e:
-        print(f"Startup error: {str(e)}")
+        logger.error(f"Startup error: {str(e)}")
 
     yield  # Aplikace běží zde
 
@@ -325,7 +345,7 @@ async def generate_speech(
 
         if has_multi_lang_annotations:
             # Přesměruj na multi-lang zpracování
-            print(f"🔍 Detekovány multi-lang/speaker anotace v textu, používám multi-lang generování (multi_pass={use_multi_pass})")
+            logger.info(f"Detekovány multi-lang/speaker anotace v textu, používám multi-lang generování (multi_pass={use_multi_pass})")
             # Zpracuj výchozího mluvčího (stejný kód jako níže)
             default_speaker_wav = None
             if voice_file:
@@ -377,7 +397,7 @@ async def generate_speech(
 
             if use_multi_pass:
                 # Podpora multi-pass pro multi-lang
-                print(f"🔄 Generuji {multi_pass_count_value} variant pro multi-lang")
+                logger.info(f"Generuji {multi_pass_count_value} variant pro multi-lang")
                 variants = []
                 for i in range(multi_pass_count_value):
                     if job_id:
@@ -492,7 +512,7 @@ async def generate_speech(
         # Automaticky zapnout batch processing pro dlouhé texty
         text_length = len(text)
         if text_length > MAX_TEXT_LENGTH:
-            print(f"⚠️ Text je delší než {MAX_TEXT_LENGTH} znaků ({text_length} znaků), automaticky zapínám batch processing")
+            logger.warning(f"Text je delší než {MAX_TEXT_LENGTH} znaků ({text_length} znaků), automaticky zapínám batch processing")
             if use_batch_flag is None or use_batch_flag is True:
                 use_batch = True
             else:
@@ -501,7 +521,7 @@ async def generate_speech(
                     detail=f"Text je příliš dlouhý ({text_length} znaků, max {MAX_TEXT_LENGTH}). Pro delší texty zapněte batch processing (enable_batch=true)."
                 )
         elif text_length > 2000:
-            print(f"ℹ️ Text je dlouhý ({text_length} znaků), doporučuji zapnout batch processing pro lepší kvalitu")
+            logger.info(f"Text je dlouhý ({text_length} znaků), doporučuji zapnout batch processing pro lepší kvalitu")
             use_batch = use_batch_flag if use_batch_flag is not None else ENABLE_BATCH_PROCESSING
         else:
             use_batch = use_batch_flag if use_batch_flag is not None else False
@@ -537,7 +557,7 @@ async def generate_speech(
                 available_voices = list(DEMO_VOICES_CS_DIR.glob("*.wav"))
                 if available_voices:
                     speaker_wav = str(available_voices[0])
-                    print(f"Demo voice '{demo_voice}' not found, using: {speaker_wav}")
+                    logger.warning(f"Demo voice '{demo_voice}' not found, using: {speaker_wav}")
                 else:
                     raise HTTPException(
                         status_code=404,
@@ -600,7 +620,7 @@ async def generate_speech(
                         speaker_wav = str(enhanced_path)
                         reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav)
                     else:
-                        print(f"⚠️ Auto-enhance referenčního hlasu selhal: {enh_err}")
+                        logger.warning(f"Auto-enhance referenčního hlasu selhal: {enh_err}")
 
                 if reference_quality and reference_quality.get("score") == "poor" and not do_allow:
                     raise HTTPException(
@@ -613,7 +633,7 @@ async def generate_speech(
         except HTTPException:
             raise
         except Exception as e:
-            print(f"⚠️ Quality gate selhal (ignorováno): {e}")
+            logger.warning(f"Quality gate selhal (ignorováno): {e}")
 
         # Validace parametrů
         if not (0.5 <= tts_speed <= 2.0):
@@ -669,7 +689,7 @@ async def generate_speech(
         # Generování řeči (efektivní nastavení se počítá v tts_engine pomocí _compute_effective_settings)
         if job_id:
             ProgressManager.update(job_id, percent=1, stage="tts", message="Generuji řeč…")
-        print(f"🎚️ UI headroom: target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
+        logger.info(f"UI headroom: target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
         result = await tts_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
@@ -1002,7 +1022,7 @@ async def generate_speech_f5(
         except HTTPException:
             raise
         except Exception as e:
-            print(f"⚠️ Quality gate selhal (ignorováno): {e}")
+            logger.warning(f"Quality gate selhal (ignorováno): {e}")
 
         # Validace speed
         if not (0.5 <= tts_speed <= 2.0):
@@ -1012,7 +1032,7 @@ async def generate_speech_f5(
         if job_id:
             ProgressManager.update(job_id, percent=1, stage="f5_tts", message="Generuji řeč (F5-TTS)…")
 
-        print(f"🎚️ UI headroom (F5): target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
+        logger.info(f"UI headroom (F5): target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
         output_path = await f5_tts_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
@@ -1293,11 +1313,11 @@ async def generate_speech_f5_sk(
                     if ok:
                         speaker_wav = str(enhanced_path)
                         reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav)
-                        print(f"[INFO] Referenční audio bylo automaticky vylepšeno")
+                        logger.info("Referenční audio bylo automaticky vylepšeno")
                     else:
-                        print(f"⚠️ Auto-enhance referenčního hlasu selhal: {enh_err}")
+                        logger.warning(f"Auto-enhance referenčního hlasu selhal: {enh_err}")
         except Exception as e:
-            print(f"[WARN] Quality gate selhal: {e}")
+            logger.warning(f"Quality gate selhal: {e}")
 
         # Validace speed
         if not (0.5 <= tts_speed <= 2.0):
@@ -1307,7 +1327,7 @@ async def generate_speech_f5_sk(
         if job_id:
             ProgressManager.update(job_id, percent=1, stage="f5_tts_slovak", message="Generujem reč (F5-TTS Slovak)…")
 
-        print(f"🎚️ UI headroom (F5-SK): target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
+        logger.info(f"UI headroom (F5-SK): target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
         output_path = await f5_tts_slovak_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
@@ -1518,7 +1538,7 @@ async def generate_music(
 
             if ambience_files_to_use:
                 try:
-                    print(f"[MusicGen] Mixuji ambience: {', '.join(p.name for p in ambience_files_to_use)} (gain: {ambience_gain_db} dB)")
+                    logger.info(f"[MusicGen] Mixuji ambience: {', '.join(p.name for p in ambience_files_to_use)} (gain: {ambience_gain_db} dB)")
                     if job_id:
                         ProgressManager.update(job_id, percent=95, stage="mix", message="Mixuji ambience (potůček/ptáci)…")
 
@@ -1530,21 +1550,21 @@ async def generate_music(
                         used.append(p.name)
 
                     save_wav(mixed, out_path)
-                    print("[MusicGen] Ambience namixováno a WAV přepsán.")
+                    logger.info("[MusicGen] Ambience namixováno a WAV přepsán.")
                     if job_id:
                         ProgressManager.update(job_id, percent=98, stage="mix", message="Ambience namixováno.")
                     ambience_files_list = used
                 except Exception as e:
-                    print(f"[MusicGen] Chyba při mixování: {e}")
+                    logger.error(f"[MusicGen] Chyba při mixování: {e}")
                     # neblokuj výsledek – vrať hudbu bez ambience + warning
                     warning = f"Ambience se nepodařilo namixovat ({str(e)}). Výstup je bez ambience vrstvy."
                     ambience_files_list = []
             else:
-                print("[MusicGen] Žádné ambience soubory nenalezeny v assets/nature.")
+                logger.warning("[MusicGen] Žádné ambience soubory nenalezeny v assets/nature.")
                 warning = "Chybí ambience samply. Přidej WAVy do assets/nature (stream_*.wav / birds_*.wav)."
 
         # Samostatná music historie
-        print(f"[MusicGen] Ukládám do historie: {filename}")
+        logger.info(f"[MusicGen] Ukládám do historie: {filename}")
         MusicHistoryManager.add_entry(
             audio_url=audio_url,
             filename=filename,
@@ -1569,7 +1589,7 @@ async def generate_music(
             ProgressManager.update(job_id, percent=99, stage="final", message="Hotovo, posílám výsledek…")
             ProgressManager.done(job_id)
 
-        print(f"[MusicGen] Hotovo. Odesílám audio_url: {audio_url}")
+        logger.info(f"[MusicGen] Hotovo. Odesílám audio_url: {audio_url}")
         resp = {"success": True, "audio_url": audio_url, "filename": filename, "job_id": job_id}
         if warning:
             resp["warning"] = warning
@@ -1648,7 +1668,7 @@ async def generate_bark(
         audio_url = f"/api/audio/{filename}"
 
         # Uložení do historie
-        print(f"[Bark] Ukládám do historie: {filename}")
+        logger.info(f"[Bark] Ukládám do historie: {filename}")
         BarkHistoryManager.add_entry(
             audio_url=audio_url,
             filename=filename,
@@ -1667,7 +1687,7 @@ async def generate_bark(
             ProgressManager.update(job_id, percent=99, stage="final", message="Hotovo, posílám výsledek…")
             ProgressManager.done(job_id)
 
-        print(f"[Bark] Hotovo. Odesílám audio_url: {audio_url}")
+        logger.info(f"[Bark] Hotovo. Odesílám audio_url: {audio_url}")
         return {
             "success": True,
             "audio_url": audio_url,
@@ -2081,7 +2101,7 @@ async def generate_speech_multi(
                 available_voices = list(_get_demo_voices_dir(default_language).glob("*.wav"))
                 if available_voices:
                     default_speaker_wav = str(available_voices[0])
-                    print(f"Demo voice '{default_demo_voice}' not found, using: {default_speaker_wav}")
+                    logger.warning(f"Demo voice '{default_demo_voice}' not found, using: {default_speaker_wav}")
                 else:
                     raise HTTPException(
                         status_code=404,
@@ -2092,7 +2112,7 @@ async def generate_speech_multi(
             available_voices = list(_get_demo_voices_dir(default_language).glob("*.wav"))
             if available_voices:
                 default_speaker_wav = str(available_voices[0])
-                print(f"Žádný výchozí hlas zadán, používám: {default_speaker_wav}")
+                logger.info(f"Žádný výchozí hlas zadán, používám: {default_speaker_wav}")
             else:
                 raise HTTPException(
                     status_code=400,
@@ -2114,10 +2134,10 @@ async def generate_speech_multi(
             demo_path = get_demo_voice_path(sid, lang=default_language)
             if demo_path:
                 speaker_map[sid] = demo_path
-                print(f"🎤 Auto-mapování: Speaker '{sid}' -> demo hlas: {demo_path}")
+                logger.info(f"Auto-mapování: Speaker '{sid}' -> demo hlas: {demo_path}")
             elif Path(sid).exists():
                 speaker_map[sid] = sid
-                print(f"🎤 Auto-mapování: Speaker '{sid}' -> soubor: {sid}")
+                logger.info(f"Auto-mapování: Speaker '{sid}' -> soubor: {sid}")
 
         # Pak aplikuj explicitní speaker_mapping (přepíše automatické mapování)
         if speaker_mapping:
@@ -2133,7 +2153,7 @@ async def generate_speech_multi(
                         if demo_path:
                             speaker_map[speaker_id] = demo_path
                         else:
-                            print(f"[WARN] Speaker '{speaker_id}': voice '{voice_ref}' neexistuje, použije se výchozí hlas")
+                            logger.warning(f"Speaker '{speaker_id}': voice '{voice_ref}' neexistuje, použije se výchozí hlas")
             except json.JSONDecodeError as e:
                 raise HTTPException(status_code=400, detail=f"Neplatný speaker_mapping JSON: {str(e)}")
 
@@ -2483,7 +2503,7 @@ async def record_voice(
                 )
             elif duration < MIN_VOICE_DURATION:
                 # Varování, ale povolit
-                print(f"Warning: Recorded audio is short ({duration:.1f}s), recommended minimum is {MIN_VOICE_DURATION}s")
+                logger.warning(f"Recorded audio is short ({duration:.1f}s), recommended minimum is {MIN_VOICE_DURATION}s")
         except Exception as e:
             output_path.unlink(missing_ok=True)
             raise HTTPException(status_code=400, detail=f"Chyba při validaci audio: {str(e)}")
@@ -2843,10 +2863,71 @@ async def clear_history():
 
 
 if __name__ == "__main__":
+    import logging
+    from pathlib import Path
+
+    # Načteme LOG_LEVEL (pokud ještě není načten z try/except bloku výše)
+    try:
+        from backend.config import LOG_LEVEL as CONFIG_LOG_LEVEL
+    except ImportError:
+        try:
+            from config import LOG_LEVEL as CONFIG_LOG_LEVEL
+        except ImportError:
+            CONFIG_LOG_LEVEL = "INFO"
+
+    # Logger pro hlavní aplikaci
+    logger = logging.getLogger(__name__)
+
+    # Zajistíme, že log adresář existuje
+    base_dir = Path(__file__).parent.parent
+    logs_dir = base_dir / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    log_file = logs_dir / "backend.log"
+
+    # Nastavení logování s UTF-8 podporou pro Windows
+    logging.basicConfig(
+        level=getattr(logging, CONFIG_LOG_LEVEL.upper(), logging.INFO),
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(str(log_file), encoding='utf-8')  # Soubor s UTF-8
+        ]
+    )
+
+    # Získání cesty k backend adresáři pro reload
+    # Uvicorn potřebuje absolutní cesty pro správnou detekci změn
+    backend_dir = Path(__file__).parent.absolute()
+
+    # Uvicorn log config s UTF-8 podporou
+    LOGGING_CONFIG = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "format": "%(asctime)s - %(levelname)s - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+        },
+        "handlers": {
+            "default": {
+                "formatter": "default",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr",
+            },
+        },
+        "loggers": {
+            "uvicorn": {"handlers": ["default"], "level": CONFIG_LOG_LEVEL.upper()},
+            "uvicorn.error": {"level": CONFIG_LOG_LEVEL.upper()},
+            "uvicorn.access": {"handlers": ["default"], "level": CONFIG_LOG_LEVEL.upper()},
+        },
+    }
+
     uvicorn.run(
         "main:app",
         host=API_HOST,
         port=API_PORT,
-        reload=True
+        reload=True,
+        reload_dirs=[str(backend_dir)],  # Sledovat změny v backend adresáři
+        reload_includes=["*.py"],  # Sledovat pouze Python soubory
+        log_config=LOGGING_CONFIG,
     )
 
