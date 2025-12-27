@@ -1191,10 +1191,10 @@ function AudioEditor() {
       setHistoryLoading(true)
       let allHistory = []
 
-      // Načíst data z API (rychle, bez waveformů)
+      // Načíst data z API (rychle, bez waveformů) - všechny záznamy
       if (historyType === 'all' || historyType === 'tts' || historyType === 'f5tts') {
         try {
-          const ttsData = await getHistory(100, 0)
+          const ttsData = await getHistory(null, 0)
           const ttsEntries = (ttsData.history || []).map(entry => {
             // Rozlišení mezi českým a slovenským slovem podle engine v tts_params
             const engine = entry.tts_params?.engine || ''
@@ -1223,7 +1223,7 @@ function AudioEditor() {
 
       if (historyType === 'all' || historyType === 'music') {
         try {
-          const musicData = await getMusicHistory(100, 0)
+          const musicData = await getMusicHistory(null, 0)
           const musicEntries = (musicData.history || []).map(entry => ({
             ...entry,
             source: 'music',
@@ -1237,7 +1237,7 @@ function AudioEditor() {
 
       if (historyType === 'all' || historyType === 'bark') {
         try {
-          const barkData = await getBarkHistory(100, 0)
+          const barkData = await getBarkHistory(null, 0)
           const barkEntries = (barkData.history || []).map(entry => ({
             ...entry,
             source: 'bark',

@@ -36,12 +36,13 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
       setError(null)
       let data
 
+      // Načíst všechny záznamy (limit = null)
       if (historyType === 'tts') {
-        data = await getHistory(100, 0)
+        data = await getHistory(null, 0)
       } else if (historyType === 'music') {
-        data = await getMusicHistory(100, 0)
+        data = await getMusicHistory(null, 0)
       } else if (historyType === 'bark') {
-        data = await getBarkHistory(100, 0)
+        data = await getBarkHistory(null, 0)
       }
 
       setHistory(data.history || [])

@@ -22,7 +22,7 @@ function MusicHistory({ onRestorePrompt }) {
     try {
       setLoading(true)
       setError(null)
-      const data = await getMusicHistory(100, 0)
+      const data = await getMusicHistory(null, 0)
       setHistory(data.history || [])
       setStats(data.stats || null)
     } catch (err) {

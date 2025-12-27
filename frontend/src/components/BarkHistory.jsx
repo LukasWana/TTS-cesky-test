@@ -22,7 +22,7 @@ function BarkHistory({ onRestorePrompt }) {
     try {
       setLoading(true)
       setError(null)
-      const data = await getBarkHistory(100, 0)
+      const data = await getBarkHistory(null, 0)
       setHistory(data.history || [])
       setStats(data.stats || null)
     } catch (err) {

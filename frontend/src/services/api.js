@@ -578,8 +578,12 @@ export async function transcribeReferenceAudio({ voiceFile = null, demoVoice = n
 /**
  * Získá historii generovaných audio souborů
  */
-export async function getHistory(limit = 50, offset = 0) {
-  const response = await fetch(`${API_BASE_URL}/api/history?limit=${limit}&offset=${offset}`)
+export async function getHistory(limit = null, offset = 0) {
+  const params = new URLSearchParams({ offset: String(offset) })
+  if (limit !== null) {
+    params.append('limit', String(limit))
+  }
+  const response = await fetch(`${API_BASE_URL}/api/history?${params.toString()}`)
 
   if (!response.ok) {
     const error = await response.json()
@@ -719,8 +723,12 @@ export function subscribeToMusicProgress(jobId, onProgress, onError) {
 /**
  * Samostatná historie MusicGen
  */
-export async function getMusicHistory(limit = 50, offset = 0) {
-  const response = await fetch(`${API_BASE_URL}/api/music/history?limit=${limit}&offset=${offset}`)
+export async function getMusicHistory(limit = null, offset = 0) {
+  const params = new URLSearchParams({ offset: String(offset) })
+  if (limit !== null) {
+    params.append('limit', String(limit))
+  }
+  const response = await fetch(`${API_BASE_URL}/api/music/history?${params.toString()}`)
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
     throw new Error(error.detail || 'Chyba při načítání hudební historie')
@@ -845,8 +853,12 @@ export function subscribeToBarkProgress(jobId, onProgress, onError) {
 /**
  * Samostatná historie Bark
  */
-export async function getBarkHistory(limit = 50, offset = 0) {
-  const response = await fetch(`${API_BASE_URL}/api/bark/history?limit=${limit}&offset=${offset}`)
+export async function getBarkHistory(limit = null, offset = 0) {
+  const params = new URLSearchParams({ offset: String(offset) })
+  if (limit !== null) {
+    params.append('limit', String(limit))
+  }
+  const response = await fetch(`${API_BASE_URL}/api/bark/history?${params.toString()}`)
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
     throw new Error(error.detail || 'Chyba při načítání historie Bark')
