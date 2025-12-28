@@ -81,26 +81,38 @@ function App() {
     { id: 'history', label: 'Historie', icon: 'scroll' }
   ]
 
+  // Určení jazyka na základě aktivního tabu
+  const getLanguageForTab = (tabId) => {
+    return tabId === 'f5tts' ? 'sk' : 'cs'
+  }
+
+  const currentLanguage = getLanguageForTab(activeTab)
+
   // Reset generovaného audio při změně varianty
   useEffect(() => {
     setGeneratedAudio(null)
     setError(null)
   }, [activeVariant, setGeneratedAudio, setError])
 
-  // Načtení demo hlasů a statusu modelu
+  // Načtení demo hlasů při změně jazyka (activeTab) a statusu modelu
   useEffect(() => {
-    loadDemoVoices()
-    checkModelStatus()
-  }, [])
+    const lang = getLanguageForTab(activeTab)
+    loadDemoVoices(lang)
+    if (activeTab === 'generate') {
+      checkModelStatus()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
-  const loadDemoVoices = async () => {
+  const loadDemoVoices = async (lang = 'cs') => {
     try {
-      const data = await getDemoVoices()
+      const data = await getDemoVoices(lang)
       const voices = data.voices || []
       setDemoVoices(voices)
-      // Nastav první dostupný hlas, pokud je selectedVoice stále 'demo1'
-      if (selectedVoice === 'demo1' && voices.length > 0) {
-        setSelectedVoice(voices[0].id)
+      // Nastav první dostupný hlas, pokud je selectedVoice stále 'demo1' nebo pokud aktuální výběr v novém seznamu neexistuje
+      const hasSelected = selectedVoice && voices.some(v => (v.id || v.name) === selectedVoice)
+      if (voices.length > 0 && (!selectedVoice || selectedVoice === 'demo1' || !hasSelected)) {
+        setSelectedVoice(voices[0].id || voices[0].name)
       }
     } catch (err) {
       console.error('Chyba při načítání demo hlasů:', err)
@@ -131,7 +143,7 @@ function App() {
   const handleVoiceRecord = async (result) => {
     try {
       // Obnovit seznam demo hlasů
-      await loadDemoVoices()
+      await loadDemoVoices(currentLanguage)
 
       // Automaticky přepnout na demo hlas a vybrat nově nahraný hlas
       setVoiceType('demo')
@@ -155,7 +167,7 @@ function App() {
   const handleYouTubeImport = async (result) => {
     try {
       // Obnovit seznam demo hlasů
-      await loadDemoVoices()
+      await loadDemoVoices(currentLanguage)
 
       // Automaticky přepnout na demo hlas a vybrat nově stažený hlas
       setVoiceType('demo')
@@ -248,7 +260,7 @@ function App() {
                   onVoiceRecord={handleVoiceRecord}
                   onYouTubeImport={handleYouTubeImport}
                   voiceQuality={voiceQuality}
-                  language="cs"
+                  language={currentLanguage}
                 />
 
                 <TextInput
