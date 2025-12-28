@@ -304,11 +304,12 @@ if exist "%BACKEND_LOG%" del /q "%BACKEND_LOG%" >nul 2>&1
 
 REM Předání FORCE_DEVICE do backend procesu (pokud je nastaveno)
 REM Pouzit -X utf8 flag misto PYTHONUTF8 env var (aby se vyhnulo konfliktu s globalnim nastavenim)
+REM Poznámka: Používáme Python wrapper script pro barevný výstup a zápis do log souboru
 if defined FORCE_DEVICE (
   echo Device mode: %FORCE_DEVICE%
-  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && set FORCE_DEVICE=%FORCE_DEVICE% && powershell -NoProfile -ExecutionPolicy Bypass -Command ""python -X utf8 main.py 2^>^&1 ^| Tee-Object -FilePath '%BACKEND_LOG%'"""
+  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && set FORCE_DEVICE=%FORCE_DEVICE% && python run_with_logging.py"
 ) else (
-  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && powershell -NoProfile -ExecutionPolicy Bypass -Command ""python -X utf8 main.py 2^>^&1 ^| Tee-Object -FilePath '%BACKEND_LOG%'"""
+  start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && python run_with_logging.py"
 )
 
 REM 9) Pockej, az backend dokonci startup (hlaska z uvicornu)

@@ -10,6 +10,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+from colorama import init, Fore, Style
+
+# Inicializace colorama pro Windows (automaticky detekuje, zda je potřeba)
+# strip=False zajišťuje, že ANSI escape sekvence nebudou odstraněny
+# convert=True převádí ANSI na Windows API volání pro lepší kompatibilitu
+init(autoreset=True, strip=False, convert=True)
 
 from backend.api.middleware import setup_cors
 from backend.api.dependencies import check_f5_tts_availability
@@ -92,31 +98,122 @@ if __name__ == "__main__":
     # Logger pro hlavní aplikaci
     logger = logging.getLogger(__name__)
 
+    # Test barevného výstupu
+    print(f"{Fore.GREEN}✓ Colorama inicializováno{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}DEBUG{Style.RESET_ALL} | {Fore.GREEN}INFO{Style.RESET_ALL} | {Fore.YELLOW}WARNING{Style.RESET_ALL} | {Fore.RED}ERROR{Style.RESET_ALL} | {Fore.MAGENTA}ACCESS{Style.RESET_ALL}")
+
     # Zajistíme, že log adresář existuje
     base_dir = Path(__file__).parent.parent
     logs_dir = base_dir / "logs"
     logs_dir.mkdir(exist_ok=True)
     log_file = logs_dir / "backend.log"
 
+    # Custom formatter s barvami
+    class ColoredFormatter(logging.Formatter):
+        """Formátovač logů s barevným výstupem"""
+        COLORS = {
+            'DEBUG': Fore.CYAN,
+            'INFO': Fore.GREEN,
+            'WARNING': Fore.YELLOW,
+            'ERROR': Fore.RED,
+            'CRITICAL': Fore.RED + Style.BRIGHT,
+        }
+
+        def format(self, record):
+            # Uložit původní hodnoty
+            original_levelname = record.levelname
+            original_msg = record.getMessage()
+
+            # Získat barvu pro úroveň logu
+            log_color = self.COLORS.get(record.levelname, '')
+            reset_color = Style.RESET_ALL
+
+            # Formátovat zprávu normálně
+            formatted = super().format(record)
+
+            # Aplikovat barvy na formátovaný výstup
+            colored_formatted = f"{log_color}{formatted}{reset_color}"
+
+            return colored_formatted
+
     # Nastavení logování s UTF-8 podporou pro Windows
-    logging.basicConfig(
-        level=getattr(logging, CONFIG_LOG_LEVEL.upper(), logging.INFO),
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(str(log_file), encoding='utf-8')  # Soubor s UTF-8
-        ]
-    )
+    # Vytvoření handlerů s error handlingem
+    handlers = []
+
+    # Pokus o vytvoření file handleru (může selhat, pokud je soubor otevřený)
+    try:
+        file_handler = logging.FileHandler(str(log_file), encoding='utf-8', mode='a')  # Append mode
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+        handlers.append(file_handler)
+    except (PermissionError, OSError) as e:
+        # Pokud nelze otevřít log soubor (např. je otevřený v jiném procesu), pouze vypíšeme varování
+        print(f"{Fore.YELLOW}WARNING: Nelze otevřít log soubor {log_file}: {e}")
+        print(f"{Fore.YELLOW}Logy budou zobrazovány pouze v konzoli.{Style.RESET_ALL}")
+
+    # Pokud máme nějaké handlery, použijeme je, jinak použijeme výchozí konfiguraci
+    if handlers:
+        logging.basicConfig(
+            level=getattr(logging, CONFIG_LOG_LEVEL.upper(), logging.INFO),
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=handlers
+        )
+    else:
+        # Pokud nelze vytvořit file handler, použijeme pouze výchozí konfiguraci
+        logging.basicConfig(
+            level=getattr(logging, CONFIG_LOG_LEVEL.upper(), logging.INFO),
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+
+    # Přidat barevný handler pro konzoli
+    console_handler = logging.StreamHandler(sys.stdout)  # Změna z stderr na stdout
+    console_handler.setFormatter(ColoredFormatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+    logging.getLogger().addHandler(console_handler)
 
     # Získání cesty k backend adresáři pro reload
     # Uvicorn potřebuje absolutní cesty pro správnou detekci změn
     backend_dir = Path(__file__).parent.absolute()
 
-    # Uvicorn log config s UTF-8 podporou
+    # Uvicorn log config s UTF-8 podporou a barevným výstupem
+    class UvicornColoredFormatter(logging.Formatter):
+        """Barevný formátovač pro uvicorn logy"""
+        COLORS = {
+            'DEBUG': Fore.CYAN,
+            'INFO': Fore.BLUE,
+            'WARNING': Fore.YELLOW,
+            'ERROR': Fore.RED,
+            'CRITICAL': Fore.RED + Style.BRIGHT,
+        }
+
+        def format(self, record):
+            # Uložit původní hodnoty
+            original_levelname = record.levelname
+
+            # Získat barvu pro úroveň logu
+            log_color = self.COLORS.get(record.levelname, '')
+            reset_color = Style.RESET_ALL
+
+            # Pro uvicorn access logy použij jinou barvu
+            if 'uvicorn.access' in record.name:
+                log_color = Fore.MAGENTA
+                record.levelname = 'ACCESS'
+
+            # Formátovat zprávu normálně
+            formatted = super().format(record)
+
+            # Aplikovat barvy na formátovaný výstup
+            colored_formatted = f"{log_color}{formatted}{reset_color}"
+
+            # Obnovit původní levelname (pro případné další formátování)
+            record.levelname = original_levelname
+
+            return colored_formatted
+
     LOGGING_CONFIG = {
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {
             "default": {
+                "()": UvicornColoredFormatter,
                 "format": "%(asctime)s - %(levelname)s - %(message)s",
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
@@ -125,7 +222,7 @@ if __name__ == "__main__":
             "default": {
                 "formatter": "default",
                 "class": "logging.StreamHandler",
-                "stream": "ext://sys.stderr",
+                "stream": "ext://sys.stdout",  # Změna z stderr na stdout
             },
         },
         "loggers": {
