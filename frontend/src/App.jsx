@@ -10,6 +10,7 @@ import MusicGen from './components/MusicGen'
 import Bark from './components/Bark'
 import F5TTS from './components/F5TTS'
 import AudioEditor from './components/AudioEditor'
+import VoicePreparation from './components/VoicePreparation'
 import Sidebar from './components/Sidebar'
 import Alert from './components/Alert'
 import Button from './components/ui/Button'
@@ -73,7 +74,8 @@ function App() {
   }
 
   const tabs = [
-    { id: 'generate', label: 'české slovo', icon: 'microphone' },
+    { id: 'voicepreparation', label: 'připrava hlasů', icon: 'microphone' },
+    { id: 'generate', label: 'české slovo', icon: 'speaker' },
     { id: 'f5tts', label: 'slovenské slovo', icon: 'speaker' },
     { id: 'musicgen', label: 'hudba', icon: 'music' },
     { id: 'bark', label: 'FX & English', icon: 'speaker' },
@@ -129,7 +131,7 @@ function App() {
   }
 
 
-  const handleVoiceUpload = async (file) => {
+  const handleVoiceUpload = async (file, removeBackground = false) => {
     setUploadedVoice(file)
     setUploadedVoiceFileName(file.name)
     setVoiceType('upload')
@@ -138,6 +140,7 @@ function App() {
     // Poznámka: uploadVoice API zatím nevoláme přímo zde,
     // ale až v handleGenerate pokud je voiceType 'upload'.
     // Pro okamžitou analýzu bychom museli volat uploadVoice dříve.
+    // removeBackground parametr bude předán v handleGenerate při volání uploadVoice API
   }
 
   const handleVoiceRecord = async (result) => {
@@ -157,6 +160,8 @@ function App() {
           const voiceId = result.filename.replace('.wav', '')
           setSelectedVoice(voiceId)
         }
+        // Přepnout na tab "české slovo" po úspěšném nahrání
+        setActiveTab('generate')
       }, 500)
     } catch (err) {
       console.error('Chyba při načítání nahraného hlasu:', err)
@@ -179,6 +184,8 @@ function App() {
       setTimeout(() => {
         const filename = result.filename.replace('.wav', '')
         setSelectedVoice(filename)
+        // Přepnout na tab "české slovo" po úspěšném nahrání
+        setActiveTab('generate')
       }, 500)
 
     } catch (err) {
@@ -246,19 +253,24 @@ function App() {
             )}
           </div>
 
+          {activeTab === 'voicepreparation' && (
+            <VoicePreparation
+              onVoiceUpload={handleVoiceUpload}
+              onVoiceRecord={handleVoiceRecord}
+              onYouTubeImport={handleYouTubeImport}
+              uploadedVoiceFileName={uploadedVoiceFileName}
+              voiceQuality={voiceQuality}
+              language={currentLanguage}
+            />
+          )}
+
           {activeTab === 'generate' && (
             <div className={`generate-layout ${!showSettings ? 'full-width' : ''}`}>
               <div className="generate-content">
                 <VoiceSelector
                   demoVoices={demoVoices}
                   selectedVoice={selectedVoice}
-                  voiceType={voiceType}
-                  uploadedVoiceFileName={uploadedVoiceFileName}
                   onVoiceSelect={setSelectedVoice}
-                  onVoiceTypeChange={setVoiceType}
-                  onVoiceUpload={handleVoiceUpload}
-                  onVoiceRecord={handleVoiceRecord}
-                  onYouTubeImport={handleYouTubeImport}
                   voiceQuality={voiceQuality}
                   language={currentLanguage}
                 />

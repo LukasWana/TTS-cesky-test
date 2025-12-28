@@ -649,13 +649,7 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
           <VoiceSelector
             selectedVoice={selectedVoice}
             onVoiceSelect={setSelectedVoice}
-            voiceType={voiceType}
-            onVoiceTypeChange={setVoiceType}
             demoVoices={demoVoices}
-            onVoiceUpload={handleVoiceUpload}
-            onVoiceRecord={handleVoiceRecord}
-            onYouTubeImport={handleYouTubeImport}
-            uploadedVoiceFileName={uploadedVoiceFileName}
             voiceQuality={voiceQuality}
             language={language}
           />
