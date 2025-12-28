@@ -3,849 +3,102 @@ import WaveSurfer from 'wavesurfer.js'
 import './AudioEditor.css'
 import { getHistory, getMusicHistory, getBarkHistory } from '../services/api'
 import { getWaveformCache, setWaveformCache } from '../utils/waveformCache'
+import LayerWaveform from './audioEditor/LayerWaveform'
+import HistoryItemPreview from './audioEditor/HistoryItemPreview'
+import { useLayers } from '../hooks/useLayers'
+import { useTimeline } from '../hooks/useTimeline'
 
 // Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome
 const API_BASE_URL = 'http://127.0.0.1:8000'
 const STORAGE_KEY = 'audio_editor_state'
 const PROJECTS_STORAGE_KEY = 'audio_editor_projects'
 
-// Komponenta pro waveform náhled v klipu
-const LayerWaveform = React.memo(function LayerWaveform({
-  layerId,
-  audioUrl,
-  blobUrl,
-  audioBuffer,
-  trimStart = 0,
-  trimEnd = 0,
-  duration = 0,
-  loop = false,
-  startTime = 0,
-  loopAnchorTime = null,
-  fadeIn = 0,
-  fadeOut = 0,
-  isSelected = false,
-  onFadeInChange = null,
-  onFadeOutChange = null,
-  onReady
-}) {
-
-  const renderWaveformDataUrl = useCallback((buffer, tStart, tEnd) => {
-    try {
-      if (!buffer) return null
-      const width = 300
-      const height = 40
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return null
-
-      ctx.clearRect(0, 0, width, height)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'
-      ctx.fillRect(0, 0, width, height)
-
-      const sr = buffer.sampleRate
-      const ch0 = buffer.getChannelData(0)
-      const ch1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null
-
-      const s0 = Math.max(0, Math.min(ch0.length - 1, Math.floor(tStart * sr)))
-      const s1 = Math.max(s0 + 1, Math.min(ch0.length, Math.floor(tEnd * sr)))
-      const sliceLen = s1 - s0
-      const step = Math.max(1, Math.floor(sliceLen / width))
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)'
-      ctx.lineWidth = 1
-      const mid = height / 2
-      const padding = 2 // Padding aby waveform nešel až na okraj
-
-      // Nejprve najít max absolutní amplitudu v celém segmentu pro grafickou normalizaci
-      let globalMaxAmplitude = 0
-      for (let i = s0; i < s1; i++) {
-        const raw = ch1 ? (ch0[i] + ch1[i]) / 2 : ch0[i]
-        const abs = Math.abs(raw)
-        if (abs > globalMaxAmplitude) globalMaxAmplitude = abs
-      }
-
-      // Vypočítat normalizační faktor: škálovat tak, aby vyplnil výšku (s paddingem)
-      const availableHeight = (height / 2) - padding
-      const scale = globalMaxAmplitude > 0 ? availableHeight / globalMaxAmplitude : 1
-
-      // Renderovat waveform s grafickou normalizací na výšku
-      for (let x = 0; x < width; x++) {
-        const start = s0 + (x * step)
-        const end = Math.min(s1, start + step)
-        let min = 1
-        let max = -1
-        for (let i = start; i < end; i++) {
-          const raw = ch1 ? (ch0[i] + ch1[i]) / 2 : ch0[i]
-          const v = Math.max(-1, Math.min(1, raw))
-          if (v < min) min = v
-          if (v > max) max = v
-        }
-        // Aplikovat škálování pro vyplnění výšky canvasu
-        const y1 = mid - (max * scale)
-        const y2 = mid - (min * scale)
-        ctx.beginPath()
-        ctx.moveTo(x + 0.5, y1)
-        ctx.lineTo(x + 0.5, y2)
-        ctx.stroke()
-      }
-
-      return canvas.toDataURL('image/png')
-    } catch (e) {
-      console.error('Chyba při renderu waveform dataURL:', e)
-      return null
-    }
-  }, [])
-
-  // Pokud je loop aktivní, vykresli opakující se pattern (i když je klip stejně dlouhý jako cyklus)
-  const shouldUseRepeatWaveform = loop && audioBuffer && (trimEnd - trimStart) > 0.05
-  const repeatWaveformUrl = useMemo(() => {
-    if (!shouldUseRepeatWaveform) return null
-    return renderWaveformDataUrl(audioBuffer, trimStart, trimEnd)
-  }, [shouldUseRepeatWaveform, audioBuffer, trimStart, trimEnd, renderWaveformDataUrl])
-
-  // Statický waveform pro non-loop (výrazně levnější než WaveSurfer, a hlavně nemizí při re-renderech)
-  const staticWaveformUrl = useMemo(() => {
-    if (!audioBuffer) return null
-    const len = trimEnd - trimStart
-    if (!(len > 0.01)) return null
-    // Pro loop používáme repeatWaveformUrl výše
-    if (shouldUseRepeatWaveform) return null
-    return renderWaveformDataUrl(audioBuffer, trimStart, trimEnd)
-  }, [audioBuffer, trimStart, trimEnd, shouldUseRepeatWaveform, renderWaveformDataUrl])
-
-  // Debug: zkontrolovat, proč se repeat waveform nezobrazuje
-  if (loop && !audioBuffer) {
-    console.warn('LayerWaveform: loop je true, ale audioBuffer není předán', { layerId, loop, hasAudioBuffer: !!audioBuffer })
-  }
-  if (loop && audioBuffer && (trimEnd - trimStart) <= 0.05) {
-    console.warn('LayerWaveform: loop je true, ale trimEnd - trimStart je příliš malé', {
-      layerId,
-      trimStart,
-      trimEnd,
-      diff: trimEnd - trimStart
-    })
-  }
-
-  // Vypočítat fade procenta pro vizualizaci
-  const trimmedDuration = Math.max(0.01, trimEnd - trimStart)
-  const fadeInPercent = trimmedDuration > 0 ? Math.min(100, (fadeIn / trimmedDuration) * 100) : 0
-  const fadeOutPercent = trimmedDuration > 0 ? Math.min(100, (fadeOut / trimmedDuration) * 100) : 0
-
-
-  // Render fade overlay
-  const renderFadeOverlay = () => {
-    if (fadeIn <= 0 && fadeOut <= 0) return null
-    return (
-      <div
-        className="fade-overlay"
-        style={{
-          background: `linear-gradient(
-            to right,
-            rgba(0, 0, 0, 0.4) 0%,
-            rgba(0, 0, 0, 0.4) ${fadeInPercent}%,
-            transparent ${fadeInPercent}%,
-            transparent ${100 - fadeOutPercent}%,
-            rgba(0, 0, 0, 0.4) ${100 - fadeOutPercent}%,
-            rgba(0, 0, 0, 0.4) 100%
-          )`,
-          pointerEvents: 'none'
-        }}
-      />
-    )
-  }
-
-  // Render fade handles
-  const renderFadeHandles = () => {
-    if (!isSelected || (!onFadeInChange && !onFadeOutChange)) return null
-    return (
-      <>
-        {fadeIn > 0 && onFadeInChange && (
-          <div
-            className="fade-handle fade-handle-in"
-            style={{ left: `${fadeInPercent}%` }}
-            onMouseDown={(e) => {
-              e.stopPropagation()
-              const startX = e.clientX
-              const startFadeIn = fadeIn
-              const rect = e.currentTarget.closest('.layer-clip')?.getBoundingClientRect()
-              if (!rect) return
-
-              const handleMouseMove = (moveE) => {
-                const deltaX = moveE.clientX - startX
-                const deltaPercent = (deltaX / rect.width) * 100
-                const deltaTime = (deltaPercent / 100) * trimmedDuration
-                const newFadeIn = Math.max(0, Math.min(trimmedDuration - fadeOut, startFadeIn + deltaTime))
-                onFadeInChange(newFadeIn)
-              }
-
-              const handleMouseUp = () => {
-                document.removeEventListener('mousemove', handleMouseMove)
-                document.removeEventListener('mouseup', handleMouseUp)
-              }
-
-              document.addEventListener('mousemove', handleMouseMove)
-              document.addEventListener('mouseup', handleMouseUp)
-            }}
-            title={`Fade In: ${fadeIn.toFixed(2)}s`}
-          />
-        )}
-        {fadeOut > 0 && onFadeOutChange && (
-          <div
-            className="fade-handle fade-handle-out"
-            style={{ right: `${fadeOutPercent}%` }}
-            onMouseDown={(e) => {
-              e.stopPropagation()
-              const startX = e.clientX
-              const startFadeOut = fadeOut
-              const rect = e.currentTarget.closest('.layer-clip')?.getBoundingClientRect()
-              if (!rect) return
-
-              const handleMouseMove = (moveE) => {
-                const deltaX = moveE.clientX - startX
-                const deltaPercent = (deltaX / rect.width) * 100
-                const deltaTime = (deltaPercent / 100) * trimmedDuration
-                const newFadeOut = Math.max(0, Math.min(trimmedDuration - fadeIn, startFadeOut - deltaTime))
-                onFadeOutChange(newFadeOut)
-              }
-
-              const handleMouseUp = () => {
-                document.removeEventListener('mousemove', handleMouseMove)
-                document.removeEventListener('mouseup', handleMouseUp)
-              }
-
-              document.addEventListener('mousemove', handleMouseMove)
-              document.addEventListener('mouseup', handleMouseUp)
-            }}
-            title={`Fade Out: ${fadeOut.toFixed(2)}s`}
-          />
-        )}
-      </>
-    )
-  }
-
-  if (shouldUseRepeatWaveform && repeatWaveformUrl) {
-    const cycle = Math.max(0.05, (trimEnd - trimStart))
-    const tilePercent = Math.max(1, (cycle / Math.max(duration, 0.001)) * 100)
-    // Fáze: kde v cyklu jsme na levém okraji klipu (t = startTime)
-    const anchor = loopAnchorTime ?? startTime
-    const phaseSeconds = ((startTime - anchor) % cycle + cycle) % cycle
-    const phasePercentOfTile = (phaseSeconds / cycle) * 100
-
-    return (
-      <div className="layer-waveform-wrapper">
-        <div
-          className="layer-waveform layer-waveform-repeat"
-          style={{
-            backgroundImage: `url(${repeatWaveformUrl})`,
-            backgroundRepeat: 'repeat-x',
-            backgroundSize: `${tilePercent}% 100%`,
-            backgroundPositionX: `${-phasePercentOfTile}%`,
-            backgroundPositionY: '0'
-          }}
-        />
-        {renderFadeOverlay()}
-        {renderFadeHandles()}
-      </div>
-    )
-  }
-
-  if (staticWaveformUrl) {
-    return (
-      <div className="layer-waveform-wrapper">
-        <div
-          className="layer-waveform"
-          style={{
-            backgroundImage: `url(${staticWaveformUrl})`,
-            backgroundRepeat: 'no-repeat',
-            backgroundSize: '100% 100%',
-            backgroundPosition: '0 0'
-          }}
-        />
-        {renderFadeOverlay()}
-        {renderFadeHandles()}
-      </div>
-    )
-  }
-
-  // Fallback: pokud nemáme buffer, zobraz placeholder (lepší než spouštět WaveSurfer na každém re-renderu editoru)
-  return <div className="layer-waveform layer-waveform-placeholder" />
-}, (prev, next) => {
-  return (
-    prev.audioBuffer === next.audioBuffer &&
-    prev.trimStart === next.trimStart &&
-    prev.trimEnd === next.trimEnd &&
-    prev.duration === next.duration &&
-    prev.loop === next.loop &&
-    prev.startTime === next.startTime &&
-    prev.loopAnchorTime === next.loopAnchorTime &&
-    prev.fadeIn === next.fadeIn &&
-    prev.fadeOut === next.fadeOut &&
-    prev.isSelected === next.isSelected
-  )
-})
-
-// Komponenta pro náhled položky v historii
-const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAddToEditor }) {
-  const waveformRef = useRef(null)
-  const wavesurferRef = useRef(null)
-  const containerRef = useRef(null)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [hasError, setHasError] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [shouldLoad, setShouldLoad] = useState(false)
-  const errorTimeoutRef = useRef(null)
-  const observerRef = useRef(null)
-
-  const audioUrl = entry?.audio_url
-  const prompt = entry?.text || entry?.prompt || 'Bez popisu'
-
-  // Validace a vytvoření full URL
-  const fullUrl = React.useMemo(() => {
-    if (!audioUrl) {
-      return null
-    }
-    if (audioUrl.startsWith('http://') || audioUrl.startsWith('https://')) {
-      return audioUrl
-    }
-    // Zajistit, že URL začíná lomítkem
-    const normalizedUrl = audioUrl.startsWith('/') ? audioUrl : `/${audioUrl}`
-    return `${API_BASE_URL}${normalizedUrl}`
-  }, [audioUrl])
-
-  // Načíst cached peaks bez setState (nechceme re-initovat WaveSurfer)
-  const cached = useMemo(() => (audioUrl ? getWaveformCache(audioUrl) : null), [audioUrl])
-  const cachedPeaks = cached?.peaks
-  const cachedDuration = cached?.duration
-
-  const [durationSec, setDurationSec] = useState(
-    typeof cachedDuration === 'number' && cachedDuration > 0 ? cachedDuration : 0
-  )
-
-  useEffect(() => {
-    setDurationSec(typeof cachedDuration === 'number' && cachedDuration > 0 ? cachedDuration : 0)
-  }, [cachedDuration, audioUrl])
-
-  const formatDurationMMSS = (time) => {
-    const t = Math.max(0, Math.floor(Number(time) || 0))
-    const minutes = Math.floor(t / 60)
-    const seconds = Math.floor(t % 60)
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`
-  }
-
-  // Canvas overlay odstraněn - WaveSurfer už renderuje waveform sám
-
-  // Intersection Observer pro lazy loading - načítat pouze viditelné položky
-  useEffect(() => {
-    if (!containerRef.current || !fullUrl) {
-      setIsLoading(false)
-      return
-    }
-
-    // Vytvořit observer pro detekci, kdy je prvek viditelný
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            // Prvek je viditelný - začít načítat waveform
-            setShouldLoad(true)
-            // Odpojit observer, už není potřeba
-            if (observerRef.current && containerRef.current) {
-              observerRef.current.unobserve(containerRef.current)
-            }
-          }
-        })
-      },
-      {
-        rootMargin: '100px', // Začít načítat 100px před tím, než je prvek viditelný
-        threshold: 0.01
-      }
-    )
-
-    observerRef.current.observe(containerRef.current)
-
-    return () => {
-      if (observerRef.current && containerRef.current) {
-        observerRef.current.unobserve(containerRef.current)
-      }
-    }
-  }, [fullUrl])
-
-  // Načíst waveform pouze když je prvek viditelný (shouldLoad = true)
-  useEffect(() => {
-    if (!waveformRef.current || !fullUrl || !shouldLoad) {
-      return
-    }
-
-    // Reset states při novém načítání
-    setHasError(false)
-    setIsLoading(true)
-
-    // Vyčistit předchozí timeout
-    if (errorTimeoutRef.current) {
-      clearTimeout(errorTimeoutRef.current)
-      errorTimeoutRef.current = null
-    }
-
-    let wavesurfer = null
-
-    try {
-      wavesurfer = WaveSurfer.create({
-        container: waveformRef.current,
-        waveColor: 'rgba(255, 255, 255, 0.25)',
-        progressColor: 'rgba(99, 102, 241, 0.6)',
-        cursorColor: 'transparent',
-        // Pozn.: barWidth/barGap/barRadius přepínají renderer do „sloupců“ (barcode look).
-        // Pro náhledy chceme plynulý průběh jako v editoru -> necháme default waveform renderer.
-        responsive: true,
-        height: 40,
-        normalize: true,
-        interact: false,
-        // Preview: MediaElement backend je výrazně lehčí než WebAudio decode pro waveform list
-        backend: 'MediaElement',
-        partialRender: true
-      })
-
-      wavesurferRef.current = wavesurfer
-
-      // Handler pro úspěšné načtení - uložit peaks do cache
-      wavesurfer.on('ready', () => {
-        setHasError(false)
-        setIsLoading(false)
-
-        // Uložit peaks do cache pro budoucí použití
-        try {
-          if (audioUrl) {
-            // v7: exportPeaks vrací Array<number[]> (per channel)
-            // maxLength odvodíme od šířky pro lepší kvalitu cache a detailnější zobrazení
-            // precision zvýšena na 6 pro zachování plynulých hodnot (místo binary 0/1)
-            const width = waveformRef.current?.clientWidth || 260
-            const maxLength = Math.max(600, Math.min(2000, Math.floor(width * 4)))
-            const exported = wavesurfer.exportPeaks?.({
-              channels: 1,
-              maxLength,
-              precision: 6
-            })
-            const duration = wavesurfer.getDuration?.()
-            if (Array.isArray(exported) && exported.length > 0 && Array.isArray(exported[0]) && exported[0].length > 0 && typeof duration === 'number' && duration > 0) {
-              setWaveformCache(audioUrl, {
-                peaks: exported,
-                duration,
-                timestamp: Date.now()
-              })
-              setDurationSec(duration)
-            }
-          }
-        } catch (e) {
-          console.warn('Chyba při ukládání peaks do cache:', e)
-        }
-
-        // Zrušit timeout pro chybu, pokud existuje
-        if (errorTimeoutRef.current) {
-          clearTimeout(errorTimeoutRef.current)
-          errorTimeoutRef.current = null
-        }
-      })
-
-      // Error handling - pouze skutečné chyby
-      wavesurfer.on('error', (error) => {
-        // Ignorovat některé běžné chyby, které se mohou objevit při cleanup
-        if (error && typeof error === 'object') {
-          const errorMessage = error.message || error.toString()
-          // Ignorovat chyby související s cleanup nebo abort
-          if (errorMessage.includes('AbortError') ||
-              errorMessage.includes('NotAllowedError') ||
-              errorMessage.includes('cancelLoad')) {
-            return
-          }
-        }
-        console.error('WaveSurfer error při načítání audio:', error, fullUrl)
-        setIsLoading(false)
-        setHasError(true)
-      })
-
-      wavesurfer.on('play', () => setIsPlaying(true))
-      wavesurfer.on('pause', () => setIsPlaying(false))
-      wavesurfer.on('finish', () => setIsPlaying(false))
-
-      // Timeout pro detekci pomalého načítání (10 sekund)
-      errorTimeoutRef.current = setTimeout(() => {
-        if (isLoading) {
-          console.warn('Audio se načítá příliš dlouho:', fullUrl)
-          // Nezobrazit chybu, jen logovat - možná se ještě načte
-        }
-      }, 10000)
-
-      // Načíst audio
-      try {
-        // Největší win: pokud máme cached peaks + duration, WaveSurfer vykreslí waveform okamžitě
-        const hasCached = Array.isArray(cachedPeaks) && cachedPeaks.length > 0 && Array.isArray(cachedPeaks[0]) && typeof cachedDuration === 'number'
-
-        // Downsample peaks stabilně: pro každý bucket vezmi vzorek s největší |amplitudou|
-        // a zachovej znaménko. Abs-only dělá waveform „potichu" a vizuálně divný.
-        const downsample = (arr, targetLen) => {
-          if (!Array.isArray(arr) || targetLen <= 0) return arr
-          if (arr.length <= targetLen) return arr
-          const out = new Array(targetLen)
-          const step = arr.length / targetLen
-          for (let i = 0; i < targetLen; i++) {
-            const start = Math.floor(i * step)
-            const end = Math.min(arr.length, Math.floor((i + 1) * step))
-            let best = 0
-            for (let j = start; j < end; j++) {
-              const v = arr[j] || 0
-              if (Math.abs(v) > Math.abs(best)) best = v
-            }
-            out[i] = best
-          }
-          return out
-        }
-
-        // Normalizace peaks na výšku: najít globální max a škálovat všechny hodnoty
-        // Stejná logika jako v editoru - waveform vyplní celou výšku
-        const normalizePeaksToHeight = (peaks) => {
-          if (!Array.isArray(peaks) || peaks.length === 0) return peaks
-          if (!Array.isArray(peaks[0])) return peaks
-
-          // Najít max absolutní hodnotu v celém peaks array
-          let maxAbs = 0
-          for (let ch = 0; ch < peaks.length; ch++) {
-            const channel = peaks[ch]
-            if (Array.isArray(channel)) {
-              for (let i = 0; i < channel.length; i++) {
-                const abs = Math.abs(channel[i] || 0)
-                if (abs > maxAbs) maxAbs = abs
-              }
-            }
-          }
-
-          // Pokud není co normalizovat, vrátit původní peaks
-          if (maxAbs <= 0) return peaks
-
-          // Stejná logika jako v LayerWaveform: vyplnit výšku s paddingem 2px
-          // DŮLEŽITÉ: WaveSurfer očekává peaks v rozsahu -1 až 1, takže musíme škálovat
-          // v rámci tohoto rozsahu, ne na pixely
-          const height = 40
-          const padding = 2
-          const maxHeight = height / 2 // = 20px (maximální výška na jednu stranu)
-          const availableHeight = maxHeight - padding // = 18px (dostupná výška s paddingem)
-          const heightRatio = availableHeight / maxHeight // = 0.9 (90% výšky)
-          const scale = maxAbs > 0 ? heightRatio / maxAbs : 1
-
-          // Aplikovat škálování na všechny hodnoty (výsledek bude v rozsahu -0.9 až 0.9)
-          const normalized = peaks.map(channel => {
-            if (!Array.isArray(channel)) return channel
-            return channel.map(v => (v || 0) * scale)
-          })
-
-          return normalized
-        }
-        const getMaxPeaks = () => {
-          const width = waveformRef.current?.clientWidth || 260
-          // Plynulý waveform potřebuje víc bodů než sloupce.
-          // Držíme to rozumně kvůli velikosti cache a výkonu.
-          return Math.max(600, Math.min(2000, Math.floor(width * 4)))
-        }
-
-        let peaksToUse = cachedPeaks
-        if (hasCached) {
-          const maxPeaks = getMaxPeaks()
-          const ch0 = cachedPeaks[0]
-          if (Array.isArray(ch0) && ch0.length > maxPeaks) {
-            // Downsampling pro optimalizaci
-            peaksToUse = [downsample(ch0, maxPeaks)]
-          } else if (Array.isArray(ch0)) {
-            // Použít cached peaks přímo
-            peaksToUse = cachedPeaks
-          }
-        }
-
-        const loadPromise = hasCached
-          ? wavesurfer.load(fullUrl, peaksToUse, cachedDuration)
-          : wavesurfer.load(fullUrl)
-        if (loadPromise && typeof loadPromise.catch === 'function') {
-          loadPromise.catch((error) => {
-            // Ignorovat abort chyby
-            if (error && error.name &&
-                (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
-              return
-            }
-            console.error('Chyba při načítání audio URL:', error, fullUrl)
-            setIsLoading(false)
-            setHasError(true)
-          })
-        }
-      } catch (loadError) {
-        // Ignorovat abort chyby
-        if (loadError && loadError.name &&
-            (loadError.name === 'AbortError' || loadError.name === 'NotAllowedError')) {
-          return
-        }
-        console.error('Chyba při volání load():', loadError, fullUrl)
-        setIsLoading(false)
-        setHasError(true)
-      }
-
-      return () => {
-        // Vyčistit timeout
-        if (errorTimeoutRef.current) {
-          clearTimeout(errorTimeoutRef.current)
-          errorTimeoutRef.current = null
-        }
-
-        if (wavesurferRef.current) {
-          try {
-            // Zastavit přehrávání
-            if (wavesurferRef.current.isPlaying && wavesurferRef.current.isPlaying()) {
-              wavesurferRef.current.pause()
-            }
-            // Zastavit načítání, pokud probíhá
-            if (wavesurferRef.current.isLoading && wavesurferRef.current.cancelLoad) {
-              try {
-                wavesurferRef.current.cancelLoad()
-              } catch (e) {
-                // Ignorovat chyby při cancelLoad
-              }
-            }
-            // Zničit instanci
-            const destroyResult = wavesurferRef.current.destroy()
-            if (destroyResult && typeof destroyResult.catch === 'function') {
-              destroyResult.catch((e) => {
-                // Ignorovat všechny cleanup chyby
-                if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
-                  console.debug('Cleanup warning:', e)
-                }
-              })
-            }
-          } catch (e) {
-            // Ignorovat všechny cleanup chyby
-            if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
-              console.debug('Cleanup warning:', e)
-            }
-          }
-          wavesurferRef.current = null
-        }
-      }
-    } catch (err) {
-      console.error('Chyba při vytváření WaveSurfer instance:', err)
-      setIsLoading(false)
-      setHasError(true)
-    }
-  }, [fullUrl, shouldLoad, audioUrl, cachedPeaks, cachedDuration])
-
-  const togglePlay = (e) => {
-    e.stopPropagation()
-    if (wavesurferRef.current && !hasError) {
-      try {
-        wavesurferRef.current.playPause()
-      } catch (error) {
-        console.error('Chyba při přehrávání:', error)
-        setHasError(true)
-      }
-    }
-  }
-
-  const handleClick = (e) => {
-    // Pokud klikneme na play button, nechceme přidat do editoru
-    if (e.target.closest('.history-item-play-btn')) {
-      return
-    }
-    if (onAddToEditor) onAddToEditor(entry)
-  }
-
-  // Pokud není audio URL, nezobrazovat waveform
-  if (!audioUrl || !fullUrl) {
-    return (
-      <div className="history-item-compact" onClick={handleClick}>
-        <div className="history-item-compact-text">
-          {prompt}
-        </div>
-        <div className="history-item-error" style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '8px' }}>
-          Audio není k dispozici
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className="history-item-compact"
-      onClick={handleClick}
-    >
-      <div className="history-item-waveform-container">
-        <button
-          className="history-item-play-btn"
-          onClick={togglePlay}
-          title={isPlaying ? 'Pauza' : 'Přehrát'}
-          disabled={hasError || isLoading || !shouldLoad}
-        >
-          {hasError ? '⚠️' : (isLoading && !shouldLoad ? '⏳' : (isPlaying ? '⏸' : '▶'))}
-        </button>
-        {!shouldLoad ? (
-          <div className="history-item-waveform-placeholder" style={{
-            flex: 1,
-            minHeight: '40px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'rgba(255, 255, 255, 0.3)',
-            fontSize: '0.7rem'
-          }}>
-            Načítání...
-          </div>
-        ) : hasError ? (
-          <div className="history-item-waveform-error" style={{
-            flex: 1,
-            minHeight: '40px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'rgba(255, 255, 255, 0.4)',
-            fontSize: '0.75rem'
-          }}>
-            Chyba při načítání
-          </div>
-        ) : (
-          <div className="history-item-waveform" ref={waveformRef}></div>
-        )}
-        {!hasError && typeof durationSec === 'number' && durationSec > 0 && (
-          <div className="history-item-duration-badge" title="Celkový čas souboru">
-            {formatDurationMMSS(durationSec)}
-          </div>
-        )}
-      </div>
-      <div className="history-item-compact-text">
-        {prompt}
-      </div>
-    </div>
-  )
-}, (prevProps, nextProps) => {
-  // Optimalizace: re-render pouze pokud se změnilo entry.id nebo entry.audio_url
-  return prevProps.entry?.id === nextProps.entry?.id &&
-         prevProps.entry?.audio_url === nextProps.entry?.audio_url &&
-         (prevProps.entry?.text || prevProps.entry?.prompt) === (nextProps.entry?.text || nextProps.entry?.prompt)
-})
+// LayerWaveform and HistoryItemPreview are now imported from separate files
 
 function AudioEditor() {
-  const [layers, setLayers] = useState([])
-  const [selectedLayerId, setSelectedLayerId] = useState(null)
-  const [expandedLayerId, setExpandedLayerId] = useState(null) // ID vrstvy s otevřeným panelem nastavení
+  // Audio context a playback refs
+  const audioContextRef = useRef(null)
+  const masterGainNodeRef = useRef(null)
+  const analyserNodeRef = useRef(null)
+  const sourceNodesRef = useRef({})
+  const gainNodesRef = useRef({})
+  const animationFrameRef = useRef(null)
+  const playbackStartTimeRef = useRef(0)
+  const pausedTimeRef = useRef(0)
+  const isLoadingStateRef = useRef(false)
+  const saveTimeoutRef = useRef(null)
+  const didHydrateFromStorageRef = useRef(false)
+  const fileInputRef = useRef(null)
+
+  // Playback state
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [masterVolume, setMasterVolume] = useState(1.0)
   const [masterLevel, setMasterLevel] = useState({ left: 0, right: 0 })
   const [playbackPosition, setPlaybackPosition] = useState(0)
-  const [manualMaxDuration, setManualMaxDuration] = useState(null) // null = auto (dle vrstev)
-  const [isEditingMaxDuration, setIsEditingMaxDuration] = useState(false)
-  const [maxDurationInput, setMaxDurationInput] = useState('')
-  const [timelineZoom, setTimelineZoom] = useState(1) // 1..10
-  const [timelineBaseWidthPx, setTimelineBaseWidthPx] = useState(0)
-  const [timelineHover, setTimelineHover] = useState({ visible: false, percent: 0, time: 0 })
-  const [draggingClip, setDraggingClip] = useState(null)
-  const [resizingClip, setResizingClip] = useState(null)
-  const [historyType, setHistoryType] = useState('all') // 'all' | 'tts' | 'f5tts' | 'music' | 'bark'
+  const [manualMaxDuration, setManualMaxDuration] = useState(null)
+
+  // History state
+  const [historyType, setHistoryType] = useState('all')
   const [history, setHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [showHistory, setShowHistory] = useState(true)
+
+  // Projects state
   const [savedProjects, setSavedProjects] = useState([])
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [currentProjectId, setCurrentProjectId] = useState(null)
   const [isExporting, setIsExporting] = useState(false)
 
-  const audioContextRef = useRef(null)
-  const masterGainNodeRef = useRef(null)
-  const analyserNodeRef = useRef(null)
-  const sourceNodesRef = useRef({})
-  const gainNodesRef = useRef({}) // Uložení gain nodes pro každou vrstvu (objekt: { envelopeGain, volumeGain })
-  const animationFrameRef = useRef(null)
-  const playbackStartTimeRef = useRef(0)
-  const pausedTimeRef = useRef(0)
-  const timelineRef = useRef(null) // scroll kontejner
-  const timelineContentRef = useRef(null) // vnitřní obsah s měnitelnou šířkou
-  const timelineRulerRef = useRef(null)
-  const maxDurationInputRef = useRef(null)
-  const dragStartXRef = useRef(0)
-  const dragStartTimeRef = useRef(0)
-  const isLoadingStateRef = useRef(false)
-  const saveTimeoutRef = useRef(null)
-  const layerIdCounterRef = useRef(0) // Counter pro unikátní ID
-  const didHydrateFromStorageRef = useRef(false) // ochrana proti dvojitému běhu useEffect v React.StrictMode (DEV)
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false)
 
-  const computedMaxDuration = useMemo(() => {
-    const max = layers.reduce((acc, layer) => {
-      const endTime = (layer?.startTime || 0) + (layer?.duration || 0)
-      return Math.max(acc, endTime)
-    }, 0)
-    return Math.max(max, 10) // Minimálně 10 sekund
-  }, [layers])
+  // Použít hooks pro layers a timeline
+  const layersHook = useLayers()
+  const {
+    layers,
+    setLayers,
+    selectedLayerId,
+    setSelectedLayerId,
+    expandedLayerId,
+    setExpandedLayerId,
+    addLayer: addLayerFromHook,
+    addLayerFromHistory: addLayerFromHistoryHook,
+    updateLayer,
+    deleteLayer: deleteLayerFromHook
+  } = layersHook
 
-  const maxDuration = useMemo(() => {
-    if (typeof manualMaxDuration === 'number' && Number.isFinite(manualMaxDuration) && manualMaxDuration > 0) {
-      return Math.max(computedMaxDuration, manualMaxDuration)
-    }
-    return computedMaxDuration
-  }, [computedMaxDuration, manualMaxDuration])
-
-  const timelineContentWidthPx = useMemo(() => {
-    const base = Math.max(300, timelineBaseWidthPx || 0)
-    const z = Math.max(1, Math.min(10, Number(timelineZoom) || 1))
-    return Math.max(base, Math.floor(base * z))
-  }, [timelineBaseWidthPx, timelineZoom])
-
-  const clamp01 = (v) => Math.max(0, Math.min(1, v))
-
-  const getTimelinePercentFromClientX = (clientX) => {
-    const scrollEl = timelineRef.current
-    const contentEl = timelineContentRef.current
-    const contentWidth = contentEl?.clientWidth || timelineContentWidthPx || 1
-    if (!scrollEl || !Number.isFinite(contentWidth) || contentWidth <= 0) return 0
-    const rect = scrollEl.getBoundingClientRect()
-    const x = (clientX - rect.left) + (scrollEl.scrollLeft || 0)
-    return clamp01(x / contentWidth)
-  }
-
-  const formatTimeMMSS = (time) => {
-    const total = Math.max(0, Math.floor(time || 0))
-    const minutes = Math.floor(total / 60)
-    const seconds = total % 60
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`
-  }
-
-  const getNiceStep = (minStepSec) => {
-    const candidates = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
-    for (const c of candidates) {
-      if (c >= minStepSec) return c
-    }
-    return candidates[candidates.length - 1]
-  }
-
-  const timelineTicks = useMemo(() => {
-    const durationSec = Math.max(1, Math.ceil(maxDuration))
-    const widthPx = Math.max(1, timelineContentWidthPx)
-    const pxPerSecond = widthPx / durationSec
-
-    const minLabelPx = 90 // cíleně větší, aby se popisky nikdy neslévaly
-    const majorStepSec = getNiceStep(minLabelPx / Math.max(pxPerSecond, 0.0001))
-    const minorStepSec = majorStepSec >= 10 ? Math.max(1, Math.floor(majorStepSec / 5)) : majorStepSec
-
-    const ticks = []
-    for (let s = 0; s <= durationSec; s += minorStepSec) {
-      const isMajor = (s % majorStepSec) === 0
-      ticks.push({
-        sec: s,
-        percent: (s / durationSec) * 100,
-        isMajor
-      })
-    }
-    // vždy přidat poslední tick na konci (pro přesný konec i když minorStep nesedí)
-    if (ticks.length === 0 || ticks[ticks.length - 1].sec !== durationSec) {
-      ticks.push({ sec: durationSec, percent: 100, isMajor: true })
-    }
-    return { ticks, majorStepSec, minorStepSec }
-  }, [maxDuration, timelineContentWidthPx])
+  const timelineHook = useTimeline(layers, manualMaxDuration)
+  const {
+    timelineZoom,
+    setTimelineZoom,
+    timelineBaseWidthPx,
+    setTimelineBaseWidthPx,
+    timelineHover,
+    setTimelineHover,
+    draggingClip,
+    setDraggingClip,
+    resizingClip,
+    setResizingClip,
+    isEditingMaxDuration,
+    setIsEditingMaxDuration,
+    maxDurationInput,
+    setMaxDurationInput,
+    timelineRef,
+    timelineContentRef,
+    timelineRulerRef,
+    maxDurationInputRef,
+    dragStartXRef,
+    dragStartTimeRef,
+    computedMaxDuration,
+    maxDuration,
+    timelineContentWidthPx,
+    timelineTicks,
+    getTimelinePercentFromClientX,
+    formatTimeMMSS,
+    clamp01
+  } = timelineHook
 
   // Načtení seznamu projektů
   useEffect(() => {
@@ -1265,61 +518,8 @@ function AudioEditor() {
     }
   }
 
-  // Načtení audio souboru z URL
-  const loadAudioFromUrl = useCallback(async (audioUrl) => {
-    try {
-      let fullUrl = audioUrl
-      if (!audioUrl.startsWith('http')) {
-        fullUrl = `${API_BASE_URL}${audioUrl.startsWith('/') ? audioUrl : '/' + audioUrl}`
-      }
-
-      const response = await fetch(fullUrl)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const arrayBuffer = await response.arrayBuffer()
-      if (!audioContextRef.current) {
-        throw new Error('AudioContext není inicializován')
-      }
-
-      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer)
-      return audioBuffer
-    } catch (err) {
-      console.error('Chyba při načítání audio z URL:', err, audioUrl)
-      throw err
-    }
-  }, [])
-
-  // Načtení audio souboru
-  const loadAudioFile = async (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = async (e) => {
-        try {
-          const arrayBuffer = e.target.result
-          const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer)
-          resolve(audioBuffer)
-        } catch (err) {
-          reject(err)
-        }
-      }
-      reader.onerror = reject
-      reader.readAsArrayBuffer(file)
-    })
-  }
-
-  // Vytvoření blob URL z AudioBuffer
-  const createBlobUrl = async (audioBuffer) => {
-    try {
-      const wav = await audioBufferToWav(audioBuffer)
-      const blob = new Blob([wav], { type: 'audio/wav' })
-      return URL.createObjectURL(blob)
-    } catch (err) {
-      console.error('Chyba při vytváření blob URL:', err)
-      return null
-    }
-  }
+  // loadAudioFromUrl, loadAudioFile a createBlobUrl jsou nyní v useLayers hooku
+  // Používáme je přes wrapper funkce
 
   // Export projektu jako WAV soubor
   const exportProjectAsWav = async () => {
@@ -1512,79 +712,28 @@ function AudioEditor() {
     return buffer2
   }
 
-  // Přidání nové vrstvy z historie
-  const addLayerFromHistory = useCallback(async (entry) => {
+  // Wrapper funkce pro addLayer a addLayerFromHistory, které používají hooks
+  const addLayer = useCallback(async (file) => {
     try {
-      const audioBuffer = await loadAudioFromUrl(entry.audio_url)
-      const duration = audioBuffer.duration
-
-      const name = entry.filename || entry.audio_url.split('/').pop() || 'Audio z historie'
-      const sourceInfo = entry.sourceLabel || ''
-
-      const newLayer = {
-        id: `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`,
-        name: `${sourceInfo} - ${name}`,
-        file: null,
-        audioBuffer: audioBuffer,
-        audioUrl: entry.audio_url,
-        startTime: 0,
-        duration: duration,
-        volume: 1.0,
-        fadeIn: 0,
-        fadeOut: 0,
-        trimStart: 0,
-        trimEnd: duration,
-        loop: false, // Loopování zvuku
-        loopAnchorTime: 0,
-        historyEntry: entry
-      }
-
-      setLayers(prevLayers => [...prevLayers, newLayer])
-      setSelectedLayerId(prev => (prev === null ? newLayer.id : prev))
-    } catch (err) {
-      console.error('Chyba při načítání audio z historie:', err)
-      alert('Chyba při načítání audio souboru z historie')
-    }
-  }, [loadAudioFromUrl])
-
-  // Přidání nové vrstvy
-  const addLayer = async (file) => {
-    try {
-      const audioBuffer = await loadAudioFile(file)
-      const duration = audioBuffer.duration
-
-      // Vytvořit blob URL pro WaveSurfer
-      const blobUrl = await createBlobUrl(audioBuffer)
-
-      const newLayer = {
-        id: `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`,
-        name: file.name,
-        file: file,
-        audioBuffer: audioBuffer,
-        blobUrl: blobUrl,
-        startTime: 0,
-        duration: duration,
-        volume: 1.0,
-        fadeIn: 0,
-        fadeOut: 0,
-        trimStart: 0,
-        trimEnd: duration,
-        loop: false, // Loopování zvuku
-        loopAnchorTime: 0
-      }
-
-      setLayers(prevLayers => [...prevLayers, newLayer])
-      if (selectedLayerId === null) {
-        setSelectedLayerId(newLayer.id)
-      }
+      await addLayerFromHook(file, audioContextRef, audioBufferToWav, sourceNodesRef, gainNodesRef)
     } catch (err) {
       console.error('Chyba při načítání audio:', err)
       alert('Chyba při načítání audio souboru')
     }
-  }
+  }, [addLayerFromHook])
 
-  // Drag and drop
-  const [isDragging, setIsDragging] = useState(false)
+  const addLayerFromHistory = useCallback(async (entry) => {
+    try {
+      await addLayerFromHistoryHook(entry, audioContextRef, sourceNodesRef, gainNodesRef)
+    } catch (err) {
+      console.error('Chyba při načítání audio z historie:', err)
+      alert('Chyba při načítání audio souboru z historie')
+    }
+  }, [addLayerFromHistoryHook])
+
+  const deleteLayer = useCallback((layerId) => {
+    deleteLayerFromHook(layerId, sourceNodesRef, gainNodesRef)
+  }, [deleteLayerFromHook])
 
   const handleDragOver = (e) => {
     e.preventDefault()
@@ -1609,8 +758,7 @@ function AudioEditor() {
     }
   }
 
-  // File input
-  const fileInputRef = useRef(null)
+  // fileInputRef je už definován výše
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files).filter(file =>
       file.type.startsWith('audio/')
@@ -1625,93 +773,8 @@ function AudioEditor() {
     }
   }
 
-  // Aktualizace vrstvy
-  const updateLayer = (layerId, updates) => {
-    setLayers(prev =>
-      prev.map(layer => {
-        if (layer.id !== layerId) return layer
-
-        const next = { ...layer, ...updates }
-
-        // Validace fade in/out hodnot
-        if (updates.fadeIn !== undefined || updates.fadeOut !== undefined) {
-          const trimmedDuration = Math.max(0.01, (next.trimEnd || 0) - (next.trimStart || 0))
-          const fadeIn = next.fadeIn || 0
-          const fadeOut = next.fadeOut || 0
-
-          // Zajistit, aby fade in + fade out nepřesáhly trimmedDuration
-          if (fadeIn + fadeOut > trimmedDuration) {
-            if (updates.fadeIn !== undefined) {
-              // Pokud se mění fadeIn, upravit fadeOut
-              next.fadeIn = Math.max(0, Math.min(trimmedDuration, fadeIn))
-              next.fadeOut = Math.max(0, Math.min(trimmedDuration - next.fadeIn, fadeOut))
-            } else if (updates.fadeOut !== undefined) {
-              // Pokud se mění fadeOut, upravit fadeIn
-              next.fadeOut = Math.max(0, Math.min(trimmedDuration, fadeOut))
-              next.fadeIn = Math.max(0, Math.min(trimmedDuration - next.fadeOut, fadeIn))
-            }
-          } else {
-            // Omezit jednotlivé hodnoty na trimmedDuration
-            next.fadeIn = Math.max(0, Math.min(trimmedDuration, fadeIn))
-            next.fadeOut = Math.max(0, Math.min(trimmedDuration, fadeOut))
-          }
-        }
-
-        // Když zapínáme loop a není anchor nebo je 0, ukotvit na aktuální startTime
-        if (updates.loop === true) {
-          // Pokud loopAnchorTime není nastavený nebo je 0 (což je default hodnota), nastavit na startTime
-          if (layer.loopAnchorTime === undefined || layer.loopAnchorTime === null || layer.loopAnchorTime === 0) {
-            next.loopAnchorTime = layer.startTime
-          }
-        }
-        // Když vypínáme loop, můžeme nechat anchor (pro případné znovu zapnutí)
-
-        return next
-      })
-    )
-  }
-
-  // Smazání vrstvy
-  const deleteLayer = (layerId) => {
-    setLayers(prevLayers => {
-      const layer = prevLayers.find(l => l.id === layerId)
-      if (!layer) return prevLayers
-
-      // Zastavit přehrávání této vrstvy PRVNÍ
-      if (sourceNodesRef.current[layerId]) {
-        try {
-          sourceNodesRef.current[layerId].stop()
-        } catch (e) {}
-        delete sourceNodesRef.current[layerId]
-      }
-      if (gainNodesRef.current[layerId]) {
-        delete gainNodesRef.current[layerId]
-      }
-
-      // Cleanup blob URL
-      if (layer.blobUrl) {
-        try {
-          URL.revokeObjectURL(layer.blobUrl)
-        } catch (e) {
-          console.error('Chyba při revokování blob URL:', e)
-        }
-      }
-
-      // Vrátit nový seznam bez smazané vrstvy
-      const newLayers = prevLayers.filter(l => l.id !== layerId)
-
-      // Aktualizovat vybranou vrstvu
-      if (selectedLayerId === layerId) {
-        if (newLayers.length > 0) {
-          setSelectedLayerId(newLayers[0].id)
-        } else {
-          setSelectedLayerId(null)
-        }
-      }
-
-      return newLayers
-    })
-  }
+  // updateLayer a deleteLayer jsou nyní v useLayers hooku
+  // Používáme je přímo z hooku
 
   // Drag klipu na časové ose
   const handleClipMouseDown = (e, layerId, isLeftHandle = false, isRightHandle = false) => {

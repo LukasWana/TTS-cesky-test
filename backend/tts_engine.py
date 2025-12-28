@@ -16,6 +16,10 @@ import backend.config as config
 from num2words import num2words
 from TTS.tts.layers.xtts import tokenizer as xtts_tokenizer
 
+from backend.tts.text_processor import TextProcessor
+from backend.tts.model_manager import ModelManager
+from backend.tts.quality_control import QualityControl
+
 # Potlačení deprecation warning z librosa (pkg_resources je zastaralé, ale knihovna ho ještě používá)
 warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*", category=UserWarning)
 from backend.config import (
@@ -70,317 +74,80 @@ class XTTSEngine:
     """Wrapper pro XTTS-v2 TTS engine"""
 
     def __init__(self):
-        self.model: Optional[TTS] = None
         self.device = DEVICE
-        self.is_loading = False
-        self.is_loaded = False
         self.vocoder = get_hifigan_vocoder()
-        # None = ještě nezkoušeno, False = není dostupné, jinak tokenizer instance
-        self._bpe_tokenizer = None
+
+        # Komponenty
+        self.model_manager = ModelManager(device=self.device)
+        self.text_processor = TextProcessor(model=None)  # Model se nastaví po načtení
+        self.quality_control = QualityControl()
+
+        # Backward compatibility properties
+        self.model = None  # Bude nastaveno z model_manager
+        self.is_loading = False  # Bude nastaveno z model_manager
+        self.is_loaded = False  # Bude nastaveno z model_manager
+        self._bpe_tokenizer = None  # Bude nastaveno z text_processor
+
+    @property
+    def model(self):
+        """Backward compatibility property"""
+        return self.model_manager.model
+
+    @model.setter
+    def model(self, value):
+        """Backward compatibility setter"""
+        self.model_manager.model = value
+        self.text_processor.model = value
+
+    @property
+    def is_loading(self):
+        """Backward compatibility property"""
+        return self.model_manager.is_loading
+
+    @is_loading.setter
+    def is_loading(self, value):
+        """Backward compatibility setter"""
+        self.model_manager.is_loading = value
+
+    @property
+    def is_loaded(self):
+        """Backward compatibility property"""
+        return self.model_manager.is_loaded
+
+    @is_loaded.setter
+    def is_loaded(self, value):
+        """Backward compatibility setter"""
+        self.model_manager.is_loaded = value
 
     def _get_bpe_tokenizer(self):
-        """
-        Vytvoří/vrátí XTTS BPE tokenizer (stejný tokenizer.json jako upstream XTTS).
-        Používá se pro počítání tokenů a bezpečné dělení textu pod limit 400 tokenů.
-        """
-        if self._bpe_tokenizer is False:
-            return None
-        if self._bpe_tokenizer is not None:
-            return self._bpe_tokenizer
-
-        def _silence_len_warnings(tok_obj):
-            # VoiceBpeTokenizer.encode() volá check_input_length(), která printuje warningy
-            # při překročení char limitu (typicky 186 pro cs). To je pro nás při token-countingu
-            # velmi hlučné a není to chyba, takže to ztišíme.
-            try:
-                if hasattr(tok_obj, "check_input_length"):
-                    tok_obj.check_input_length = lambda *_args, **_kwargs: None
-            except Exception:
-                pass
-
-        # 1) Zkus tokenizer přímo z modelu (nejspolehlivější)
-        try:
-            if self.model is not None and hasattr(self.model, "synthesizer"):
-                tts_model = getattr(self.model.synthesizer, "tts_model", None)
-                model_tokenizer = getattr(tts_model, "tokenizer", None)
-                if model_tokenizer is not None:
-                    _silence_len_warnings(model_tokenizer)
-                    self._bpe_tokenizer = model_tokenizer
-                    return self._bpe_tokenizer
-        except Exception:
-            pass
-
-        # 2) Fallback: tokenizer.json z balíčku (ne všechny instalace ho bohužel obsahují)
-        try:
-            candidate = Path(getattr(xtts_tokenizer, "DEFAULT_VOCAB_FILE", "")).resolve()
-            if not candidate.exists():
-                # V některých build/instalacích je tokenizer.json uložen v assets (tortoise)
-                base_tts_dir = Path(xtts_tokenizer.__file__).resolve().parents[2]  # .../TTS/tts
-                alt = base_tts_dir / "utils" / "assets" / "tortoise" / "tokenizer.json"
-                if alt.exists():
-                    candidate = alt.resolve()
-
-            if candidate.exists():
-                tok = xtts_tokenizer.VoiceBpeTokenizer(str(candidate))
-                _silence_len_warnings(tok)
-                self._bpe_tokenizer = tok
-                return self._bpe_tokenizer
-        except Exception as e:
-            print(f"Warning: XTTS tokenizer init failed: {e}")
-
-        # 3) Nedostupné → necháme None a nebudeme znovu zkoušet (bez spamování warningů)
-        self._bpe_tokenizer = False
-        return None
+        """Backward compatibility wrapper"""
+        return self.text_processor._get_bpe_tokenizer()
 
     def _count_xtts_tokens(self, text: str, language: str = "cs") -> Optional[int]:
-        """Vrátí počet XTTS tokenů pro daný text, nebo None pokud se to nepovede."""
-        tok = self._get_bpe_tokenizer()
-        if tok is None:
-            return None
-        try:
-            # VoiceBpeTokenizer má encode(txt, lang) → ids
-            if hasattr(tok, "encode"):
-                return len(tok.encode(text, language))
-        except Exception:
-            return None
-        return None
+        """Backward compatibility wrapper"""
+        return self.text_processor.count_xtts_tokens(text, language)
 
     def _split_text_by_xtts_tokens(self, text: str, language: str = "cs") -> List[str]:
         """
         Rozseká text tak, aby žádný chunk nepřekročil config.XTTS_TARGET_MAX_TOKENS.
         Preferuje dělení na koncích vět, pak na slovech, a nakonec nouzově po znacích.
         """
-        max_tokens = getattr(config, "XTTS_TARGET_MAX_TOKENS", 380)
-        text = re.sub(r"\s+", " ", (text or "").strip())
-        if not text:
-            return []
-
-        # Pokud tokenizer není dostupný, drž se konzervativního char splitu (bez overlap = žádné opakování)
-        if self._get_bpe_tokenizer() is None:
-            try:
-                from backend.text_splitter import TextSplitter
-                return TextSplitter.split_text(text, max_length=MAX_CHUNK_LENGTH, overlap=0)
-            except Exception:
-                # úplný fallback: hrubé dělení po MAX_CHUNK_LENGTH znacích
-                return [text[i:i + MAX_CHUNK_LENGTH].strip() for i in range(0, len(text), MAX_CHUNK_LENGTH) if text[i:i + MAX_CHUNK_LENGTH].strip()]
-
-        n = self._count_xtts_tokens(text, language)
-        if n is not None and n <= max_tokens:
-            return [text]
-
-        def split_hard_by_chars(s: str) -> List[str]:
-            out: List[str] = []
-            s = s.strip()
-            if not s:
-                return out
-            start = 0
-            while start < len(s):
-                # binární vyhledání nejdelšího prefixu, který se vejde do token budgetu
-                lo = start + 1
-                hi = len(s)
-                best = None
-                while lo <= hi:
-                    mid = (lo + hi) // 2
-                    part = s[start:mid].strip()
-                    if not part:
-                        lo = mid + 1
-                        continue
-                    tn = self._count_xtts_tokens(part, language)
-                    if tn is None:
-                        # fallback: když selže tokenizer, řežeme po MAX_CHUNK_LENGTH znacích
-                        best = min(start + MAX_CHUNK_LENGTH, len(s))
-                        break
-                    if tn <= max_tokens:
-                        best = mid
-                        lo = mid + 1
-                    else:
-                        hi = mid - 1
-
-                if best is None:
-                    best = start + 1
-                chunk = s[start:best].strip()
-                if chunk:
-                    out.append(chunk)
-                start = best
-            return out
-
-        def split_by_words(sentence: str) -> List[str]:
-            words = [w for w in sentence.strip().split(" ") if w]
-            out: List[str] = []
-            cur = ""
-            for w in words:
-                cand = w if not cur else f"{cur} {w}"
-                tn = self._count_xtts_tokens(cand, language)
-                if tn is not None and tn <= max_tokens:
-                    cur = cand
-                    continue
-
-                if cur:
-                    out.append(cur)
-                    cur = w
-                    # Pokud i samotné slovo/fragment přetéká, řež tvrdě
-                    if (self._count_xtts_tokens(cur, language) or (max_tokens + 1)) > max_tokens:
-                        out.extend(split_hard_by_chars(cur))
-                        cur = ""
-                else:
-                    out.extend(split_hard_by_chars(w))
-                    cur = ""
-
-            if cur:
-                out.append(cur)
-            return out
-
-        # Primárně dělení na věty
-        sentences = re.split(r"(?<=[.!?…])\s+", text)
-        chunks: List[str] = []
-        cur = ""
-        for s in sentences:
-            s = (s or "").strip()
-            if not s:
-                continue
-            cand = s if not cur else f"{cur} {s}"
-            tn = self._count_xtts_tokens(cand, language)
-            if tn is not None and tn <= max_tokens:
-                cur = cand
-                continue
-
-            if cur:
-                chunks.append(cur)
-                cur = ""
-
-            # samotná věta je dlouhá → rozdělit podle slov / nouzově po znacích
-            if (self._count_xtts_tokens(s, language) or (max_tokens + 1)) <= max_tokens:
-                cur = s
-            else:
-                chunks.extend(split_by_words(s))
-
-        if cur:
-            chunks.append(cur)
-
-        # Poslední pojistka: kdyby cokoli přeteklo (např. tokenizer None), dořež
-        safe_chunks: List[str] = []
-        for ch in chunks:
-            tn = self._count_xtts_tokens(ch, language)
-            if tn is None or tn <= max_tokens:
-                safe_chunks.append(ch)
-            else:
-                safe_chunks.extend(split_hard_by_chars(ch))
-
-        return [c for c in safe_chunks if c.strip()]
+        """Backward compatibility wrapper"""
+        return self.text_processor.split_text_by_xtts_tokens(text, language)
 
     async def load_model(self):
         """Načte XTTS-v2 model asynchronně"""
-        if self.is_loaded:
-            return
-
-        if self.is_loading:
-            # Počkej až se model načte
-            while self.is_loading:
-                await asyncio.sleep(0.5)
-            return
-
-        self.is_loading = True
-
-        try:
-            print(f"Loading XTTS-v2 on {self.device}...")
-
-            # Načtení modelu v thread poolu (TTS není async)
-            loop = asyncio.get_event_loop()
-            self.model = await loop.run_in_executor(
-                None,
-                self._load_model_sync
-            )
-
-            self.is_loaded = True
-            print("Model loaded successfully!")
-
-        except Exception as e:
-            print(f"Error loading model: {str(e)}")
-            raise
-        finally:
-            self.is_loading = False
+        await self.model_manager.load_model()
+        # Aktualizuj text_processor s načteným modelem
+        self.text_processor.model = self.model_manager.model
 
     def _load_model_sync(self) -> TTS:
-        """Synchronní načtení modelu z Hugging Face nebo lokální cache"""
-        print(f"Loading model: {XTTS_MODEL_NAME}")
-        print("Model bude stažen z Hugging Face, pokud není v cache...")
-
-        try:
-            # Zkus nejprve TTS registry název (stabilnější)
-            if XTTS_MODEL_NAME.startswith("coqui/"):
-                # Převod z Hugging Face formátu na TTS registry
-                model_name = "tts_models/multilingual/multi-dataset/xtts_v2"
-                print(f"Trying TTS registry name: {model_name}")
-            else:
-                model_name = XTTS_MODEL_NAME
-
-            # Načtení modelu s explicitním nastavením
-            # Použijeme GPU pouze pokud je device nastaven na "cuda"
-            use_gpu = (self.device == "cuda" and torch.cuda.is_available())
-            model = TTS(
-                model_name=model_name,
-                progress_bar=True
-            )
-
-            # Optimalizace pro GPU s omezenou VRAM (6GB)
-            if use_gpu and (USE_SMALL_MODELS or ENABLE_CPU_OFFLOAD):
-                print("Applying GPU memory optimizations for 6GB VRAM...")
-                if hasattr(model, 'synthesizer') and hasattr(model.synthesizer, 'tts_model'):
-                    # Offload části modelu na CPU pokud je potřeba
-                    if ENABLE_CPU_OFFLOAD:
-                        print("CPU offload enabled - parts of model will be on CPU")
-
-            # Explicitní přesun na device
-            if hasattr(model, 'to'):
-                model.to(self.device)
-            elif hasattr(model, 'model') and hasattr(model.model, 'to'):
-                model.model.to(self.device)
-
-            return model
-
-        except Exception as e1:
-            print(f"First attempt failed: {str(e1)}")
-            # Fallback: zkus přímo Hugging Face model
-            try:
-                print(f"Trying direct Hugging Face model: {XTTS_MODEL_NAME}")
-                # Použijeme GPU pouze pokud je device nastaven na "cuda"
-                use_gpu = (self.device == "cuda" and torch.cuda.is_available())
-                model = TTS(
-                    model_name=XTTS_MODEL_NAME,
-                    progress_bar=True
-                )
-                if hasattr(model, 'to'):
-                    model.to(self.device)
-                elif hasattr(model, 'model') and hasattr(model.model, 'to'):
-                    model.model.to(self.device)
-                return model
-            except Exception as e2:
-                print(f"Both attempts failed. Error 1: {str(e1)}, Error 2: {str(e2)}")
-                raise Exception(f"Failed to load model: {str(e2)}")
+        """Backward compatibility wrapper"""
+        return self.model_manager._load_model_sync()
 
     def _apply_quality_preset(self, preset: str) -> dict:
-        """
-        Aplikuje quality preset na TTS parametry
-
-        Args:
-            preset: Název presetu (high_quality, natural, fast, meditative, whisper)
-
-        Returns:
-            Slovník s TTS parametry
-        """
-        preset_config = QUALITY_PRESETS.get(preset, QUALITY_PRESETS["natural"])
-
-        # Vrátit pouze TTS parametry (bez enhancement)
-        tts_params = {
-            "speed": preset_config.get("speed", 1.0),
-            "temperature": preset_config.get("temperature", 0.7),
-            "length_penalty": preset_config.get("length_penalty", 1.0),
-            "repetition_penalty": preset_config.get("repetition_penalty", 2.0),
-            "top_k": preset_config.get("top_k", 50),
-            "top_p": preset_config.get("top_p", 0.85)
-        }
-
-        return tts_params
+        """Backward compatibility wrapper"""
+        return self.quality_control.apply_quality_preset(preset)
 
     def _compute_effective_settings(
         self,
@@ -445,62 +212,26 @@ class XTTSEngine:
             "target_headroom_db": OUTPUT_HEADROOM_DB,
         }
 
-        # Načti TTS parametry z quality_mode presetu (pokud existuje)
-        preset_tts = {}
-        preset_enhancement = {}
-        if quality_mode and quality_mode in QUALITY_PRESETS:
-            preset_config = QUALITY_PRESETS[quality_mode]
-            preset_tts = self._apply_quality_preset(quality_mode)
-            preset_enhancement = preset_config.get("enhancement", {})
-
-        # Načti enhancement z enhancement_preset (pokud je to quality preset a quality_mode není nastaven)
-        elif enhancement_preset and enhancement_preset in QUALITY_PRESETS:
-            preset_config = QUALITY_PRESETS[enhancement_preset]
-            preset_enhancement = preset_config.get("enhancement", {})
-
-        # Sestav efektivní TTS parametry (explicitní > preset > výchozí)
-        effective_tts = {
-            "speed": speed if speed is not None else (preset_tts.get("speed") if preset_tts else defaults["speed"]),
-            "temperature": temperature if temperature is not None else (preset_tts.get("temperature") if preset_tts else defaults["temperature"]),
-            "length_penalty": length_penalty if length_penalty is not None else (preset_tts.get("length_penalty") if preset_tts else defaults["length_penalty"]),
-            "repetition_penalty": repetition_penalty if repetition_penalty is not None else (preset_tts.get("repetition_penalty") if preset_tts else defaults["repetition_penalty"]),
-            "top_k": top_k if top_k is not None else (preset_tts.get("top_k") if preset_tts else defaults["top_k"]),
-            "top_p": top_p if top_p is not None else (preset_tts.get("top_p") if preset_tts else defaults["top_p"]),
-        }
-
-        # Speciální pravidlo pro speed: pokud je quality_mode meditative/whisper a speed není explicitně zadán,
-        # použij speed z presetu (pro meditative/whisper je to důležité pro správný efekt)
-        if quality_mode in ("meditative", "whisper") and speed is None:
-            effective_tts["speed"] = preset_tts.get("speed", defaults["speed"])
-
-        # Sestav efektivní enhancement parametry (explicitní > preset > výchozí)
-        # Mapování názvů: enable_noise_reduction -> enable_denoiser, enable_compression -> enable_compressor
-        effective_enhancement = {
-            "enable_eq": enable_eq if enable_eq is not None else (preset_enhancement.get("enable_eq", defaults["enable_eq"])),
-            "enable_denoiser": enable_denoiser if enable_denoiser is not None else (preset_enhancement.get("enable_noise_reduction", defaults["enable_denoiser"])),
-            "enable_compressor": enable_compressor if enable_compressor is not None else (preset_enhancement.get("enable_compression", defaults["enable_compressor"])),
-            "enable_deesser": enable_deesser if enable_deesser is not None else (preset_enhancement.get("enable_deesser", defaults["enable_deesser"])),
-            "enable_trim": enable_trim if enable_trim is not None else defaults["enable_trim"],
-            "enable_normalization": enable_normalization if enable_normalization is not None else (preset_enhancement.get("enable_normalization", defaults["enable_normalization"])),
-        }
-
-        # Whisper efekt (z presetu nebo explicitní)
-        effective_whisper = {
-            "enable_whisper": enable_whisper if enable_whisper is not None else (preset_enhancement.get("enable_whisper", defaults["enable_whisper"])),
-            "whisper_intensity": whisper_intensity if whisper_intensity is not None else (preset_enhancement.get("whisper_intensity", defaults["whisper_intensity"])),
-        }
-
-        # Headroom (preset může mít target_headroom_db, jinak globální)
-        effective_headroom = {
-            "target_headroom_db": target_headroom_db if target_headroom_db is not None else (preset_enhancement.get("target_headroom_db", defaults["target_headroom_db"])),
-        }
-
-        return {
-            "tts": effective_tts,
-            "enhancement": effective_enhancement,
-            "whisper": effective_whisper,
-            "headroom": effective_headroom,
-        }
+        """Backward compatibility wrapper"""
+        return self.quality_control.compute_effective_settings(
+            quality_mode=quality_mode,
+            enhancement_preset=enhancement_preset,
+            speed=speed,
+            temperature=temperature,
+            length_penalty=length_penalty,
+            repetition_penalty=repetition_penalty,
+            top_k=top_k,
+            top_p=top_p,
+            enable_eq=enable_eq,
+            enable_denoiser=enable_denoiser,
+            enable_compressor=enable_compressor,
+            enable_deesser=enable_deesser,
+            enable_normalization=enable_normalization,
+            enable_trim=enable_trim,
+            enable_whisper=enable_whisper,
+            whisper_intensity=whisper_intensity,
+            target_headroom_db=target_headroom_db,
+        )
 
     async def generate(
         self,
@@ -1012,8 +743,7 @@ class XTTSEngine:
 
             # Předzpracování textu pro češtinu - převod čísel na slova
             # TTS knihovna má problém s num2words pro češtinu, takže převedeme čísla ručně
-            from backend.cs_pipeline import preprocess_czech_text
-            processed_text = preprocess_czech_text(
+            processed_text = self.text_processor.preprocess_text(
                 text,
                 language,
                 enable_dialect_conversion=enable_dialect_conversion,
@@ -1762,43 +1492,7 @@ class XTTSEngine:
         Args:
             demo_voice_path: Cesta k demo hlasu pro warmup
         """
-        if not self.is_loaded:
-            await self.load_model()
-
-        if demo_voice_path and Path(demo_voice_path).exists():
-            try:
-                # Použij výchozí parametry pro warmup
-                from backend.config import (
-                    TTS_SPEED,
-                    TTS_TEMPERATURE,
-                    TTS_LENGTH_PENALTY,
-                    TTS_REPETITION_PENALTY,
-                    TTS_TOP_K,
-                    TTS_TOP_P,
-                    OUTPUTS_DIR
-                )
-                # Generuj warmup audio s krátkým textem
-                warmup_output = await self.generate(
-                    text="Warmup.",
-                    speaker_wav=demo_voice_path,
-                    language="cs",
-                    speed=TTS_SPEED,
-                    temperature=TTS_TEMPERATURE,
-                    length_penalty=TTS_LENGTH_PENALTY,
-                    repetition_penalty=TTS_REPETITION_PENALTY,
-                    top_k=TTS_TOP_K,
-                    top_p=TTS_TOP_P
-                )
-                # Smazat warmup soubor, aby se neukládal do historie
-                warmup_path = Path(warmup_output)
-                if warmup_path.exists():
-                    try:
-                        warmup_path.unlink()
-                    except Exception:
-                        pass  # Ignoruj chyby při mazání
-                print("Model warmup dokončen")
-            except Exception as e:
-                print(f"Warmup selhal: {str(e)}")
+        await self.model_manager.warmup(demo_voice_path, generate_func=self.generate)
 
     async def generate_multi_pass(
         self,
@@ -2527,14 +2221,5 @@ class XTTSEngine:
 
     def get_status(self) -> dict:
         """Vrátí status modelu"""
-        return {
-            "loaded": self.is_loaded,
-            "loading": self.is_loading,
-            "device": self.device,
-            "cuda_available": torch.cuda.is_available(),
-            "device_forced": DEVICE_FORCED,
-            "force_device": FORCE_DEVICE,
-            "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
-            "hifigan_available": self.vocoder.available if hasattr(self, 'vocoder') else False
-        }
+        return self.model_manager.get_status(vocoder=self.vocoder)
 

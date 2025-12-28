@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import VoiceSelector from './components/VoiceSelector'
 import TextInput from './components/TextInput'
 import AudioRecorder from './components/AudioRecorder'
@@ -14,350 +14,63 @@ import Sidebar from './components/Sidebar'
 import Alert from './components/Alert'
 import Button from './components/ui/Button'
 import Icon from './components/ui/Icons'
-import { generateSpeech, getDemoVoices, getModelStatus, getTtsProgress, subscribeToTtsProgress } from './services/api'
+import { getDemoVoices, getModelStatus } from './services/api'
+import { useTTSSettings } from './hooks/useTTSSettings'
+import { useVariantManager } from './hooks/useVariantManager'
+import { useTextVersions } from './hooks/useTextVersions'
+import { useTTSProgress } from './hooks/useTTSProgress'
+import { useTTSGeneration } from './hooks/useTTSGeneration'
+import { getDefaultSlotSettings } from './constants/ttsDefaults'
 import './App.css'
 
-// Výchozí hodnoty TTS parametrů (základní)
-const BASE_TTS_SETTINGS = {
-  speed: 1.0,
-  temperature: 0.7,
-  lengthPenalty: 1.0,
-  repetitionPenalty: 2.0,
-  topK: 50,
-  topP: 0.85,
-  seed: null
-}
-
-const BASE_QUALITY_SETTINGS = {
-  qualityMode: null,
-  enhancementPreset: 'natural',
-  enableEnhancement: true,
-  // Nové možnosti:
-  multiPass: false,
-  multiPassCount: 3,
-  enableVad: true,
-  enableBatch: true,
-  useHifigan: false,
-  // HiFi-GAN nastavení
-  hifiganRefinementIntensity: 1.0,
-  hifiganNormalizeOutput: true,
-  hifiganNormalizeGain: 0.95,
-  // Normalizace (RMS/peak + limiter) může působit "přebuzile" – necháme defaultně vypnuté
-  enableNormalization: false,
-  enableDenoiser: true,
-  // Komprese často dělá "nalezlý/přebuzelý" pocit – necháme defaultně vypnuté
-  enableCompressor: false,
-  enableDeesser: true,
-  // EQ (zvýraznění řečového pásma) může působit "přebuzile"/ostře – necháme defaultně vypnuté
-  enableEq: false,
-  enableTrim: true,
-  // Dialect conversion
-  enableDialectConversion: false,
-  dialectCode: null,
-  dialectIntensity: 1.0,
-  // Whisper efekt
-  whisperIntensity: 1.0,
-  // Headroom
-  targetHeadroomDb: -15.0
-}
-
-// Defaultní nastavení pro sloty P1-P5
-const DEFAULT_SLOT_SETTINGS = {
-  variant1: { // P1 - Vysoká kvalita
-    ttsSettings: {
-      speed: 1.0,
-      temperature: 0.5,
-      lengthPenalty: 1.2,
-      repetitionPenalty: 2.5,
-      topK: 30,
-      topP: 0.8,
-      seed: null
-    },
-    qualitySettings: {
-      qualityMode: 'high_quality',
-      enhancementPreset: 'high_quality',
-      enableEnhancement: true,
-      multiPass: false,
-      multiPassCount: 3,
-      enableVad: true,
-      enableBatch: true,
-      useHifigan: false,
-      hifiganRefinementIntensity: 1.0,
-      hifiganNormalizeOutput: true,
-      hifiganNormalizeGain: 0.95,
-      enableNormalization: true,
-      enableDenoiser: true,
-      enableCompressor: true,
-      enableDeesser: true,
-      enableEq: true,
-      enableTrim: true,
-      enableDialectConversion: false,
-      dialectCode: null,
-      dialectIntensity: 1.0,
-      whisperIntensity: 1.0,
-      targetHeadroomDb: -15.0
-    }
-  },
-  variant2: { // P2 - Přirozený
-    ttsSettings: {
-      speed: 1.0,
-      temperature: 0.7,
-      lengthPenalty: 1.0,
-      repetitionPenalty: 2.0,
-      topK: 50,
-      topP: 0.85,
-      seed: null
-    },
-    qualitySettings: {
-      qualityMode: 'natural',
-      enhancementPreset: 'natural',
-      enableEnhancement: true,
-      multiPass: false,
-      multiPassCount: 3,
-      enableVad: true,
-      enableBatch: true,
-      useHifigan: false,
-      hifiganRefinementIntensity: 1.0,
-      hifiganNormalizeOutput: true,
-      hifiganNormalizeGain: 0.95,
-      enableNormalization: false,
-      enableDenoiser: false,
-      enableCompressor: true,
-      enableDeesser: true,
-      enableEq: true,
-      enableTrim: true,
-      enableDialectConversion: false,
-      dialectCode: null,
-      dialectIntensity: 1.0,
-      whisperIntensity: 1.0,
-      targetHeadroomDb: -15.0
-    }
-  },
-  variant3: { // P3 - Rychlý
-    ttsSettings: {
-      speed: 1.0,
-      temperature: 0.8,
-      lengthPenalty: 1.0,
-      repetitionPenalty: 2.0,
-      topK: 60,
-      topP: 0.9,
-      seed: null
-    },
-    qualitySettings: {
-      qualityMode: 'fast',
-      enhancementPreset: 'fast',
-      enableEnhancement: true,
-      multiPass: false,
-      multiPassCount: 3,
-      enableVad: true,
-      enableBatch: true,
-      useHifigan: false,
-      hifiganRefinementIntensity: 1.0,
-      hifiganNormalizeOutput: true,
-      hifiganNormalizeGain: 0.95,
-      enableNormalization: false,
-      enableDenoiser: false,
-      enableCompressor: true,
-      enableDeesser: false,
-      enableEq: false,
-      enableTrim: true,
-      enableDialectConversion: false,
-      dialectCode: null,
-      dialectIntensity: 1.0,
-      whisperIntensity: 1.0,
-      targetHeadroomDb: -15.0
-    }
-  },
-  variant4: { // P4 - Meditativní
-    ttsSettings: {
-      speed: 0.75,
-      temperature: 0.45,
-      lengthPenalty: 1.1,
-      repetitionPenalty: 2.2,
-      topK: 35,
-      topP: 0.75,
-      seed: null
-    },
-    qualitySettings: {
-      qualityMode: 'meditative',
-      enhancementPreset: 'high_quality',
-      enableEnhancement: true,
-      multiPass: false,
-      multiPassCount: 3,
-      enableVad: true,
-      enableBatch: true,
-      useHifigan: false,
-      hifiganRefinementIntensity: 1.0,
-      hifiganNormalizeOutput: true,
-      hifiganNormalizeGain: 0.95,
-      enableNormalization: true,
-      enableDenoiser: true,
-      enableCompressor: true,
-      enableDeesser: false,
-      enableEq: true,
-      enableTrim: true,
-      enableDialectConversion: false,
-      dialectCode: null,
-      dialectIntensity: 1.0,
-      whisperIntensity: 0.0
-    }
-  },
-  variant5: { // P5 - Šeptavý
-    ttsSettings: {
-      speed: 0.65,
-      temperature: 0.30,
-      lengthPenalty: 1.0,
-      repetitionPenalty: 2.0,
-      topK: 25,
-      topP: 0.7,
-      seed: null
-    },
-    qualitySettings: {
-      qualityMode: 'whisper',
-      enhancementPreset: 'high_quality',
-      enableEnhancement: true,
-      multiPass: false,
-      multiPassCount: 3,
-      enableVad: true,
-      enableBatch: true,
-      useHifigan: false,
-      hifiganRefinementIntensity: 1.0,
-      hifiganNormalizeOutput: true,
-      hifiganNormalizeGain: 0.95,
-      enableNormalization: true,
-      enableDenoiser: true,
-      enableCompressor: true,
-      enableDeesser: true,
-      enableEq: true,
-      enableTrim: true,
-      enableDialectConversion: false,
-      dialectCode: null,
-      dialectIntensity: 1.0,
-      whisperIntensity: 1.0
-    }
-  }
-}
-
-// Funkce pro získání defaultního nastavení pro slot
-const getDefaultSlotSettings = (variantId) => {
-  return DEFAULT_SLOT_SETTINGS[variantId] || {
-    ttsSettings: { ...BASE_TTS_SETTINGS },
-    qualitySettings: { ...BASE_QUALITY_SETTINGS }
-  }
-}
-
-// Pro zpětnou kompatibilitu
-const DEFAULT_TTS_SETTINGS = BASE_TTS_SETTINGS
-const DEFAULT_QUALITY_SETTINGS = BASE_QUALITY_SETTINGS
-
-// Klíče pro localStorage - varianty jsou vázané na konkrétní hlas (id)
-const getVariantStorageKey = (voiceId, variantId) => `xtts_voice_${voiceId}_variant_${variantId}`
-
-// Klíče pro localStorage - text a historie verzí podle záložky
-const getTabTextStorageKey = (tabId) => `app_text_${tabId}`
-const getTabVersionsStorageKey = (tabId) => `app_text_versions_${tabId}`
-
-// Pomocné funkce pro localStorage
-const saveVariantSettings = (voiceId, variantId, settings) => {
-  try {
-    localStorage.setItem(getVariantStorageKey(voiceId, variantId), JSON.stringify(settings))
-  } catch (err) {
-    console.error('Chyba při ukládání nastavení:', err)
-  }
-}
-
-const loadVariantSettings = (voiceId, variantId) => {
-  try {
-    const stored = localStorage.getItem(getVariantStorageKey(voiceId, variantId))
-    if (stored) {
-      return JSON.parse(stored)
-    }
-  } catch (err) {
-    console.error('Chyba při načítání nastavení:', err)
-  }
-  return null
-}
-
-// Pomocné funkce pro ukládání/načítání textu podle záložky
-const saveTabText = (tabId, text) => {
-  try {
-    localStorage.setItem(getTabTextStorageKey(tabId), text)
-  } catch (err) {
-    console.error('Chyba při ukládání textu:', err)
-  }
-}
-
-const loadTabText = (tabId) => {
-  try {
-    return localStorage.getItem(getTabTextStorageKey(tabId)) || ''
-  } catch (err) {
-    console.error('Chyba při načítání textu:', err)
-    return ''
-  }
-}
-
-const saveTabVersions = (tabId, versions) => {
-  try {
-    localStorage.setItem(getTabVersionsStorageKey(tabId), JSON.stringify(versions))
-  } catch (err) {
-    console.error('Chyba při ukládání historie verzí:', err)
-  }
-}
-
-const loadTabVersions = (tabId) => {
-  try {
-    const stored = localStorage.getItem(getTabVersionsStorageKey(tabId))
-    if (stored) {
-      return JSON.parse(stored)
-    }
-  } catch (err) {
-    console.error('Chyba při načítání historie verzí:', err)
-  }
-  return []
-}
-
 function App() {
-  const [activeVariant, setActiveVariant] = useState('variant1') // 'variant1' | 'variant2' | ... | 'variant5'
-  const [activeTab, setActiveTab] = useState('generate') // 'generate' | 'f5tts' | 'musicgen' | 'bark' | 'history'
+  const [activeTab, setActiveTab] = useState('generate')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-
-  // Nastavení hlasu
   const [selectedVoice, setSelectedVoice] = useState('demo1')
-  const [voiceType, setVoiceType] = useState('demo') // 'demo' | 'upload' | 'record' | 'youtube'
+  const [voiceType, setVoiceType] = useState('demo')
   const [uploadedVoice, setUploadedVoice] = useState(null)
   const [uploadedVoiceFileName, setUploadedVoiceFileName] = useState(null)
-  // Text pro každou záložku - každý model má svůj vlastní prompt
-  const [textsByTab, setTextsByTab] = useState({
-    generate: '',
-    f5tts: '',
-    musicgen: '',
-    bark: '',
-    audioeditor: ''
-  })
-  // Aktuální text pro zobrazení (podle activeTab)
-  const text = textsByTab[activeTab] || ''
-  const setText = (newText) => {
-    setTextsByTab(prev => ({
-      ...prev,
-      [activeTab]: newText
-    }))
-  }
-  const [generatedAudio, setGeneratedAudio] = useState(null)
-  const [generatedVariants, setGeneratedVariants] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [ttsProgress, setTtsProgress] = useState(null)
   const [demoVoices, setDemoVoices] = useState([])
   const [modelStatus, setModelStatus] = useState(null)
   const [voiceQuality, setVoiceQuality] = useState(null)
-  const [textVersions, setTextVersions] = useState([])
   const [showSettings, setShowSettings] = useState(true)
 
-  // Nastavení pro aktuální variantu (vázané na vybraný hlas)
-  // Použij slot-specifické defaultní hodnoty pro variant1 (P1) jako výchozí
-  const defaultSlotForInit = getDefaultSlotSettings('variant1')
-  const [ttsSettings, setTtsSettings] = useState(defaultSlotForInit.ttsSettings)
-  const [qualitySettings, setQualitySettings] = useState(defaultSlotForInit.qualitySettings)
+  // Hooks - useVariantManager musí být před useTTSSettings, protože useTTSSettings potřebuje activeVariant
+  const { activeVariant, handleVariantChange, setSaveCurrentVariantNow } = useVariantManager()
+  const { ttsSettings, setTtsSettings, qualitySettings, setQualitySettings, saveCurrentVariantNow } = useTTSSettings(
+    selectedVoice,
+    voiceType,
+    activeVariant
+  )
+
+  // Propojit saveCurrentVariantNow s useVariantManager
+  useEffect(() => {
+    setSaveCurrentVariantNow(saveCurrentVariantNow)
+  }, [saveCurrentVariantNow, setSaveCurrentVariantNow])
+  const { text, setText, textVersions, saveTextVersion, deleteTextVersion } = useTextVersions(activeTab)
+  const { ttsProgress, startProgressTracking, stopProgressTracking } = useTTSProgress()
+  const {
+    loading,
+    error,
+    setError,
+    generatedAudio,
+    setGeneratedAudio,
+    generatedVariants,
+    handleGenerate: handleGenerateBase
+  } = useTTSGeneration(
+    text,
+    selectedVoice,
+    voiceType,
+    uploadedVoice,
+    ttsSettings,
+    qualitySettings,
+    startProgressTracking
+  )
+
+  // Wrapper pro handleGenerate s saveTextVersion
+  const handleGenerate = () => {
+    handleGenerateBase(saveTextVersion)
+  }
 
   const tabs = [
     { id: 'generate', label: 'české slovo', icon: 'microphone' },
@@ -368,370 +81,16 @@ function App() {
     { id: 'history', label: 'Historie', icon: 'scroll' }
   ]
 
-  // Ref pro sledování, zda se právě načítá nastavení (aby se neukládalo při načítání)
-  const isLoadingSettingsRef = useRef(false)
-
-  // Ref pro aktuální nastavení - vždy obsahuje nejnovější hodnoty
-  // Použij slot-specifické defaultní hodnoty pro variant1 (P1) jako výchozí
-  const defaultSlotForRef = getDefaultSlotSettings('variant1')
-  const currentSettingsRef = useRef({
-    ttsSettings: defaultSlotForRef.ttsSettings,
-    qualitySettings: defaultSlotForRef.qualitySettings
-  })
-
-  // Ref pro progress SSE connection - pro cleanup při novém spuštění nebo unmount
-  const progressEventSourceRef = useRef(null)
-  // Fallback polling (když SSE selže kvůli CORS/proxy apod.)
-  const progressPollIntervalRef = useRef(null)
-  const progressStoppedRef = useRef(false)
-
-  // Aktualizovat ref při každé změně nastavení
+  // Reset generovaného audio při změně varianty
   useEffect(() => {
-    currentSettingsRef.current = {
-      ttsSettings: { ...ttsSettings },
-      qualitySettings: { ...qualitySettings }
-    }
-  }, [ttsSettings, qualitySettings])
-
-  // Ref pro sledování, zda se právě načítá text (aby se neukládalo při načítání)
-  const isLoadingTextRef = useRef(false)
-  // Ref pro sledování, zda už proběhla inicializace
-  const isInitializedRef = useRef(false)
-  // Ref pro předchozí záložku (pro ukládání textu před změnou)
-  const previousTabRef = useRef(activeTab)
-
-  // Načtení rozpracovaného textu a historie verzí z localStorage při startu
-  useEffect(() => {
-    if (isInitializedRef.current) return
-
-    isLoadingTextRef.current = true
-
-    // Načíst texty pro všechny záložky
-    const loadedTexts = {
-      generate: loadTabText('generate'),
-      f5tts: loadTabText('f5tts'),
-      musicgen: loadTabText('musicgen'),
-      bark: loadTabText('bark'),
-      audioeditor: loadTabText('audioeditor')
-    }
-    setTextsByTab(loadedTexts)
-
-    // Načíst historii verzí pro aktuální záložku
-    const savedVersions = loadTabVersions(activeTab)
-    if (savedVersions && savedVersions.length > 0) {
-      setTextVersions(savedVersions)
-    }
-
-    isLoadingTextRef.current = false
-    isInitializedRef.current = true
-    previousTabRef.current = activeTab
-  }, []) // Pouze při startu
-
-  // Auto-save aktuálního textu při změně textu
-  useEffect(() => {
-    if (isLoadingTextRef.current) return
-    if (!isInitializedRef.current) return // Neukládat před inicializací
-    // Uložit text pro aktuální záložku
-    saveTabText(activeTab, text)
-  }, [text, activeTab]) // Ukládat při změně textu pro aktuální záložku
-
-  // Ukládání a načítání textu a historie verzí při změně záložky
-  useEffect(() => {
-    if (!isInitializedRef.current) return // Nečíst před inicializací
-
-    // Uložit text a historii verzí pro předchozí záložku před přepnutím
-    if (previousTabRef.current !== activeTab) {
-      const previousText = textsByTab[previousTabRef.current] || ''
-      // Uložit text pro předchozí záložku
-      saveTabText(previousTabRef.current, previousText)
-      // Uložit historii verzí pro předchozí záložku
-      saveTabVersions(previousTabRef.current, textVersions)
-    }
-
-    isLoadingTextRef.current = true
-
-    // Načíst historii verzí pro novou záložku
-    const savedVersions = loadTabVersions(activeTab)
-    setTextVersions(savedVersions || [])
-
-    // Text pro novou záložku se načte automaticky z textsByTab[activeTab]
-    // (textsByTab se načte při startu a aktualizuje se při změně textu)
-
-    isLoadingTextRef.current = false
-    previousTabRef.current = activeTab
-  }, [activeTab, textsByTab])
-
-  // Funkce pro uložení verze textu (podle aktuální záložky)
-  const saveTextVersion = (textToSave) => {
-    if (!textToSave || !textToSave.trim()) return
-
-    const newVersion = {
-      id: Date.now(),
-      text: textToSave,
-      timestamp: new Date().toISOString()
-    }
-
-    const updatedVersions = [newVersion, ...textVersions.slice(0, 19)] // Max 20 verzí
-    setTextVersions(updatedVersions)
-    saveTabVersions(activeTab, updatedVersions)
-  }
-
-  const deleteTextVersion = (versionId) => {
-    const updatedVersions = textVersions.filter(v => v.id !== versionId)
-    setTextVersions(updatedVersions)
-    saveTabVersions(activeTab, updatedVersions)
-  }
-
-  // Debounce timer pro ukládání
-  const saveTimeoutRef = useRef(null)
-
-  const saveCurrentVariantNow = () => {
-    // Ukládat pouze pro demo hlasy a když je selectedVoice skutečný hlas (ne 'demo1')
-    if (!selectedVoice || selectedVoice === 'demo1') return
-    if (voiceType !== 'demo') return
-    if (isLoadingSettingsRef.current) return
-
-    // Použít hodnoty z ref (vždy aktuální)
-    // Uložíme všechny aktuální hodnoty - pokud uživatel něco změnil, uloží se to
-    // Pokud uživatel nic nezměnil, uloží se defaultní hodnoty (což je v pořádku)
-    const settings = {
-      ttsSettings: { ...currentSettingsRef.current.ttsSettings },
-      qualitySettings: { ...currentSettingsRef.current.qualitySettings }
-    }
-
-    try {
-      saveVariantSettings(selectedVoice, activeVariant, settings)
-      console.log('💾 Ukládám nastavení pro:', selectedVoice, activeVariant, settings) // Debug
-    } catch (err) {
-      console.error('Chyba při ukládání nastavení:', err)
-    }
-  }
-
-  const handleVariantChange = (nextVariant) => {
-    if (nextVariant === activeVariant) return
-
-    // Zrušit případný pending debounce
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-      saveTimeoutRef.current = null
-    }
-
-    // Než přepneme variantu, ulož aktuální stav synchronně (bez debounce)
-    saveCurrentVariantNow()
-
-    // Změnit variantu
-    setActiveVariant(nextVariant)
-  }
-
-  // Uložení nastavení aktuální varianty do localStorage (vázané na hlas)
-  // Ukládá se s debounce při změně nastavení, ale ne při načítání nebo změně varianty
-  useEffect(() => {
-    if (isLoadingSettingsRef.current) return
-    if (!selectedVoice || selectedVoice === 'demo1') return
-    if (voiceType !== 'demo') return
-
-    // Zrušit předchozí timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-
-    // Nastavit nový timeout pro debounce (300ms)
-    saveTimeoutRef.current = setTimeout(() => {
-      saveCurrentVariantNow()
-      saveTimeoutRef.current = null
-    }, 300)
-
-    // Cleanup - zrušit timeout při unmount nebo změně závislostí
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-        saveTimeoutRef.current = null
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ttsSettings, qualitySettings, selectedVoice, voiceType])
-
-  // Načtení nastavení při změně varianty nebo hlasu
-  useEffect(() => {
-    // Načítat pouze pro demo hlasy a když je selectedVoice skutečný hlas
-    if (!selectedVoice || selectedVoice === 'demo1') return
-    if (voiceType !== 'demo') return
-
-    // Zrušit případný pending debounce pro ukládání
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-      saveTimeoutRef.current = null
-    }
-
-    // Reset generovaného audio při změně varianty
     setGeneratedAudio(null)
     setError(null)
+  }, [activeVariant, setGeneratedAudio, setError])
 
-    // Nastav flag, že se právě načítá (aby se neukládalo)
-    isLoadingSettingsRef.current = true
-
-    // Načíst nastavení
-    const saved = loadVariantSettings(selectedVoice, activeVariant)
-    console.log('📖 Načítám nastavení pro:', selectedVoice, activeVariant, saved) // Debug
-
-    // Získat slot-specifické defaultní hodnoty pro validaci (použijí se pouze jako fallback)
-    const defaultSlot = getDefaultSlotSettings(activeVariant)
-    const defaultTts = defaultSlot.ttsSettings
-    const defaultQuality = defaultSlot.qualitySettings
-
-    // Validace a načtení nastavení atomicky
-    let loadedTts, loadedQuality
-
-    // DŮLEŽITÉ: Pokud existuje uložené nastavení, použije se. Defaultní hodnoty se použijí pouze
-    // pokud není uložené nastavení nebo pokud některá hodnota chybí/je neplatná.
-    // Tím zajistíme, že uživatelské změny se nebudou přepisovat defaultními hodnotami.
-    if (saved && saved.ttsSettings && saved.qualitySettings) {
-      // Validace a načtení TTS nastavení s fallback na slot-specifické výchozí hodnoty
-      loadedTts = {
-        speed: typeof saved.ttsSettings.speed === 'number' && !isNaN(saved.ttsSettings.speed)
-          ? saved.ttsSettings.speed
-          : defaultTts.speed,
-        temperature: typeof saved.ttsSettings.temperature === 'number' && !isNaN(saved.ttsSettings.temperature) && saved.ttsSettings.temperature > 0
-          ? saved.ttsSettings.temperature
-          : defaultTts.temperature,
-        lengthPenalty: typeof saved.ttsSettings.lengthPenalty === 'number' && !isNaN(saved.ttsSettings.lengthPenalty)
-          ? saved.ttsSettings.lengthPenalty
-          : defaultTts.lengthPenalty,
-        repetitionPenalty: typeof saved.ttsSettings.repetitionPenalty === 'number' && !isNaN(saved.ttsSettings.repetitionPenalty)
-          ? saved.ttsSettings.repetitionPenalty
-          : defaultTts.repetitionPenalty,
-        topK: typeof saved.ttsSettings.topK === 'number' && !isNaN(saved.ttsSettings.topK)
-          ? saved.ttsSettings.topK
-          : defaultTts.topK,
-        topP: typeof saved.ttsSettings.topP === 'number' && !isNaN(saved.ttsSettings.topP)
-          ? saved.ttsSettings.topP
-          : defaultTts.topP,
-        seed: saved.ttsSettings.seed !== undefined && saved.ttsSettings.seed !== null
-          ? (typeof saved.ttsSettings.seed === 'number' ? saved.ttsSettings.seed : null)
-          : defaultTts.seed
-      }
-
-      // Validace a načtení quality nastavení s fallback na slot-specifické výchozí hodnoty
-      loadedQuality = {
-        qualityMode: saved.qualitySettings.qualityMode !== undefined
-          ? saved.qualitySettings.qualityMode
-          : defaultQuality.qualityMode,
-        enhancementPreset: typeof saved.qualitySettings.enhancementPreset === 'string'
-          ? saved.qualitySettings.enhancementPreset
-          : defaultQuality.enhancementPreset,
-        enableEnhancement: typeof saved.qualitySettings.enableEnhancement === 'boolean'
-          ? saved.qualitySettings.enableEnhancement
-          : defaultQuality.enableEnhancement,
-        enableNormalization: typeof saved.qualitySettings.enableNormalization === 'boolean'
-          ? saved.qualitySettings.enableNormalization
-          : defaultQuality.enableNormalization,
-        enableDenoiser: typeof saved.qualitySettings.enableDenoiser === 'boolean'
-          ? saved.qualitySettings.enableDenoiser
-          : defaultQuality.enableDenoiser,
-        enableCompressor: typeof saved.qualitySettings.enableCompressor === 'boolean'
-          ? saved.qualitySettings.enableCompressor
-          : defaultQuality.enableCompressor,
-        enableDeesser: typeof saved.qualitySettings.enableDeesser === 'boolean'
-          ? saved.qualitySettings.enableDeesser
-          : defaultQuality.enableDeesser,
-        enableEq: typeof saved.qualitySettings.enableEq === 'boolean'
-          ? saved.qualitySettings.enableEq
-          : defaultQuality.enableEq,
-        enableTrim: typeof saved.qualitySettings.enableTrim === 'boolean'
-          ? saved.qualitySettings.enableTrim
-          : defaultQuality.enableTrim,
-        multiPass: typeof saved.qualitySettings.multiPass === 'boolean'
-          ? saved.qualitySettings.multiPass
-          : defaultQuality.multiPass,
-        multiPassCount: typeof saved.qualitySettings.multiPassCount === 'number'
-          ? saved.qualitySettings.multiPassCount
-          : defaultQuality.multiPassCount,
-        enableVad: typeof saved.qualitySettings.enableVad === 'boolean'
-          ? saved.qualitySettings.enableVad
-          : defaultQuality.enableVad,
-        enableBatch: typeof saved.qualitySettings.enableBatch === 'boolean'
-          ? saved.qualitySettings.enableBatch
-          : defaultQuality.enableBatch,
-        useHifigan: typeof saved.qualitySettings.useHifigan === 'boolean'
-          ? saved.qualitySettings.useHifigan
-          : defaultQuality.useHifigan,
-        hifiganRefinementIntensity: typeof saved.qualitySettings.hifiganRefinementIntensity === 'number'
-          ? saved.qualitySettings.hifiganRefinementIntensity
-          : defaultQuality.hifiganRefinementIntensity,
-        hifiganNormalizeOutput: typeof saved.qualitySettings.hifiganNormalizeOutput === 'boolean'
-          ? saved.qualitySettings.hifiganNormalizeOutput
-          : defaultQuality.hifiganNormalizeOutput,
-        hifiganNormalizeGain: typeof saved.qualitySettings.hifiganNormalizeGain === 'number'
-          ? saved.qualitySettings.hifiganNormalizeGain
-          : defaultQuality.hifiganNormalizeGain,
-        enableDialectConversion: typeof saved.qualitySettings.enableDialectConversion === 'boolean'
-          ? saved.qualitySettings.enableDialectConversion
-          : defaultQuality.enableDialectConversion,
-        dialectCode: saved.qualitySettings.dialectCode !== undefined
-          ? saved.qualitySettings.dialectCode
-          : defaultQuality.dialectCode,
-        dialectIntensity: typeof saved.qualitySettings.dialectIntensity === 'number'
-          ? saved.qualitySettings.dialectIntensity
-          : defaultQuality.dialectIntensity,
-        whisperIntensity: typeof saved.qualitySettings.whisperIntensity === 'number'
-          ? saved.qualitySettings.whisperIntensity
-          : defaultQuality.whisperIntensity,
-        targetHeadroomDb: typeof saved.qualitySettings.targetHeadroomDb === 'number'
-          ? saved.qualitySettings.targetHeadroomDb
-          : defaultQuality.targetHeadroomDb
-      }
-    } else {
-      // Výchozí nastavení pro novou variantu - použij slot-specifické defaultní hodnoty
-      const defaultSlot = getDefaultSlotSettings(activeVariant)
-      loadedTts = { ...defaultSlot.ttsSettings }
-      loadedQuality = { ...defaultSlot.qualitySettings }
-    }
-
-    // Aktualizuj state atomicky (všechno najednou)
-    setTtsSettings(loadedTts)
-    setQualitySettings(loadedQuality)
-
-    // Aktualizuj také ref
-    currentSettingsRef.current = {
-      ttsSettings: { ...loadedTts },
-      qualitySettings: { ...loadedQuality }
-    }
-
-    // DŮLEŽITÉ: Pokud není uložené nastavení, použijeme defaultní hodnoty,
-    // ale NEULOŽÍME je automaticky. Uloží se pouze když uživatel něco změní.
-    // Tím zajistíme, že uživatelské změny se nebudou přepisovat defaultními hodnotami.
-
-    // Po načtení resetuj flag (v cleanup funkci pro jistotu)
-    const timeoutId = setTimeout(() => {
-      isLoadingSettingsRef.current = false
-    }, 0)
-
-    // Cleanup funkce
-    return () => {
-      clearTimeout(timeoutId)
-      // Zajistit, že se flag resetuje i při unmount
-      isLoadingSettingsRef.current = false
-    }
-  }, [activeVariant, selectedVoice, voiceType])
-
+  // Načtení demo hlasů a statusu modelu
   useEffect(() => {
-    // Načtení demo hlasů
     loadDemoVoices()
-    // Kontrola statusu modelu
     checkModelStatus()
-
-    // Cleanup při unmount - uzavřít všechny progress SSE spojení
-    return () => {
-      if (progressEventSourceRef.current) {
-        progressEventSourceRef.current.close()
-        progressEventSourceRef.current = null
-      }
-      if (progressPollIntervalRef.current) {
-        clearInterval(progressPollIntervalRef.current)
-        progressPollIntervalRef.current = null
-      }
-      progressStoppedRef.current = true
-    }
   }, [])
 
   const loadDemoVoices = async () => {
@@ -757,202 +116,6 @@ function App() {
     }
   }
 
-  const handleGenerate = async () => {
-    if (!text.trim()) {
-      setError('Zadejte text k syntéze')
-      return
-    }
-
-    // Pokud už probíhá generování, nové spuštění ignorovat
-    if (loading) {
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-    setGeneratedAudio(null)
-    setGeneratedVariants([])
-    setTtsProgress(null)
-
-    try {
-      let voiceFile = null
-      let demoVoice = null
-
-      if (voiceType === 'upload' && uploadedVoice) {
-        voiceFile = uploadedVoice
-      } else if (voiceType === 'demo') {
-        // Extrahuj pouze název souboru (ID) z selectedVoice, pokud obsahuje cestu
-        let voiceId = selectedVoice
-        if (voiceId && (voiceId.includes('/') || voiceId.includes('\\'))) {
-          // Je to cesta - extrahuj pouze název souboru bez přípony
-          const pathParts = voiceId.replace(/\\/g, '/').split('/')
-          const filename = pathParts[pathParts.length - 1]
-          voiceId = filename.replace(/\.wav$/i, '')
-        }
-        demoVoice = voiceId
-      } else {
-        setError('Vyberte nebo nahrajte hlas')
-        setLoading(false)
-        return
-      }
-
-      // Převod nastavení na formát pro API
-      const ttsParams = {
-        speed: ttsSettings.speed,
-        temperature: ttsSettings.temperature,
-        lengthPenalty: ttsSettings.lengthPenalty,
-        repetitionPenalty: ttsSettings.repetitionPenalty,
-        topK: ttsSettings.topK,
-        topP: ttsSettings.topP,
-        seed: ttsSettings.seed,
-        qualityMode: qualitySettings.qualityMode,
-        enhancementPreset: qualitySettings.enhancementPreset,
-        enableEnhancement: qualitySettings.enableEnhancement,
-        // Nové parametry:
-        multiPass: qualitySettings.multiPass,
-        multiPassCount: qualitySettings.multiPassCount,
-        enableVad: qualitySettings.enableVad,
-        enableBatch: qualitySettings.enableBatch,
-        useHifigan: qualitySettings.useHifigan,
-        // HiFi-GAN parametry
-        hifiganRefinementIntensity: qualitySettings.hifiganRefinementIntensity,
-        hifiganNormalizeOutput: qualitySettings.hifiganNormalizeOutput,
-        hifiganNormalizeGain: qualitySettings.hifiganNormalizeGain,
-        enableNormalization: qualitySettings.enableNormalization,
-        enableDenoiser: qualitySettings.enableDenoiser,
-        enableCompressor: qualitySettings.enableCompressor,
-        enableDeesser: qualitySettings.enableDeesser,
-        enableEq: qualitySettings.enableEq,
-        enableTrim: qualitySettings.enableTrim,
-        enableDialectConversion: qualitySettings.enableDialectConversion,
-        dialectCode: qualitySettings.dialectCode,
-        dialectIntensity: qualitySettings.dialectIntensity,
-        // Whisper efekt parametry
-        enableWhisper: qualitySettings.qualityMode === 'whisper' ? true : undefined,
-        whisperIntensity: qualitySettings.qualityMode === 'whisper' && qualitySettings.whisperIntensity !== undefined
-          ? qualitySettings.whisperIntensity
-          : undefined,
-        // Headroom
-        targetHeadroomDb: qualitySettings.targetHeadroomDb !== undefined ? qualitySettings.targetHeadroomDb : -15.0
-      }
-
-      // Zrušit předchozí progress SSE spojení, pokud běží
-      if (progressEventSourceRef.current) {
-        progressEventSourceRef.current.close()
-        progressEventSourceRef.current = null
-      }
-      // Zrušit fallback polling, pokud běží
-      if (progressPollIntervalRef.current) {
-        clearInterval(progressPollIntervalRef.current)
-        progressPollIntervalRef.current = null
-      }
-      progressStoppedRef.current = false
-
-      // Pro progress během běžícího requestu: vytvoř job_id na klientovi a použij SSE pro real-time updates
-      const jobId =
-        (typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID()) ||
-        `${Date.now()}-${Math.random().toString(16).slice(2)}`
-
-      // aby UI hned ukázalo 0% (ne „nic") ještě před tím, než backend job zaregistruje
-      setTtsProgress({ percent: 0, message: 'Odesílám požadavek…', eta_seconds: null })
-
-      // Připojit se k SSE streamu pro real-time progress updates
-      const eventSource = subscribeToTtsProgress(
-        jobId,
-        (progressData) => {
-          if (progressStoppedRef.current) return
-          setTtsProgress(progressData)
-
-          // Pokud je progress dokončen nebo chybný, SSE se automaticky uzavře
-          if (progressData.status === 'done' || progressData.status === 'error') {
-            progressStoppedRef.current = true
-            if (progressPollIntervalRef.current) {
-              clearInterval(progressPollIntervalRef.current)
-              progressPollIntervalRef.current = null
-            }
-          }
-        },
-        (error) => {
-          console.error('SSE progress error:', error)
-          // Při chybě SSE fallback na polling (průběžně, ne jen jednorázově)
-          if (progressStoppedRef.current) return
-          if (progressPollIntervalRef.current) return
-
-          const poll = async () => {
-            if (progressStoppedRef.current) return
-            try {
-              const p = await getTtsProgress(jobId)
-              setTtsProgress(p)
-              if (p?.status === 'done' || p?.status === 'error' || (typeof p?.percent === 'number' && p.percent >= 100)) {
-                progressStoppedRef.current = true
-                if (progressPollIntervalRef.current) {
-                  clearInterval(progressPollIntervalRef.current)
-                  progressPollIntervalRef.current = null
-                }
-              }
-            } catch (_e) {
-              // ignore
-            }
-          }
-
-          poll()
-          progressPollIntervalRef.current = setInterval(poll, 500)
-        }
-      )
-
-      progressEventSourceRef.current = eventSource
-
-      const result = await generateSpeech(text, voiceFile, demoVoice, ttsParams, jobId)
-
-      // Zastavit SSE po dokončení generování (může být už uzavřeno automaticky)
-      progressStoppedRef.current = true
-      if (progressEventSourceRef.current) {
-        progressEventSourceRef.current.close()
-        progressEventSourceRef.current = null
-      }
-      if (progressPollIntervalRef.current) {
-        clearInterval(progressPollIntervalRef.current)
-        progressPollIntervalRef.current = null
-      }
-
-      // Finální kontrola progressu (pro jistotu)
-      try {
-        const p = await getTtsProgress(jobId)
-        setTtsProgress(p)
-      } catch (e) {
-        // ignore
-      }
-
-      // Pokud je multi-pass, zobrazit varianty
-      if (result.variants && result.variants.length > 0) {
-        setGeneratedVariants(result.variants)
-        // Nastavíme první jako výchozí, aby AudioPlayer (pokud by byl jen jeden) měl co přehrát
-        setGeneratedAudio(result.variants[0].audio_url)
-        console.log('Multi-pass: vygenerováno', result.variants.length, 'variant')
-      } else {
-        setGeneratedAudio(result.audio_url)
-        setGeneratedVariants([])
-      }
-
-      // Automaticky uložit text do historie verzí po úspěšném generování
-      saveTextVersion(text)
-    } catch (err) {
-      setError(err.message || 'Chyba při generování řeči')
-      console.error('Generate error:', err)
-      // Zastavit SSE při chybě
-      progressStoppedRef.current = true
-      if (progressEventSourceRef.current) {
-        progressEventSourceRef.current.close()
-        progressEventSourceRef.current = null
-      }
-      if (progressPollIntervalRef.current) {
-        clearInterval(progressPollIntervalRef.current)
-        progressPollIntervalRef.current = null
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleVoiceUpload = async (file) => {
     setUploadedVoice(file)
@@ -1168,20 +331,8 @@ function App() {
                       setTtsSettings(resetTts)
                       setQualitySettings(resetQuality)
 
-                      // Aktualizovat ref okamžitě
-                      currentSettingsRef.current = {
-                        ttsSettings: { ...resetTts },
-                        qualitySettings: { ...resetQuality }
-                      }
-
                       // Uložit resetované hodnoty do localStorage pro tuto variantu
-                      if (selectedVoice && selectedVoice !== 'demo1' && voiceType === 'demo') {
-                        const resetSettings = {
-                          ttsSettings: { ...resetTts },
-                          qualitySettings: { ...resetQuality }
-                        }
-                        saveVariantSettings(selectedVoice, activeVariant, resetSettings)
-                      }
+                      // saveCurrentVariantNow se zavolá automaticky přes debounce v useTTSSettings
                     }}
                     qualitySettings={qualitySettings}
                     onQualityChange={setQualitySettings}

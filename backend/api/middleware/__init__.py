@@ -1,5 +1,5 @@
 """
-Middleware setup pro FastAPI aplikaci
+Middleware pro TTS API
 """
 import sys
 import os

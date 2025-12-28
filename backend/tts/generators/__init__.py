@@ -1,0 +1,2 @@
+"""Generátory pro TTS"""
+

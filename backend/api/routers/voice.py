@@ -23,10 +23,10 @@ from backend.youtube_downloader import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/voice", tags=["voice"])
+router = APIRouter(prefix="/api", tags=["voice"])
 
 
-@router.post("/upload")
+@router.post("/voice/upload")
 async def upload_voice(voice_file: UploadFile = File(...)):
     """Nahraje audio soubor pro voice cloning"""
     try:
@@ -62,7 +62,7 @@ async def upload_voice(voice_file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Chyba při uploadu: {str(e)}")
 
 
-@router.post("/record")
+@router.post("/voice/record")
 async def record_voice(
     audio_blob: str = Form(...),
     filename: str = Form(None),
@@ -137,7 +137,7 @@ async def record_voice(
         raise HTTPException(status_code=500, detail=f"Chyba při ukládání nahrávky: {str(e)}")
 
 
-@router.get("/demo")
+@router.get("/voices/demo")
 async def get_demo_voices(lang: str = Query("cs")):
     """Vrátí seznam dostupných demo hlasů"""
     demo_voices = []
@@ -145,7 +145,16 @@ async def get_demo_voices(lang: str = Query("cs")):
     lang_norm = _normalize_demo_lang(lang)
     demo_dir = _get_demo_voices_dir(lang_norm)
 
-    for voice_file in demo_dir.glob("*.wav"):
+    # Debug: zkontroluj, že adresář existuje
+    if not demo_dir.exists():
+        logger.warning(f"Demo voices directory does not exist: {demo_dir}")
+        return {"voices": []}
+
+    # Debug: zkontroluj, že adresář obsahuje soubory
+    wav_files = list(demo_dir.glob("*.wav"))
+    logger.info(f"Found {len(wav_files)} WAV files in {demo_dir} for lang={lang_norm}")
+
+    for voice_file in wav_files:
         voice_id = voice_file.stem
         voice_id_lower = voice_id.lower()
 
@@ -202,7 +211,7 @@ async def get_demo_voices(lang: str = Query("cs")):
     return {"voices": demo_voices}
 
 
-@router.post("/youtube")
+@router.post("/voice/youtube")
 async def download_youtube_voice(
     url: str = Form(...),
     start_time: float = Form(None),
