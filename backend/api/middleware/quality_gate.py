@@ -58,6 +58,22 @@ async def check_reference_quality(
     try:
         reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav) if speaker_wav else None
 
+        # Kontrola klasifikace audia (pokud je dostupná)
+        if reference_quality and reference_quality.get('classification_available'):
+            audio_type = reference_quality.get('audio_type', 'unknown')
+            speech_ratio = reference_quality.get('speech_ratio', 0.0)
+            has_music = reference_quality.get('has_music', False)
+            suitable_for_cloning = reference_quality.get('suitable_for_cloning', True)
+
+            # Přidat varování z klasifikace
+            if audio_type == 'music':
+                logger.warning(f"Referenční audio je klasifikováno jako hudba (speech_ratio: {speech_ratio:.0%})")
+            elif audio_type == 'mixed' and has_music:
+                logger.info(f"Referenční audio obsahuje hudbu v pozadí (speech_ratio: {speech_ratio:.0%}) - doporučujeme separaci")
+
+            if not suitable_for_cloning:
+                logger.warning(f"Referenční audio není vhodné pro cloning (speech_ratio: {speech_ratio:.0%})")
+
         if not reference_quality or reference_quality.get("score") != "poor":
             return speaker_wav, reference_quality
 

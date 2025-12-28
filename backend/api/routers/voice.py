@@ -53,6 +53,55 @@ async def upload_voice(
 
         quality_info = AudioProcessor.analyze_audio_quality(processed_path)
 
+        # Validace typu audia pomocí klasifikace
+        try:
+            from backend.config import ENABLE_AUDIO_CLASSIFICATION, AUDIO_CLASSIFICATION_MIN_SPEECH_RATIO
+
+            if ENABLE_AUDIO_CLASSIFICATION and quality_info.get('classification_available'):
+                audio_type = quality_info.get('audio_type', 'unknown')
+                speech_ratio = quality_info.get('speech_ratio', 0.0)
+                suitable_for_cloning = quality_info.get('suitable_for_cloning', True)
+
+                # Pokud není řeč nebo málo řeči, vrátit chybu
+                if audio_type == 'music':
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "message": "Nahraný soubor obsahuje převážně hudbu, ne řeč. Nahrajte audio s mluveným slovem.",
+                            "audio_type": audio_type,
+                            "speech_ratio": speech_ratio,
+                            "quality": quality_info
+                        }
+                    )
+
+                if speech_ratio < AUDIO_CLASSIFICATION_MIN_SPEECH_RATIO:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "message": f"Audio obsahuje málo řeči ({speech_ratio:.0%}). Pro voice cloning je potřeba alespoň {AUDIO_CLASSIFICATION_MIN_SPEECH_RATIO:.0%} řeči.",
+                            "audio_type": audio_type,
+                            "speech_ratio": speech_ratio,
+                            "quality": quality_info
+                        }
+                    )
+
+                if not suitable_for_cloning:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "message": "Audio není vhodné pro voice cloning. Nahrajte čistší vzorek řeči (10-30s bez hudby v pozadí).",
+                            "audio_type": audio_type,
+                            "speech_ratio": speech_ratio,
+                            "has_music": quality_info.get('has_music', False),
+                            "quality": quality_info
+                        }
+                    )
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Pokud klasifikace selže, logovat ale nepřerušit upload
+            logger.warning(f"Chyba při validaci typu audia: {e}")
+
         return {
             "voice_id": voice_id,
             "processed": True,

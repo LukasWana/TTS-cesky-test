@@ -175,6 +175,10 @@ ENABLE_REFERENCE_QUALITY_GATE = os.getenv("ENABLE_REFERENCE_QUALITY_GATE", "True
 ENABLE_REFERENCE_AUTO_ENHANCE = os.getenv("ENABLE_REFERENCE_AUTO_ENHANCE", "True").lower() == "true"
 REFERENCE_ALLOW_POOR_BY_DEFAULT = os.getenv("REFERENCE_ALLOW_POOR_BY_DEFAULT", "False").lower() == "true"
 
+# Audio classification (PyAudio Analysis)
+ENABLE_AUDIO_CLASSIFICATION = os.getenv("ENABLE_AUDIO_CLASSIFICATION", "True").lower() == "true"
+AUDIO_CLASSIFICATION_MIN_SPEECH_RATIO = float(os.getenv("AUDIO_CLASSIFICATION_MIN_SPEECH_RATIO", "0.5"))  # Minimální poměr řeči pro validaci (0.0-1.0)
+
 # Vocoder Upgrade - HiFi-GAN
 ENABLE_HIFIGAN = os.getenv("ENABLE_HIFIGAN", "True").lower() == "true"
 HIFIGAN_MODEL_PATH = os.getenv("HIFIGAN_MODEL_PATH", None)

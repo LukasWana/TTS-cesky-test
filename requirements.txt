@@ -53,6 +53,9 @@ yt-dlp>=2024.0.0
 # Voice Activity Detection
 webrtcvad>=2.0.10
 
+# Audio classification (PyAudio Analysis)
+pyAudioAnalysis>=0.3.14
+
 # Audio source separation (Demucs)
 demucs>=4.0.0
 

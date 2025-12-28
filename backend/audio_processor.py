@@ -134,10 +134,10 @@ class AudioProcessor:
     @staticmethod
     def analyze_audio_quality(file_path: str) -> dict:
         """
-        Analyzuje kvalitu audio souboru (SNR, clipping, délka)
+        Analyzuje kvalitu audio souboru (SNR, clipping, délka, klasifikace typu)
 
         Returns:
-            Dictionary s výsledky analýzy
+            Dictionary s výsledky analýzy včetně klasifikačních dat
         """
         try:
             audio, sr = librosa.load(file_path, sr=None)
@@ -151,7 +151,19 @@ class AudioProcessor:
             # 3. Duration
             duration = librosa.get_duration(y=audio, sr=sr)
 
-            # 4. Celkové hodnocení
+            # 4. Audio classification (pokud je zapnuto)
+            classification = None
+            try:
+                from backend.config import ENABLE_AUDIO_CLASSIFICATION
+                if ENABLE_AUDIO_CLASSIFICATION:
+                    from backend.audio_classifier import classify_audio_content
+                    classification = classify_audio_content(file_path)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Klasifikace audia selhala: {e}")
+
+            # 5. Celkové hodnocení
             score = "good"
             warnings = []
 
@@ -169,13 +181,53 @@ class AudioProcessor:
             if duration < 6:
                 warnings.append("Audio je příliš krátké pro kvalitní klonování")
 
-            return {
+            # Přidat varování z klasifikace
+            if classification and classification.get('classification_available'):
+                audio_type = classification.get('type', 'unknown')
+                speech_ratio = classification.get('speech_ratio', 0.0)
+                has_music = classification.get('has_music', False)
+
+                if audio_type == 'music':
+                    warnings.append("Audio obsahuje převážně hudbu, ne řeč")
+                    score = "poor"
+                elif audio_type == 'mixed' and has_music:
+                    warnings.append("Audio obsahuje hudbu v pozadí - doporučujeme separaci")
+                elif speech_ratio < 0.5:
+                    warnings.append("Audio obsahuje málo řeči (méně než 50%)")
+                    if score != "poor":
+                        score = "fair"
+
+                if not classification.get('suitable_for_cloning', True):
+                    warnings.append("Audio není vhodné pro voice cloning")
+
+            result = {
                 "snr": float(snr),
                 "clipping_ratio": float(clipping_ratio),
                 "duration": float(duration),
                 "score": score,
                 "warnings": warnings
             }
+
+            # Přidat klasifikační data pokud jsou dostupná
+            if classification:
+                result.update({
+                    "audio_type": classification.get('type', 'unknown'),
+                    "speech_ratio": classification.get('speech_ratio', 0.0),
+                    "has_music": classification.get('has_music', False),
+                    "suitable_for_cloning": classification.get('suitable_for_cloning', True),
+                    "classification_available": classification.get('classification_available', False)
+                })
+            else:
+                # Pokud klasifikace není dostupná, přidat default hodnoty
+                result.update({
+                    "audio_type": "unknown",
+                    "speech_ratio": 0.0,
+                    "has_music": False,
+                    "suitable_for_cloning": True,
+                    "classification_available": False
+                })
+
+            return result
         except Exception as e:
             return {"error": str(e), "score": "unknown", "warnings": ["Nepodařilo se analyzovat kvalitu"]}
 
