@@ -176,3 +176,4 @@ class ModelManager:
             "hifigan_available": vocoder.available if vocoder and hasattr(vocoder, 'available') else False
         }
 
+
