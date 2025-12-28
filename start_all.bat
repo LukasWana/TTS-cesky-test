@@ -143,6 +143,29 @@ echo Backend dependencies installed.
 :backend_deps_done
 echo.
 
+REM 4.1) Kontrola Demucs (volitelné, ale doporučené pro separaci hlasu)
+echo [4.1/11] Checking Demucs installation...
+python -c "import demucs" >nul 2>&1
+if errorlevel 1 (
+  echo Demucs is not installed. Installing...
+  pip install "demucs>=4.0.0"
+  if errorlevel 1 (
+    echo WARNING: Demucs installation failed. Voice separation feature will not be available.
+    echo You can install it later manually: pip install demucs
+  ) else (
+    echo Verifying Demucs installation...
+    python -c "import demucs; print('Demucs OK')" >nul 2>&1
+    if errorlevel 1 (
+      echo WARNING: Demucs installation verification failed. Voice separation may not work.
+    ) else (
+      echo Demucs installed successfully.
+    )
+  )
+) else (
+  echo Demucs is already installed.
+)
+echo.
+
 REM 4.2) Pokud je vyzadovano GPU, zajisti CUDA build PyTorch (jinak torch bude CPU build z requirements.txt)
 if /i "%FORCE_DEVICE%"=="cuda" goto :ensure_cuda_torch
 goto :after_cuda_torch

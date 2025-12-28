@@ -13,6 +13,18 @@ python -c "import transformers" >/dev/null 2>&1 || (
   pip install -r requirements.txt
 )
 
+# Kontrola Demucs (volitelné, ale doporučené pro separaci hlasu)
+python -c "import demucs" >/dev/null 2>&1 || (
+  echo "[INFO] Demucs není nainstalován – instaluji..."
+  pip install "demucs>=4.0.0"
+  if [ $? -ne 0 ]; then
+    echo "WARNING: Instalace Demucs selhala. Separace hlasu od pozadí nebude dostupná."
+    echo "Můžete nainstalovat později: pip install demucs"
+  else
+    echo "Demucs nainstalován úspěšně."
+  fi
+)
+
 # Výchozí headroom (pokud není nastaven zvenku)
 : "${OUTPUT_HEADROOM_DB:=-9.0}"
 export OUTPUT_HEADROOM_DB

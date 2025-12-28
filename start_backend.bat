@@ -36,6 +36,19 @@ if errorlevel 1 (
     )
 )
 
+REM Kontrola Demucs (volitelné, ale doporučené pro separaci hlasu)
+python -c "import demucs" >nul 2>&1
+if errorlevel 1 (
+    echo [INFO] Demucs neni nainstalovan - instaluji...
+    pip install "demucs>=4.0.0"
+    if errorlevel 1 (
+        echo WARNING: Instalace Demucs selhala. Separace hlasu od pozadi nebude dostupna.
+        echo Muzete nainstalovat pozdeji: pip install demucs
+    ) else (
+        echo Demucs nainstalovan uspesne.
+    )
+)
+
 set PYTHONPATH=%PYTHONPATH%;%CD%
 REM Výchozí headroom (pokud už není nastaven zvenku)
 if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-9.0
