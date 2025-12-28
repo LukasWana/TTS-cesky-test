@@ -416,7 +416,8 @@ class AudioProcessor:
     @staticmethod
     def process_uploaded_file(
         uploaded_file_path: str,
-        output_filename: Optional[str] = None
+        output_filename: Optional[str] = None,
+        remove_background: bool = False
     ) -> Tuple[Optional[str], Optional[str]]:
         """
         Zpracuje nahraný audio soubor
@@ -424,6 +425,7 @@ class AudioProcessor:
         Args:
             uploaded_file_path: Cesta k nahranému souboru
             output_filename: Volitelný název výstupního souboru
+            remove_background: Pokud True, odstraní hudbu a zvuky v pozadí pomocí Demucs
 
         Returns:
             (processed_file_path, error_message)
@@ -450,7 +452,34 @@ class AudioProcessor:
         if not success:
             return None, error
 
-        # Volitelně: vytvoř „reference voice“ vhodnější pro klonování (VAD segmenty + normalizace)
+        # Separace vokálů od pozadí pokud je požadována
+        if remove_background:
+            try:
+                from backend.audio_separator import separate_vocals
+                import logging
+                import uuid
+                logger = logging.getLogger(__name__)
+
+                logger.info("Začínám separaci vokálů od pozadí...")
+                temp_separated = output_path.parent / f"temp_separated_{uuid.uuid4()}.wav"
+                success_sep, error_sep = separate_vocals(
+                    str(output_path),
+                    str(temp_separated)
+                )
+                if success_sep:
+                    # Přepsat původní soubor separovanými vokály
+                    import shutil
+                    shutil.move(str(temp_separated), str(output_path))
+                    logger.info("Separace vokálů dokončena úspěšně")
+                else:
+                    logger.warning(f"Separace vokálů selhala: {error_sep}, používám původní audio")
+                    temp_separated.unlink(missing_ok=True)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Chyba při separaci vokálů: {str(e)}, používám původní audio")
+
+        # Volitelně: vytvoř „reference voice" vhodnější pro klonování (VAD segmenty + normalizace)
         if ENABLE_REFERENCE_VOICE_PREP:
             try:
                 ref_dir = SPEAKER_CACHE_DIR / "reference_wavs"

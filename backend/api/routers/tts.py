@@ -755,6 +755,7 @@ async def generate_speech_f5_sk(
     target_headroom_db: str = Form(None),
     auto_enhance_voice: str = Form(None),
     allow_poor_voice: str = Form(None),
+    remove_background: bool = Form(False),
 ):
     """Generuje řeč z textu pomocí F5-TTS slovenského modelu"""
     try:
@@ -842,7 +843,10 @@ async def generate_speech_f5_sk(
                 content = await voice_file.read()
                 await f.write(content)
 
-            processed_path, error = AudioProcessor.process_uploaded_file(str(temp_path))
+            processed_path, error = AudioProcessor.process_uploaded_file(
+                str(temp_path),
+                remove_background=remove_background
+            )
             if error:
                 raise HTTPException(status_code=400, detail=error)
             speaker_wav = processed_path

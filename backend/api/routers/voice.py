@@ -27,7 +27,10 @@ router = APIRouter(prefix="/api", tags=["voice"])
 
 
 @router.post("/voice/upload")
-async def upload_voice(voice_file: UploadFile = File(...)):
+async def upload_voice(
+    voice_file: UploadFile = File(...),
+    remove_background: bool = Form(False)
+):
     """Nahraje audio soubor pro voice cloning"""
     try:
         file_ext = Path(voice_file.filename).suffix
@@ -41,7 +44,8 @@ async def upload_voice(voice_file: UploadFile = File(...)):
 
         processed_path, error = AudioProcessor.process_uploaded_file(
             str(temp_path),
-            f"{voice_id}.wav"
+            f"{voice_id}.wav",
+            remove_background=remove_background
         )
 
         if error:
@@ -218,6 +222,7 @@ async def download_youtube_voice(
     duration: float = Form(None),
     filename: str = Form(None),
     lang: str = Form("cs"),
+    remove_background: bool = Form(False),
 ):
     """Stáhne audio z YouTube a uloží jako demo hlas"""
     try:
@@ -245,7 +250,7 @@ async def download_youtube_voice(
             raise HTTPException(status_code=400, detail="Neplatné YouTube URL")
 
         if not filename:
-            video_info = get_video_info(url)
+            video_info, error = get_video_info(url)
             if video_info and video_info.get("title"):
                 filename = sanitize_filename(video_info["title"])
             else:
@@ -262,6 +267,7 @@ async def download_youtube_voice(
             str(output_path),
             start_time=start_time,
             duration=duration,
+            remove_background=remove_background,
         )
 
         if not success:

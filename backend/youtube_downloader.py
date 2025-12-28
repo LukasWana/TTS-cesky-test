@@ -124,7 +124,8 @@ def download_youtube_audio(
     url: str,
     output_path: str,
     start_time: Optional[float] = None,
-    duration: Optional[float] = None
+    duration: Optional[float] = None,
+    remove_background: bool = False
 ) -> Tuple[bool, Optional[str]]:
     """
     Stáhne audio z YouTube a uloží jako WAV
@@ -134,6 +135,7 @@ def download_youtube_audio(
         output_path: Cesta k výstupnímu souboru
         start_time: Začátek ořezu v sekundách (volitelné)
         duration: Délka ořezu v sekundách (volitelné)
+        remove_background: Pokud True, odstraní hudbu a zvuky v pozadí pomocí Demucs
 
     Returns:
         (success, error_message)
@@ -243,6 +245,32 @@ def download_youtube_audio(
 
         if not success:
             return False, error
+
+        # Separace vokálů od pozadí pokud je požadována
+        if remove_background:
+            try:
+                from backend.audio_separator import separate_vocals
+                import logging
+                logger = logging.getLogger(__name__)
+
+                logger.info("Začínám separaci vokálů od pozadí...")
+                temp_separated = Path(output_path).parent / f"temp_separated_{uuid.uuid4()}.wav"
+                success_sep, error_sep = separate_vocals(
+                    str(output_path),
+                    str(temp_separated)
+                )
+                if success_sep:
+                    # Přepsat původní soubor separovanými vokály
+                    import shutil
+                    shutil.move(str(temp_separated), output_path)
+                    logger.info("Separace vokálů dokončena úspěšně")
+                else:
+                    logger.warning(f"Separace vokálů selhala: {error_sep}, používám původní audio")
+                    temp_separated.unlink(missing_ok=True)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Chyba při separaci vokálů: {str(e)}, používám původní audio")
 
         # Validace výstupního souboru
         is_valid, error = AudioProcessor.validate_audio_file(output_path)
