@@ -17,10 +17,13 @@ function VoiceSelector({
   voiceQuality,
   language = 'cs'
 }) {
+  const [removeBackground, setRemoveBackground] = useState(false)
+
   const handleFileChange = (e) => {
     const file = e.target.files[0]
     if (file) {
-      onVoiceUpload(file)
+      // Předat soubor i hodnotu remove_background
+      onVoiceUpload(file, removeBackground)
     }
   }
 
@@ -116,6 +119,19 @@ function VoiceSelector({
           {uploadedVoiceFileName && (
             <p className="upload-status">✓ {uploadedVoiceFileName}</p>
           )}
+          <div className="form-group" style={{ marginTop: '10px' }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={removeBackground}
+                onChange={(e) => setRemoveBackground(e.target.checked)}
+              />
+              Odstranit zvuky a hudbu v pozadí (ponechat jen hlas)
+            </label>
+            <small style={{ display: 'block', marginTop: '5px', color: '#666' }}>
+              Použije AI pro separaci hlasu od pozadí. Může trvat déle.
+            </small>
+          </div>
           <p className="upload-hint">
             Minimálně 6 sekund čistého audio (WAV, MP3)
           </p>

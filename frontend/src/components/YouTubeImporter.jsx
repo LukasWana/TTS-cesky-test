@@ -8,6 +8,7 @@ function YouTubeImporter({ onImportComplete, onError, language = 'cs' }) {
   const [startTime, setStartTime] = useState('')
   const [duration, setDuration] = useState('')
   const [filename, setFilename] = useState('')
+  const [removeBackground, setRemoveBackground] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
@@ -106,7 +107,8 @@ function YouTubeImporter({ onImportComplete, onError, language = 'cs' }) {
         startSeconds,
         durationSeconds,
         filename.trim() || null,
-        language
+        language,
+        removeBackground
       )
 
       setSuccess(`✓ Audio úspěšně staženo a uloženo jako: ${result.filename}`)
@@ -121,6 +123,7 @@ function YouTubeImporter({ onImportComplete, onError, language = 'cs' }) {
       setStartTime('')
       setDuration('')
       setFilename('')
+      setRemoveBackground(false)
 
     } catch (err) {
       const errorMessage = err.message || 'Chyba při stahování z YouTube'
@@ -189,6 +192,19 @@ function YouTubeImporter({ onImportComplete, onError, language = 'cs' }) {
             disabled={loading}
           />
           <small>Pokud není zadán, použije se automatický název</small>
+        </div>
+
+        <div className="form-group">
+          <label>
+            <input
+              type="checkbox"
+              checked={removeBackground}
+              onChange={(e) => setRemoveBackground(e.target.checked)}
+              disabled={loading}
+            />
+            Odstranit zvuky a hudbu v pozadí (ponechat jen hlas)
+          </label>
+          <small>Použije AI pro separaci hlasu od pozadí. Může trvat déle.</small>
         </div>
 
         {error && (

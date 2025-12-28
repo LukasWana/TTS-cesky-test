@@ -368,6 +368,9 @@ export async function generateF5TTSSlovak(text, voiceFile = null, demoVoice = nu
   if (ttsParams.targetHeadroomDb !== undefined && ttsParams.targetHeadroomDb !== null) {
     formData.append('target_headroom_db', ttsParams.targetHeadroomDb.toString())
   }
+  if (ttsParams.removeBackground !== undefined && ttsParams.removeBackground !== null) {
+    formData.append('remove_background', ttsParams.removeBackground.toString())
+  }
 
   const response = await fetch(`${API_BASE_URL}/api/tts/generate-f5-sk`, {
     method: 'POST',
@@ -439,9 +442,10 @@ export function subscribeToTtsProgress(jobId, onProgress, onError) {
 /**
  * Nahraje audio soubor pro voice cloning
  */
-export async function uploadVoice(voiceFile) {
+export async function uploadVoice(voiceFile, removeBackground = false) {
   const formData = new FormData()
   formData.append('voice_file', voiceFile)
+  formData.append('remove_background', removeBackground.toString())
 
   const response = await fetch(`${API_BASE_URL}/api/voice/upload`, {
     method: 'POST',
@@ -513,7 +517,7 @@ export async function getModelStatus() {
 /**
  * Stáhne audio z YouTube a uloží jako demo hlas
  */
-export async function downloadYouTubeVoice(url, startTime = null, duration = null, filename = null, lang = 'cs') {
+export async function downloadYouTubeVoice(url, startTime = null, duration = null, filename = null, lang = 'cs', removeBackground = false) {
   const formData = new FormData()
   formData.append('url', url)
 
@@ -531,6 +535,7 @@ export async function downloadYouTubeVoice(url, startTime = null, duration = nul
   if (lang) {
     formData.append('lang', lang)
   }
+  formData.append('remove_background', removeBackground.toString())
 
   const response = await fetch(`${API_BASE_URL}/api/voice/youtube`, {
     method: 'POST',

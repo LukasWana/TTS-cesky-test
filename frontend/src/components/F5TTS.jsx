@@ -55,6 +55,7 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
   const [refText, setRefText] = useState('')
   const [autoTranscribe, setAutoTranscribe] = useState(true)
   const [refTextLoading, setRefTextLoading] = useState(false)
+  const [removeBackground, setRemoveBackground] = useState(false)
 
   // --- Persist ref_text per konkrétní hlas (aby po reloadu nezmizel) ---
   const persistRefText = (storageKey, value) => {
@@ -388,11 +389,12 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
     }
   }
 
-  const handleVoiceUpload = async (file) => {
+  const handleVoiceUpload = async (file, removeBg = false) => {
     setSelectedVoice(file)
     setVoiceType('upload')
     setUploadedVoiceFileName(file.name)
     setVoiceQuality(null) // Reset quality for new upload
+    setRemoveBackground(removeBg) // Uložit hodnotu remove_background
 
     if (autoTranscribe) {
       try {
@@ -564,7 +566,9 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
         // Headroom
         targetHeadroomDb: qualitySettings.targetHeadroomDb !== undefined ? qualitySettings.targetHeadroomDb : -15.0,
         // Volitelný přepis referenčního audia (zlepšuje výslovnost/stabilitu, když sedí k referenci)
-        refText: refText || null
+        refText: refText || null,
+        // Separace hlasu od pozadí
+        removeBackground: voiceType === 'upload' ? removeBackground : false
       }
 
       // Spuštění SSE pro progress tracking
