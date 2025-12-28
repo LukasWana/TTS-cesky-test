@@ -1,8 +1,31 @@
 import React, { useState } from 'react'
 import Icon from './ui/Icons'
+import { getCategoryColor } from '../utils/layerColors'
 import './Sidebar.css'
 
 function Sidebar({ activeTab, onTabChange, tabs, isOpen, onClose, modelStatus }) {
+  // Mapování tab ID na kategorii pro barvy
+  const getCategoryForTab = (tabId) => {
+    const categoryMap = {
+      'generate': 'tts',
+      'f5tts': 'f5tts',
+      'musicgen': 'music',
+      'bark': 'bark',
+      'audioeditor': 'file',
+      'history': 'file',
+      'voicepreparation': 'file'
+    }
+    return categoryMap[tabId] || 'file'
+  }
+
+  // Pomocná funkce pro převod hex barvy na RGB string
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result
+      ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+      : '158, 158, 158' // výchozí šedá
+  }
+
   return (
     <>
       {/* Mobile overlay */}
@@ -52,13 +75,24 @@ function Sidebar({ activeTab, onTabChange, tabs, isOpen, onClose, modelStatus })
         )}
 
         <nav className="sidebar-nav">
-          {tabs.map((tab) => (
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id
+            const category = getCategoryForTab(tab.id)
+            const categoryColor = getCategoryColor(category, 0)
+            const rgb = hexToRgb(categoryColor)
+
+            return (
             <button
               key={tab.id}
-              className={`sidebar-nav-item ${activeTab === tab.id ? 'active' : ''}`}
+              className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
               onClick={() => {
                 onTabChange(tab.id)
               }}
+              style={isActive ? {
+                background: `rgba(${rgb}, 0.1)`,
+                color: categoryColor,
+                borderLeftColor: categoryColor
+              } : {}}
             >
               {tab.icon && (
                 <span className="sidebar-nav-icon">
@@ -67,7 +101,8 @@ function Sidebar({ activeTab, onTabChange, tabs, isOpen, onClose, modelStatus })
               )}
               <span className="sidebar-nav-label">{tab.label}</span>
             </button>
-          ))}
+            )
+          })}
         </nav>
       </aside>
     </>

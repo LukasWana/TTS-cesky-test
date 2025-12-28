@@ -41,12 +41,14 @@
 }
 
 .history-filter-btn.active {
+  /* Barvy budou přepsány inline styles */
   background: rgba(99, 102, 241, 0.2);
   border-color: rgba(99, 102, 241, 0.4);
   color: #818cf8;
 }
 
 .history-filter-btn.active:hover {
+  /* Barvy budou přepsány inline styles */
   background: rgba(99, 102, 241, 0.2);
   border-color: rgba(99, 102, 241, 0.4);
 }
@@ -139,23 +141,17 @@
   gap: 12px;
 }
 
+/* Hover stavy jsou nyní řešeny inline styles v React komponentě pro podporu barev kategorií */
 .history-item:hover:not(.selected) {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  /* Hover je řízen inline styles */
 }
 
 .history-item.selected {
-  background: rgba(99, 102, 241, 0.05);
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: 0 10px 40px rgba(99, 102, 241, 0.1);
+  /* Selected stav je řízen inline styles */
 }
 
 .history-item.selected:hover {
-  background: rgba(99, 102, 241, 0.05);
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: 0 10px 40px rgba(99, 102, 241, 0.1);
+  /* Selected hover je řízen inline styles */
 }
 
 .history-item-header {

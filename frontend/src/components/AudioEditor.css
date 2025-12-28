@@ -655,8 +655,7 @@
   height: 60px;
   margin-bottom: 10px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  /* Barvy jsou nastavené inline v JSX podle kategorie vrstvy */
   cursor: pointer;
   transition: all 0.2s ease;
   overflow: visible;
@@ -667,20 +666,19 @@
 }
 
 .layer-track:hover:not(.selected) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  /* Hover efekt je nastaven inline v JSX, ale můžeme přidat lehký efekt */
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 .layer-track.selected {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.1);
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+  /* Selected barvy jsou nastavené inline v JSX */
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
 }
 
 .layer-track.selected:hover {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.1);
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+  /* Selected hover je nastaven inline v JSX */
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
 }
 
 .layer-label {
@@ -905,8 +903,7 @@
   position: absolute;
   top: 5px;
   bottom: 5px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.4) 0%, rgba(139, 92, 246, 0.4) 100%);
-  border: 2px solid rgba(99, 102, 241, 0.8);
+  /* Barvy jsou nastavené inline v JSX podle kategorie vrstvy */
   border-radius: 6px;
   pointer-events: all;
   cursor: move;
@@ -919,8 +916,9 @@
 }
 
 .layer-clip:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.8) 0%, rgba(139, 92, 246, 0.8) 100%);
-  border-color: rgba(99, 102, 241, 1);
+  /* Hover efekt je nastaven inline v JSX, ale můžeme přidat lehký efekt */
+  opacity: 0.95;
+  transform: scale(1.01);
 }
 
 .layer-clip.dragging {
@@ -1156,7 +1154,7 @@
   align-items: center;
   margin-bottom: 15px;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .history-panel-header h3 {
@@ -1171,25 +1169,47 @@
   gap: 10px;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
-.history-type-select {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.3);
-  color: rgba(255, 255, 255, 0.9);
+.history-filter-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.history-filter-btn {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 16px;
+  border-radius: 8px;
   font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.history-type-select:hover {
-  border-color: rgba(255, 255, 255, 0.3);
+.history-filter-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.history-type-select:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+.history-filter-btn.active {
+  /* Barvy budou přepsány inline styles */
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #818cf8;
+}
+
+.history-filter-btn.active:hover {
+  /* Barvy budou přepsány inline styles */
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.4);
 }
 
 .btn-refresh-history,
@@ -1246,7 +1266,7 @@
 .history-item-compact:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(99, 102, 241, 0.5);
-  transform: translateY(-2px);
+  /* Transform odstraněn - ponechán jen glow efekt */
 }
 
 .history-item-waveform-container {

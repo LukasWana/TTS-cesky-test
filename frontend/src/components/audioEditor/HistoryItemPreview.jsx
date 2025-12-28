@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import { getWaveformCache, setWaveformCache } from '../../utils/waveformCache'
+import { getCategoryColor, getCategoryFromHistoryEntry } from '../../utils/layerColors'
 
 // Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome
 const API_BASE_URL = 'http://127.0.0.1:8000'
@@ -16,11 +17,26 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
   const [hasError, setHasError] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [shouldLoad, setShouldLoad] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
   const errorTimeoutRef = useRef(null)
   const observerRef = useRef(null)
 
   const audioUrl = entry?.audio_url
   const prompt = entry?.text || entry?.prompt || 'Bez popisu'
+
+  // Získat kategorii a barvu pro tento záznam
+  const category = getCategoryFromHistoryEntry(entry)
+  const categoryColor = getCategoryColor(category, 0)
+
+  // Pomocná funkce pro převod hex barvy na RGB string
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result
+      ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+      : '158, 158, 158' // výchozí šedá
+  }
+
+  const rgb = hexToRgb(categoryColor)
 
   // Validace a vytvoření full URL
   const fullUrl = React.useMemo(() => {
@@ -97,6 +113,16 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
       return
     }
 
+    // Pokud už máme WaveSurfer instanci, nic nedělej
+    if (wavesurferRef.current) {
+      return
+    }
+
+    // Načíst cached peaks jednou
+    const cached = audioUrl ? getWaveformCache(audioUrl) : null
+    const cachedPeaks = cached?.peaks
+    const cachedDuration = cached?.duration
+
     // Reset states při novém načítání
     setHasError(false)
     setIsLoading(true)
@@ -110,10 +136,11 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
     let wavesurfer = null
 
     try {
+      // Použít barvu kategorie pro waveform
       wavesurfer = WaveSurfer.create({
         container: waveformRef.current,
-        waveColor: 'rgba(255, 255, 255, 0.25)',
-        progressColor: 'rgba(99, 102, 241, 0.6)',
+        waveColor: `rgba(${rgb}, 0.3)`,
+        progressColor: categoryColor,
         cursorColor: 'transparent',
         responsive: true,
         height: 40,
@@ -163,11 +190,16 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
 
       // Error handling
       wavesurfer.on('error', (error) => {
-        if (error && typeof error === 'object') {
-          const errorMessage = error.message || error.toString()
-          if (errorMessage.includes('AbortError') ||
+        // Ignorovat AbortError - je to normální při cleanup nebo scrollování
+        if (error) {
+          const errorName = error.name || (typeof error === 'string' ? error : '')
+          const errorMessage = error.message || error.toString() || ''
+          if (errorName === 'AbortError' ||
+              errorName === 'NotAllowedError' ||
+              errorMessage.includes('AbortError') ||
               errorMessage.includes('NotAllowedError') ||
-              errorMessage.includes('cancelLoad')) {
+              errorMessage.includes('cancelLoad') ||
+              errorMessage.includes('signal is aborted')) {
             return
           }
         }
@@ -187,7 +219,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
         }
       }, 10000)
 
-      // Načíst audio
+      // Načíst audio (cachedPeaks a cachedDuration jsou z closure)
       try {
         const hasCached = Array.isArray(cachedPeaks) && cachedPeaks.length > 0 && Array.isArray(cachedPeaks[0]) && typeof cachedDuration === 'number'
 
@@ -262,9 +294,17 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           : wavesurfer.load(fullUrl)
         if (loadPromise && typeof loadPromise.catch === 'function') {
           loadPromise.catch((error) => {
-            if (error && error.name &&
-                (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
-              return
+            // Ignorovat AbortError - je to normální při cleanup
+            if (error) {
+              const errorName = error.name || ''
+              const errorMessage = error.message || error.toString() || ''
+              if (errorName === 'AbortError' ||
+                  errorName === 'NotAllowedError' ||
+                  errorMessage.includes('AbortError') ||
+                  errorMessage.includes('NotAllowedError') ||
+                  errorMessage.includes('signal is aborted')) {
+                return
+              }
             }
             console.error('Chyba při načítání audio URL:', error, fullUrl)
             setIsLoading(false)
@@ -272,9 +312,17 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           })
         }
       } catch (loadError) {
-        if (loadError && loadError.name &&
-            (loadError.name === 'AbortError' || loadError.name === 'NotAllowedError')) {
-          return
+        // Ignorovat AbortError - je to normální při cleanup
+        if (loadError) {
+          const errorName = loadError.name || ''
+          const errorMessage = loadError.message || loadError.toString() || ''
+          if (errorName === 'AbortError' ||
+              errorName === 'NotAllowedError' ||
+              errorMessage.includes('AbortError') ||
+              errorMessage.includes('NotAllowedError') ||
+              errorMessage.includes('signal is aborted')) {
+            return
+          }
         }
         console.error('Chyba při volání load():', loadError, fullUrl)
         setIsLoading(false)
@@ -320,7 +368,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
       setIsLoading(false)
       setHasError(true)
     }
-  }, [fullUrl, shouldLoad, audioUrl, cachedPeaks, cachedDuration, isLoading])
+  }, [fullUrl, shouldLoad, audioUrl])
 
   const togglePlay = (e) => {
     e.stopPropagation()
@@ -343,7 +391,45 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
 
   if (!audioUrl || !fullUrl) {
     return (
-      <div className="history-item-compact" onClick={handleClick}>
+      <div
+        className="history-item-compact"
+        onClick={handleClick}
+        style={{
+          borderLeft: `3px solid ${categoryColor}`,
+          borderColor: `rgba(${rgb}, 0.2)`,
+          backgroundColor: `rgba(${rgb}, 0.03)`,
+          position: 'relative'
+        }}
+        onMouseEnter={(e) => {
+          setIsHovered(true)
+          e.currentTarget.style.borderColor = `rgba(${rgb}, 0.3)`
+          e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.05)`
+        }}
+        onMouseLeave={(e) => {
+          setIsHovered(false)
+          e.currentTarget.style.borderColor = `rgba(${rgb}, 0.2)`
+          e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.03)`
+        }}
+      >
+        {isHovered && (
+          <div className="history-item-add-label" style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: `rgba(${rgb}, 0.9)`,
+            color: '#fff',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            zIndex: 10,
+            pointerEvents: 'none',
+            boxShadow: `0 4px 12px rgba(${rgb}, 0.4)`
+          }}>
+            Přidej
+          </div>
+        )}
         <div className="history-item-compact-text">
           {prompt}
         </div>
@@ -359,7 +445,42 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
       ref={containerRef}
       className="history-item-compact"
       onClick={handleClick}
+      style={{
+        borderLeft: `3px solid ${categoryColor}`,
+        borderColor: `rgba(${rgb}, 0.2)`,
+        backgroundColor: `rgba(${rgb}, 0.03)`,
+        position: 'relative'
+      }}
+      onMouseEnter={(e) => {
+        setIsHovered(true)
+        e.currentTarget.style.borderColor = `rgba(${rgb}, 0.3)`
+        e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.05)`
+      }}
+      onMouseLeave={(e) => {
+        setIsHovered(false)
+        e.currentTarget.style.borderColor = `rgba(${rgb}, 0.2)`
+        e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.03)`
+      }}
     >
+      {isHovered && (
+        <div className="history-item-add-label" style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: `rgba(${rgb}, 0.9)`,
+          color: '#fff',
+          padding: '8px 16px',
+          borderRadius: '8px',
+          fontSize: '0.9rem',
+          fontWeight: 600,
+          zIndex: 10,
+          pointerEvents: 'none',
+          boxShadow: `0 4px 12px rgba(${rgb}, 0.4)`
+        }}>
+          Přidej
+        </div>
+      )}
       <div className="history-item-waveform-container">
         <button
           className="history-item-play-btn"

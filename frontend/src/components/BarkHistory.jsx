@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { getBarkHistory, deleteBarkHistoryEntry, clearBarkHistory } from '../services/api'
 import { deleteWaveformCache, clearWaveformCache } from '../utils/waveformCache'
 import AudioPlayer from './AudioPlayer'
+import { getCategoryColor } from '../utils/layerColors'
 import './History.css'
 
 // Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome
@@ -23,7 +24,12 @@ function BarkHistory({ onRestorePrompt }) {
       setLoading(true)
       setError(null)
       const data = await getBarkHistory(null, 0)
-      setHistory(data.history || [])
+      // Přidat source pro Bark
+      const entries = (data.history || []).map(entry => ({
+        ...entry,
+        source: 'bark'
+      }))
+      setHistory(entries)
       setStats(data.stats || null)
     } catch (err) {
       setError(err.message || 'Chyba při načítání historie Bark')
@@ -31,6 +37,14 @@ function BarkHistory({ onRestorePrompt }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Pomocná funkce pro převod hex barvy na RGB string
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result
+      ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+      : '158, 158, 158' // výchozí šedá
   }
 
   const handleDelete = async (entryId, e) => {
@@ -132,11 +146,44 @@ function BarkHistory({ onRestorePrompt }) {
         </div>
       ) : (
         <div className="history-list">
-          {history.map((entry) => (
+          {history.map((entry) => {
+            // Získat kategorii a barvu pro tento záznam
+            const category = entry.source || 'bark'
+            const categoryColor = getCategoryColor(category, 0)
+            const rgb = hexToRgb(categoryColor)
+            const isSelected = selectedEntry?.id === entry.id
+
+            return (
             <div
               key={entry.id}
-              className={`history-item ${selectedEntry?.id === entry.id ? 'selected' : ''}`}
-              onClick={() => setSelectedEntry(selectedEntry?.id === entry.id ? null : entry)}
+              className={`history-item ${isSelected ? 'selected' : ''}`}
+              onClick={() => setSelectedEntry(isSelected ? null : entry)}
+              style={{
+                borderLeft: `3px solid ${categoryColor}`,
+                borderColor: isSelected
+                  ? `rgba(${rgb}, 0.4)`
+                  : `rgba(${rgb}, 0.2)`,
+                backgroundColor: isSelected
+                  ? `rgba(${rgb}, 0.08)`
+                  : `rgba(${rgb}, 0.03)`,
+                boxShadow: isSelected
+                  ? `0 10px 40px rgba(${rgb}, 0.15)`
+                  : 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.borderColor = `rgba(${rgb}, 0.3)`
+                  e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.05)`
+                  e.currentTarget.style.boxShadow = `0 10px 30px rgba(${rgb}, 0.2)`
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.borderColor = `rgba(${rgb}, 0.2)`
+                  e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.03)`
+                  e.currentTarget.style.boxShadow = 'none'
+                }
+              }}
             >
               <div className="history-item-header">
                 <div className="history-item-info">
@@ -189,7 +236,8 @@ function BarkHistory({ onRestorePrompt }) {
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

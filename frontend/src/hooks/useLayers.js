@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { getCategoryFromHistoryEntry, getColorForNewLayer } from '../utils/layerColors'
 
 const API_BASE_URL = 'http://127.0.0.1:8000'
 
@@ -77,27 +78,38 @@ export function useLayers() {
       const duration = audioBuffer.duration
       const blobUrl = await createBlobUrl(audioBuffer, audioBufferToWav)
 
-      const newLayer = {
-        id: `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`,
-        name: file.name,
-        file: file,
-        audioBuffer: audioBuffer,
-        blobUrl: blobUrl,
-        startTime: 0,
-        duration: duration,
-        volume: 1.0,
-        fadeIn: 0,
-        fadeOut: 0,
-        trimStart: 0,
-        trimEnd: duration,
-        loop: false,
-        loopAnchorTime: 0
-      }
+      // Určit kategorii a barvu pro nahraný soubor
+      const category = 'file'
+      let newLayer = null
 
-      setLayers(prevLayers => [...prevLayers, newLayer])
-      if (selectedLayerId === null) {
-        setSelectedLayerId(newLayer.id)
-      }
+      setLayers(prevLayers => {
+        const newLayerColor = getColorForNewLayer(prevLayers, category)
+
+        newLayer = {
+          id: `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`,
+          name: file.name,
+          file: file,
+          audioBuffer: audioBuffer,
+          blobUrl: blobUrl,
+          startTime: 0,
+          duration: duration,
+          volume: 1.0,
+          fadeIn: 0,
+          fadeOut: 0,
+          trimStart: 0,
+          trimEnd: duration,
+          loop: false,
+          loopAnchorTime: 0,
+          category: category,
+          color: newLayerColor
+        }
+
+        if (selectedLayerId === null) {
+          setSelectedLayerId(newLayer.id)
+        }
+        return [...prevLayers, newLayer]
+      })
+
       return newLayer
     } catch (err) {
       console.error('Chyba při načítání audio:', err)
@@ -114,26 +126,37 @@ export function useLayers() {
       const name = entry.filename || entry.audio_url.split('/').pop() || 'Audio z historie'
       const sourceInfo = entry.sourceLabel || ''
 
-      const newLayer = {
-        id: `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`,
-        name: `${sourceInfo} - ${name}`,
-        file: null,
-        audioBuffer: audioBuffer,
-        audioUrl: entry.audio_url,
-        startTime: 0,
-        duration: duration,
-        volume: 1.0,
-        fadeIn: 0,
-        fadeOut: 0,
-        trimStart: 0,
-        trimEnd: duration,
-        loop: false,
-        loopAnchorTime: 0,
-        historyEntry: entry
-      }
+      // Určit kategorii z history entry
+      const category = getCategoryFromHistoryEntry(entry)
+      let newLayer = null
 
-      setLayers(prevLayers => [...prevLayers, newLayer])
-      setSelectedLayerId(prev => (prev === null ? newLayer.id : prev))
+      setLayers(prevLayers => {
+        const newLayerColor = getColorForNewLayer(prevLayers, category)
+
+        newLayer = {
+          id: `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`,
+          name: `${sourceInfo} - ${name}`,
+          file: null,
+          audioBuffer: audioBuffer,
+          audioUrl: entry.audio_url,
+          startTime: 0,
+          duration: duration,
+          volume: 1.0,
+          fadeIn: 0,
+          fadeOut: 0,
+          trimStart: 0,
+          trimEnd: duration,
+          loop: false,
+          loopAnchorTime: 0,
+          historyEntry: entry,
+          category: category,
+          color: newLayerColor
+        }
+
+        setSelectedLayerId(prev => (prev === null ? newLayer.id : prev))
+        return [...prevLayers, newLayer]
+      })
+
       return newLayer
     } catch (err) {
       console.error('Chyba při načítání audio z historie:', err)

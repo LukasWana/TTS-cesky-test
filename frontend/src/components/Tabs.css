@@ -39,6 +39,17 @@
 
 .tab-button.active::before {
   transform: scaleX(1);
+  /* Barva bude přepsána inline style */
+}
+
+.tab-button-indicator {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  transform: scaleX(1);
+  transition: transform var(--transition-base);
 }
 
 .tab-button:hover:not(.active) {
@@ -47,13 +58,13 @@
 }
 
 .tab-button.active {
+  /* Barvy budou přepsány inline styles */
   color: var(--color-primary);
   border-bottom-color: var(--color-primary);
   background: var(--color-primary-light);
 }
 
-.tab-button:focus {
-}
+/* Focus state handled by browser default */
 
 .tab-button.active:hover {
   background: var(--color-primary-light);

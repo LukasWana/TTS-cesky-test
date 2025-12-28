@@ -19,10 +19,23 @@ const LayerWaveform = React.memo(function LayerWaveform({
   isSelected = false,
   onFadeInChange = null,
   onFadeOutChange = null,
-  onReady
+  onReady,
+  color = '#ffffff'
 }) {
 
-  const renderWaveformDataUrl = useCallback((buffer, tStart, tEnd) => {
+  // Pomocná funkce pro převod hex barvy na RGB
+  const hexToRgb = useCallback((hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result
+      ? {
+          r: parseInt(result[1], 16),
+          g: parseInt(result[2], 16),
+          b: parseInt(result[3], 16)
+        }
+      : { r: 255, g: 255, b: 255 }
+  }, [])
+
+  const renderWaveformDataUrl = useCallback((buffer, tStart, tEnd, waveformColor) => {
     try {
       if (!buffer) return null
       const width = 300
@@ -33,8 +46,10 @@ const LayerWaveform = React.memo(function LayerWaveform({
       const ctx = canvas.getContext('2d')
       if (!ctx) return null
 
+      const rgb = hexToRgb(waveformColor)
+
       ctx.clearRect(0, 0, width, height)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'
+      ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.08)`
       ctx.fillRect(0, 0, width, height)
 
       const sr = buffer.sampleRate
@@ -46,7 +61,7 @@ const LayerWaveform = React.memo(function LayerWaveform({
       const sliceLen = s1 - s0
       const step = Math.max(1, Math.floor(sliceLen / width))
 
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)'
+      ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.65)`
       ctx.lineWidth = 1
       const mid = height / 2
       const padding = 2 // Padding aby waveform nešel až na okraj
@@ -89,14 +104,14 @@ const LayerWaveform = React.memo(function LayerWaveform({
       console.error('Chyba při renderu waveform dataURL:', e)
       return null
     }
-  }, [])
+  }, [hexToRgb])
 
   // Pokud je loop aktivní, vykresli opakující se pattern (i když je klip stejně dlouhý jako cyklus)
   const shouldUseRepeatWaveform = loop && audioBuffer && (trimEnd - trimStart) > 0.05
   const repeatWaveformUrl = useMemo(() => {
     if (!shouldUseRepeatWaveform) return null
-    return renderWaveformDataUrl(audioBuffer, trimStart, trimEnd)
-  }, [shouldUseRepeatWaveform, audioBuffer, trimStart, trimEnd, renderWaveformDataUrl])
+    return renderWaveformDataUrl(audioBuffer, trimStart, trimEnd, color)
+  }, [shouldUseRepeatWaveform, audioBuffer, trimStart, trimEnd, renderWaveformDataUrl, color])
 
   // Statický waveform pro non-loop (výrazně levnější než WaveSurfer, a hlavně nemizí při re-renderech)
   const staticWaveformUrl = useMemo(() => {
@@ -105,8 +120,8 @@ const LayerWaveform = React.memo(function LayerWaveform({
     if (!(len > 0.01)) return null
     // Pro loop používáme repeatWaveformUrl výše
     if (shouldUseRepeatWaveform) return null
-    return renderWaveformDataUrl(audioBuffer, trimStart, trimEnd)
-  }, [audioBuffer, trimStart, trimEnd, shouldUseRepeatWaveform, renderWaveformDataUrl])
+    return renderWaveformDataUrl(audioBuffer, trimStart, trimEnd, color)
+  }, [audioBuffer, trimStart, trimEnd, shouldUseRepeatWaveform, renderWaveformDataUrl, color])
 
   // Debug: zkontrolovat, proč se repeat waveform nezobrazuje
   if (loop && !audioBuffer) {
@@ -275,7 +290,8 @@ const LayerWaveform = React.memo(function LayerWaveform({
     prev.loopAnchorTime === next.loopAnchorTime &&
     prev.fadeIn === next.fadeIn &&
     prev.fadeOut === next.fadeOut &&
-    prev.isSelected === next.isSelected
+    prev.isSelected === next.isSelected &&
+    prev.color === next.color
   )
 })
 

@@ -398,9 +398,9 @@ function App() {
             <Bark prompt={text} setPrompt={setText} />
           )}
 
-          {activeTab === 'audioeditor' && (
+          <div style={{ display: activeTab === 'audioeditor' ? 'block' : 'none' }}>
             <AudioEditor />
-          )}
+          </div>
         </div>
       </main>
       </div>

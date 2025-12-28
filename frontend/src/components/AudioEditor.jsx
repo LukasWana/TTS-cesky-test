@@ -7,13 +7,31 @@ import LayerWaveform from './audioEditor/LayerWaveform'
 import HistoryItemPreview from './audioEditor/HistoryItemPreview'
 import { useLayers } from '../hooks/useLayers'
 import { useTimeline } from '../hooks/useTimeline'
+import { getCategoryColor } from '../utils/layerColors'
+import Icon from './ui/Icons'
 
 // Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome
 const API_BASE_URL = 'http://127.0.0.1:8000'
 const STORAGE_KEY = 'audio_editor_state'
 const PROJECTS_STORAGE_KEY = 'audio_editor_projects'
 
+const HISTORY_TYPES = {
+  all: { label: 'Vše', icon: 'grid' },
+  tts: { label: 'české slovo', icon: 'microphone' },
+  f5tts: { label: 'slovenské slovo', icon: 'microphone' },
+  music: { label: 'hudba', icon: 'music' },
+  bark: { label: 'FX & English', icon: 'speaker' }
+}
+
 // LayerWaveform and HistoryItemPreview are now imported from separate files
+
+// Pomocná funkce pro převod hex barvy na RGB hodnoty
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  return result
+    ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+    : '158, 158, 158' // výchozí šedá
+}
 
 function AudioEditor() {
   // Audio context a playback refs
@@ -187,7 +205,9 @@ function AudioEditor() {
                   loopAnchorTime: (layerData.loopAnchorTime !== undefined && layerData.loopAnchorTime !== null)
                     ? layerData.loopAnchorTime
                     : (layerData.startTime || 0),
-                  historyEntry: layerData.historyEntry
+                  historyEntry: layerData.historyEntry,
+                  category: layerData.category || 'file',
+                  color: layerData.color || getCategoryColor(layerData.category || 'file', 0)
                 })
               }
 
@@ -244,7 +264,9 @@ function AudioEditor() {
             loopAnchorTime: (layer.loopAnchorTime !== undefined && layer.loopAnchorTime !== null)
               ? layer.loopAnchorTime
               : layer.startTime,
-            historyEntry: layer.historyEntry
+            historyEntry: layer.historyEntry,
+            category: layer.category || 'file',
+            color: layer.color || getCategoryColor(layer.category || 'file', 0)
           })),
           masterVolume,
           currentTime,
@@ -1371,7 +1393,9 @@ function AudioEditor() {
         loopAnchorTime: (layer.loopAnchorTime !== undefined && layer.loopAnchorTime !== null)
           ? layer.loopAnchorTime
           : layer.startTime,
-        historyEntry: layer.historyEntry
+        historyEntry: layer.historyEntry,
+        category: layer.category || 'file',
+        color: layer.color || getCategoryColor(layer.category || 'file', 0)
       })),
       masterVolume,
       currentTime: 0, // Uložit na začátek
@@ -1457,7 +1481,9 @@ function AudioEditor() {
               trimEnd: layerData.trimEnd || audioBuffer.duration,
               loop: layerData.loop || false,
               loopAnchorTime: layerData.loopAnchorTime ?? (layerData.startTime || 0),
-              historyEntry: layerData.historyEntry
+              historyEntry: layerData.historyEntry,
+              category: layerData.category || 'file',
+              color: layerData.color || getCategoryColor(layerData.category || 'file', 0)
             }
             setLayers(prev => {
               // Kontrola duplicitních ID
@@ -1776,11 +1802,34 @@ function AudioEditor() {
 
             <div className="timeline-playhead" style={{ left: `${playbackPosition * 100}%` }} />
             <div className="layers-container" onClick={(e) => e.stopPropagation()}>
-              {layers.map((layer, index) => (
+              {layers.map((layer, index) => {
+                // Získat barvu vrstvy, nebo použít výchozí
+                const layerColor = layer.color || getCategoryColor(layer.category || 'file', 0)
+                const isSelected = selectedLayerId === layer.id
+                const rgb = hexToRgb(layerColor)
+
+                return (
                 <React.Fragment key={layer.id}>
                   <div
-                    className={`layer-track ${selectedLayerId === layer.id ? 'selected' : ''}`}
+                    className={`layer-track ${isSelected ? 'selected' : ''}`}
                     onClick={() => setSelectedLayerId(layer.id)}
+                    style={{
+                      borderColor: isSelected ? layerColor : `rgba(${rgb}, 0.3)`,
+                      backgroundColor: isSelected ? `rgba(${rgb}, 0.15)` : `rgba(${rgb}, 0.05)`,
+                      boxShadow: isSelected ? `0 0 15px rgba(${rgb}, 0.3)` : 'none'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = `rgba(${rgb}, 0.5)`
+                        e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.1)`
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = `rgba(${rgb}, 0.3)`
+                        e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.05)`
+                      }
+                    }}
                   >
                     <div className="layer-label" style={{ userSelect: 'none' }}>
                       <button
@@ -1818,9 +1867,23 @@ function AudioEditor() {
                       className={`layer-clip ${draggingClip === layer.id ? 'dragging' : ''}`}
                       style={{
                         left: `${(layer.startTime / Math.max(maxDuration, 1)) * 100}%`,
-                        width: `${(layer.duration / Math.max(maxDuration, 1)) * 100}%`
+                        width: `${(layer.duration / Math.max(maxDuration, 1)) * 100}%`,
+                        borderColor: isSelected ? layerColor : `rgba(${rgb}, 0.4)`,
+                        backgroundColor: `rgba(${rgb}, 0.1)`
                       }}
                       onMouseDown={(e) => handleClipMouseDown(e, layer.id)}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = `rgba(${rgb}, 0.6)`
+                          e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.15)`
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = `rgba(${rgb}, 0.4)`
+                          e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.1)`
+                        }
+                      }}
                     >
                       <LayerWaveform
                         layerId={layer.id}
@@ -1836,6 +1899,7 @@ function AudioEditor() {
                         fadeIn={layer.fadeIn || 0}
                         fadeOut={layer.fadeOut || 0}
                         isSelected={selectedLayerId === layer.id}
+                        color={layerColor}
                         onFadeInChange={(newFadeIn) => {
                           const trimmedDuration = Math.max(0.01, layer.trimEnd - layer.trimStart)
                           const validFadeIn = Math.max(0, Math.min(trimmedDuration - (layer.fadeOut || 0), newFadeIn))
@@ -2009,7 +2073,8 @@ function AudioEditor() {
                     </div>
                   )}
                 </React.Fragment>
-              ))}
+                )
+              })}
             </div>
           </div>
         </div>
@@ -2020,32 +2085,69 @@ function AudioEditor() {
         <div className="history-panel">
           <div className="history-panel-header">
             <h3>📜 Historie všech modelů</h3>
-            <div className="history-panel-controls">
-              <select
-                value={historyType}
-                onChange={(e) => setHistoryType(e.target.value)}
-                className="history-type-select"
-              >
-                <option value="all">Vše</option>
-                <option value="tts">🎤 české slovo</option>
-                <option value="f5tts">🇸🇰 slovenské slovo</option>
-                <option value="music">🎵 hudba</option>
-                <option value="bark">🔊 FX & English</option>
-              </select>
-              <button
-                className="btn-refresh-history"
-                onClick={loadHistory}
-                title="Obnovit historii"
-              >
-                🔄
-              </button>
-              <button
-                className="btn-toggle-history"
-                onClick={() => setShowHistory(false)}
-                title="Skrýt historii"
-              >
-                ✕
-              </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
+              <div className="history-filter-buttons">
+                {Object.entries(HISTORY_TYPES).map(([key, { label, icon }]) => {
+                  // Mapování history type na kategorii
+                  const categoryMap = {
+                    'all': 'file',
+                    'tts': 'tts',
+                    'f5tts': 'f5tts',
+                    'music': 'music',
+                    'bark': 'bark'
+                  }
+                  const category = categoryMap[key] || 'file'
+                  const categoryColor = getCategoryColor(category, 0)
+                  const rgb = hexToRgb(categoryColor)
+                  const isActive = historyType === key
+
+                  return (
+                  <button
+                    key={key}
+                    className={`history-filter-btn ${isActive ? 'active' : ''}`}
+                    onClick={() => setHistoryType(key)}
+                    style={isActive ? {
+                      background: `rgba(${rgb}, 0.2)`,
+                      borderColor: `rgba(${rgb}, 0.4)`,
+                      color: categoryColor
+                    } : {}}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = `rgba(${rgb}, 0.08)`
+                        e.currentTarget.style.borderColor = `rgba(${rgb}, 0.2)`
+                        e.currentTarget.style.color = categoryColor
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'
+                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)'
+                      }
+                    }}
+                  >
+                    <Icon name={icon} size={16} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
+                    {label}
+                  </button>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="btn-refresh-history"
+                  onClick={loadHistory}
+                  title="Obnovit historii"
+                >
+                  🔄
+                </button>
+                <button
+                  className="btn-toggle-history"
+                  onClick={() => setShowHistory(false)}
+                  title="Skrýt historii"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           </div>
           {historyLoading ? (
