@@ -51,7 +51,9 @@ if errorlevel 1 (
 
 set PYTHONPATH=%PYTHONPATH%;%CD%
 REM Výchozí headroom (pokud už není nastaven zvenku)
-if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-9.0
+REM POZOR: Musí odpovídat výchozí hodnotě v backend/config.py (-18.0 dB)!
+REM Změna této hodnoty může způsobit přebuzení audio!
+if not defined OUTPUT_HEADROOM_DB set OUTPUT_HEADROOM_DB=-18.0
 
 cd backend
 REM Pouzit -X utf8 flag misto PYTHONUTF8 env var (aby se vyhnulo konfliktu s globalnim nastavenim)

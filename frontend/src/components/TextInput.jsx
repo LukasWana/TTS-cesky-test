@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useSectionColor } from '../contexts/SectionColorContext'
 import './TextInput.css'
 
 function TextInput({ value, onChange, maxLength = 100000, versions = [], onSaveVersion, onDeleteVersion }) {
@@ -32,8 +33,14 @@ function TextInput({ value, onChange, maxLength = 100000, versions = [], onSaveV
     return text.substring(0, len) + '...'
   }
 
+  const { color, rgb } = useSectionColor()
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   return (
-    <div className="text-input-section">
+    <div className="text-input-section" style={style}>
       <div className="text-input-header">
         <h2>Text k syntéze</h2>
         <div className="text-actions">

@@ -51,13 +51,13 @@
 }
 
 .btn-text-action.active {
-  background: rgba(99, 102, 241, 0.15);
-  border-color: rgba(99, 102, 241, 0.3);
-  color: #818cf8;
+  background: rgba(var(--section-color-rgb, 99, 102, 241), 0.15);
+  border-color: rgba(var(--section-color-rgb, 99, 102, 241), 0.3);
+  color: var(--section-color, #818cf8);
 }
 
 .version-count {
-  background: #6366f1;
+  background: var(--section-color, #6366f1);
   color: white;
   font-size: 0.75rem;
   padding: 1px 6px;
@@ -208,9 +208,9 @@
 }
 
 .text-input:focus {
-  border-color: #6366f1;
+  border-color: var(--section-color, #6366f1);
   background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 3px rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
 }
 
 .text-input::placeholder {

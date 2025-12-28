@@ -53,9 +53,9 @@
 }
 
 .bark-textarea:focus {
-  border-color: #6366f1;
+  border-color: var(--section-color, #6366f1);
   background: rgba(0, 0, 0, 0.3);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 3px rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
 }
 
 .bark-input {
@@ -69,8 +69,8 @@
 }
 
 .bark-input:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  border-color: var(--section-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
 }
 
 .bark-result {
@@ -128,7 +128,7 @@
 .bark-toggle input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #6366f1;
+  accent-color: var(--section-color, #6366f1);
 }
 
 @media (max-width: 1024px) {

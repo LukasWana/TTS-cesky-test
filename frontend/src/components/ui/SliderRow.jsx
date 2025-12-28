@@ -1,4 +1,5 @@
 import React from 'react'
+import { useSectionColor } from '../../contexts/SectionColorContext'
 import './ui.css'
 
 function SliderRow({
@@ -15,10 +16,16 @@ function SliderRow({
   valueUnit = null,
   className = ''
 }) {
+  const { color, rgb } = useSectionColor()
   const percentage = ((value - min) / (max - min)) * 100
 
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   return (
-    <div className={`ui-slider-row ${className}`}>
+    <div className={`ui-slider-row ${className}`} style={style}>
       <div className="ui-slider-header">
         <label className="ui-slider-label">
           {label}

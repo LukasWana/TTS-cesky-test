@@ -13,7 +13,7 @@ function Sidebar({ activeTab, onTabChange, tabs, isOpen, onClose, modelStatus })
       'bark': 'bark',
       'audioeditor': 'file',
       'history': 'file',
-      'voicepreparation': 'file'
+      'voicepreparation': 'voicepreparation'
     }
     return categoryMap[tabId] || 'file'
   }

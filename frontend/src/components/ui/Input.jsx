@@ -1,4 +1,5 @@
 import React from 'react'
+import { useSectionColor } from '../../contexts/SectionColorContext'
 import './ui.css'
 
 function Input({
@@ -18,13 +19,19 @@ function Input({
   fullWidth = true,
   ...props
 }) {
+  const { color, rgb } = useSectionColor()
   const baseClass = 'ui-input-wrapper'
   const errorClass = error ? 'ui-input-error' : ''
   const fullWidthClass = fullWidth ? 'ui-input-full-width' : ''
   const combinedClass = `${baseClass} ${errorClass} ${fullWidthClass} ${className}`.trim()
 
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   return (
-    <div className={combinedClass}>
+    <div className={combinedClass} style={style}>
       {label && <label className="ui-input-label">{label}</label>}
       <div className="ui-input-container">
         {icon && iconPosition === 'left' && (

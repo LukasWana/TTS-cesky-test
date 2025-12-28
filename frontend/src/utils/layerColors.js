@@ -34,6 +34,12 @@ const COLOR_PALETTES = {
     '#6b7280', // Šedá - střední
     '#4b5563', // Šedá - tmavší
     '#374151'  // Šedá - nejtmavší
+  ],
+  voicepreparation: [
+    '#8b0000', // Tmavě červená - nejtmavší (hlavní barva)
+    '#991b1b', // Tmavě červená - tmavší
+    '#b91c1c', // Tmavě červená - střední
+    '#dc2626'  // Tmavě červená - světlejší
   ]
 }
 

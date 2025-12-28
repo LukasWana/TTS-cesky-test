@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useSectionColor } from '../contexts/SectionColorContext'
 import './Bark.css'
 import LoadingSpinner from './LoadingSpinner'
 import AudioPlayer from './AudioPlayer'
@@ -25,6 +26,12 @@ function ensureBracketedBarkPresetPrompt(raw) {
 }
 
 function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
+  const { color, rgb } = useSectionColor()
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   const [internalPrompt, setInternalPrompt] = useState(() =>
     ensureBracketedBarkPresetPrompt('[music] calm meditative ambient music, soft pads, slow evolving, no drums, no vocals, peaceful and relaxing')
   )
@@ -346,7 +353,7 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
   }
 
   return (
-    <div className="bark">
+    <div className="bark" style={style}>
       <div className="bark-header">
         <h2>Bark (Suno AI) - Text-to-Speech a audio generování</h2>
         <p className="bark-hint">

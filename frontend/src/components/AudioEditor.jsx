@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useSectionColor } from '../contexts/SectionColorContext'
 import WaveSurfer from 'wavesurfer.js'
 import './AudioEditor.css'
 import { getHistory, getMusicHistory, getBarkHistory } from '../services/api'
@@ -34,6 +35,12 @@ function hexToRgb(hex) {
 }
 
 function AudioEditor() {
+  const { color, rgb } = useSectionColor()
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   // Audio context a playback refs
   const audioContextRef = useRef(null)
   const masterGainNodeRef = useRef(null)
@@ -1530,6 +1537,7 @@ function AudioEditor() {
   return (
     <div
       className="audio-editor"
+      style={style}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

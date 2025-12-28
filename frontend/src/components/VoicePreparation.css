@@ -1,3 +1,9 @@
+/* CSS proměnné pro sekci přípravy hlasu */
+:root {
+  --preparation-section-color: #8b0000;
+  --preparation-section-color-rgb: 139, 0, 0;
+}
+
 .voice-preparation {
   margin-bottom: 20px;
 }
@@ -24,8 +30,8 @@
 
 .preparation-section {
   padding: 20px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(139, 0, 0, 0.1);
+  border: 1px solid rgba(139, 0, 0, 0.3);
   border-radius: 16px;
 }
 
@@ -47,18 +53,24 @@
   align-items: center;
   gap: 10px;
   padding: 12px 24px;
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  background: linear-gradient(135deg, #b91c1c 0%, #8b0000 100%);
   color: white;
   border-radius: 12px;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.3s ease;
-  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
+  box-shadow: 0 8px 16px rgba(139, 0, 0, 0.2);
 }
 
 .upload-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 15px 30px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 15px 30px rgba(139, 0, 0, 0.3);
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
+.upload-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 0, 0, 0.2);
 }
 
 .upload-status,
@@ -90,9 +102,14 @@
 }
 
 .form-group input[type="checkbox"] {
-  accent-color: #6366f1;
+  accent-color: #8b0000;
   width: 18px;
   height: 18px;
+}
+
+.form-group input[type="checkbox"]:focus {
+  outline: 2px solid #8b0000;
+  outline-offset: 2px;
 }
 
 .form-group small {

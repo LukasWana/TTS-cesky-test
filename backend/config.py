@@ -122,7 +122,12 @@ ENABLE_ADVANCED_NOISE_REDUCTION = os.getenv("ENABLE_ADVANCED_NOISE_REDUCTION", "
 ENABLE_DEESSER = os.getenv("ENABLE_DEESSER", "True").lower() == "true"
 
 # Výstupní headroom (dB). Pomáhá proti "přebuzelému" pocitu i když to neklipuje.
-# Doporučení: -15.0 dB (výchozí), lze nastavit od -128.0 dB (velmi tišší) do 0.0 dB (hlasitější)
+# Výchozí: -18.0 dB (tišší, bezpečnější proti přebuzení)
+# Lze nastavit od -128.0 dB (velmi tišší) do 0.0 dB (hlasitější)
+#
+# ⚠️ DŮLEŽITÉ: Pokud změníte výchozí hodnotu zde, MUSÍTE také změnit hodnotu
+# v start_backend.bat a start_backend.sh, jinak dojde k přebuzení audio!
+# Start skripty nastavují OUTPUT_HEADROOM_DB jako environment variable.
 OUTPUT_HEADROOM_DB = float(os.getenv("OUTPUT_HEADROOM_DB", "-18.0"))
 
 # Multi-pass generování

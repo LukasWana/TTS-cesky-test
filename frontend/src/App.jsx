@@ -22,6 +22,7 @@ import { useTextVersions } from './hooks/useTextVersions'
 import { useTTSProgress } from './hooks/useTTSProgress'
 import { useTTSGeneration } from './hooks/useTTSGeneration'
 import { getDefaultSlotSettings } from './constants/ttsDefaults'
+import { SectionColorProvider } from './contexts/SectionColorContext'
 import './App.css'
 
 function App() {
@@ -195,15 +196,16 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <Sidebar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        tabs={tabs}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        modelStatus={modelStatus}
-      />
+    <SectionColorProvider activeTab={activeTab}>
+      <div className="app">
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          tabs={tabs}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          modelStatus={modelStatus}
+        />
 
       <div className={`app-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
         <header className="app-header">
@@ -405,6 +407,7 @@ function App() {
       </main>
       </div>
     </div>
+    </SectionColorProvider>
   )
 }
 

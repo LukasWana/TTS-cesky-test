@@ -235,10 +235,16 @@ class HiFiGANVocoder:
 
                 # Normalizace výstupu
                 if do_normalize:
-                    # Peak normalization s gain
+                    # Headroom ceiling - pouze ztlumit, nikdy nezesilovat (stejně jako finální headroom)
+                    # POZOR: Původní implementace zesilovala audio pokud peak < gain, což způsobovalo přebuzení!
+                    # Řešení: použít headroom ceiling approach - pouze ztlumit pokud peak přesáhl cíl
                     peak = np.max(np.abs(vocoded))
                     if peak > 0:
-                        vocoded = vocoded * (gain / peak)
+                        target_peak = gain  # gain je cílový peak (např. 0.95 = -0.45 dB)
+                        # Pouze ztlumit pokud peak přesáhl cíl, nikdy nezesilovat
+                        if peak > target_peak:
+                            vocoded = vocoded * (target_peak / peak)
+                        # Pokud je peak < target_peak, nic neděláme (nezesilujeme - to by způsobilo přebuzení)
 
                 return vocoded
             else:

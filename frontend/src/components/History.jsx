@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useSectionColor } from '../contexts/SectionColorContext'
 import {
   getHistory, deleteHistoryEntry, clearHistory,
   getMusicHistory, deleteMusicHistoryEntry, clearMusicHistory,
@@ -20,6 +21,12 @@ const HISTORY_TYPES = {
 }
 
 function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
+  const { color, rgb } = useSectionColor()
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   const [historyType, setHistoryType] = useState('tts') // 'tts' | 'music' | 'bark'
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState(null)
@@ -186,14 +193,14 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
 
   if (loading) {
     return (
-      <div className="history-container">
+      <div className="history-container" style={style}>
         <div className="history-loading">⏳ Načítání historie...</div>
       </div>
     )
   }
 
   return (
-    <div className="history-container">
+    <div className="history-container" style={style}>
       <div className="history-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <h2>Historie</h2>

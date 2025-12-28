@@ -19,12 +19,15 @@ from backend.api.handlers.multi_lang_handler import (
     extract_speaker_ids,
     build_speaker_map,
 )
+from backend.api.helpers import get_demo_voice_path, _get_demo_voices_dir
 from backend.progress_manager import ProgressManager
 from backend.history_manager import HistoryManager
 from backend.config import (
     MAX_TEXT_LENGTH,
     AUDIO_ENHANCEMENT_PRESET,
     ENABLE_BATCH_PROCESSING,
+    DEMO_VOICES_CS_DIR,
+    DEMO_VOICES_SK_DIR,
 )
 
 logger = logging.getLogger(__name__)

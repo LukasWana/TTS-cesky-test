@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useSectionColor } from '../contexts/SectionColorContext'
 import './MusicGen.css'
 import LoadingSpinner from './LoadingSpinner'
 import AudioPlayer from './AudioPlayer'
@@ -8,6 +9,11 @@ import SelectRow from './ui/SelectRow'
 import { generateMusic, getMusicProgress, subscribeToMusicProgress, getAmbienceList } from '../services/api'
 
 function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
+  const { color, rgb } = useSectionColor()
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
   const [internalPrompt, setInternalPrompt] = useState('ambient cinematic pads, 90 BPM, no vocals, warm, slow build')
 
   // Synchronizace s propsem (pro obnovu z historie)
@@ -439,7 +445,7 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
   }
 
   return (
-    <div className="musicgen">
+    <div className="musicgen" style={style}>
       <div className="musicgen-header">
         <h2>MusicGen (hudba a ambientní zvuky)</h2>
         <p className="musicgen-hint">

@@ -71,10 +71,10 @@
 }
 
 .variant-tab.active {
-  background: #6366f1;
-  border-color: #6366f1;
+  background: var(--section-color, #6366f1);
+  border-color: var(--section-color, #6366f1);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px rgba(var(--section-color-rgb, 99, 102, 241), 0.3);
 }
 
 .settings-grid {
@@ -128,7 +128,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #6366f1;
+  background: var(--section-color, #6366f1);
   cursor: pointer;
   border: 2px solid #1a1c2c;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
@@ -137,7 +137,7 @@
 
 .setting-item input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.1);
-  background: #818cf8;
+  background: var(--section-color, #818cf8);
 }
 
 .setting-item input[type="number"] {
@@ -153,9 +153,9 @@
 
 .setting-item input[type="number"]:focus {
   outline: none;
-  border-color: #6366f1;
+  border-color: var(--section-color, #6366f1);
   background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 3px rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
 }
 
 .setting-range {
@@ -231,6 +231,12 @@
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+.quality-section-content select:focus {
+  outline: none;
+  border-color: var(--section-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
+}
+
 .quality-section-content select option {
   background-color: #1a1c2c;
   color: #fff;
@@ -252,6 +258,12 @@
 .quality-section select:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.quality-section select:focus {
+  outline: none;
+  border-color: var(--section-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
 }
 
 .quality-section select option {
@@ -278,7 +290,7 @@
 .checkbox-item input[type="checkbox"] {
   width: 20px;
   height: 20px;
-  accent-color: #6366f1;
+  accent-color: var(--section-color, #6366f1);
   cursor: pointer;
 }
 
@@ -310,7 +322,7 @@
   width: 20px;
   height: 20px;
   margin-top: 2px;
-  accent-color: #6366f1;
+  accent-color: var(--section-color, #6366f1);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -319,7 +331,7 @@
 input[type="checkbox"] {
   width: 20px;
   height: 20px;
-  accent-color: #6366f1;
+  accent-color: var(--section-color, #6366f1);
   cursor: pointer;
 }
 

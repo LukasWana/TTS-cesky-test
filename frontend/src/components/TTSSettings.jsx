@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useSectionColor } from '../contexts/SectionColorContext'
 import './TTSSettings.css'
 import Section from './ui/Section'
 import SliderRow from './ui/SliderRow'
@@ -71,8 +72,14 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
     }
   }
 
+  const { color, rgb } = useSectionColor()
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   return (
-    <div className="tts-settings">
+    <div className="tts-settings" style={style}>
       <Section
         title="Nastavení hlasu"
         icon="settings"

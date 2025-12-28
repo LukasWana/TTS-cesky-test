@@ -1,4 +1,5 @@
 import React from 'react'
+import { useSectionColor } from '../../contexts/SectionColorContext'
 import Icon from './Icons'
 import './ui.css'
 
@@ -11,8 +12,14 @@ function SelectRow({
   infoIcon = null,
   className = ''
 }) {
+  const { color, rgb } = useSectionColor()
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   return (
-    <div className={`ui-select-row ${className}`}>
+    <div className={`ui-select-row ${className}`} style={style}>
       <label className="ui-select-label">
         {icon && (
           <span className="ui-select-icon">

@@ -1,9 +1,16 @@
 import React from 'react'
+import { useSectionColor } from '../../contexts/SectionColorContext'
 import './ui.css'
 
 function SegmentedControl({ options, value, onChange, className = '' }) {
+  const { color, rgb } = useSectionColor()
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   return (
-    <div className={`ui-segmented-control ${className}`}>
+    <div className={`ui-segmented-control ${className}`} style={style}>
       {options.map((option) => {
         const optionValue = typeof option === 'string' ? option : option.value
         const optionLabel = typeof option === 'string' ? option : option.label

@@ -272,15 +272,17 @@ class AudioEnhancer:
             audio = audio * peak_gain
 
         # 3. Soft limiter (tanh) pro přirozenější ořez špiček
-        # Vše nad -1 dB začne být jemně komprimováno
-        threshold = 10 ** (-1.0 / 20)
+        # POZOR: Původní threshold -1 dB byl příliš blízko 0 dB a způsoboval přebuzení
+        # Změněno na -3 dB pro bezpečnější limit
+        threshold = 10 ** (-3.0 / 20)  # -3 dB místo -1 dB
         mask = np.abs(audio) > threshold
         if np.any(mask):
             # Aplikujeme tanh pro hladký ořez
             audio[mask] = np.sign(audio[mask]) * (threshold + (1.0 - threshold) * np.tanh((np.abs(audio[mask]) - threshold) / (1.0 - threshold)))
 
-        # Finální hard clip na -0.1 dB pro jistotu
-        limiter_threshold = 10 ** (-0.1 / 20)
+        # Finální hard clip na -0.5 dB pro jistotu (místo -0.1 dB)
+        # POZOR: Původní -0.1 dB byl příliš blízko 0 dB a způsoboval přebuzení
+        limiter_threshold = 10 ** (-0.5 / 20)  # -0.5 dB místo -0.1 dB
         audio = np.clip(audio, -limiter_threshold, limiter_threshold)
 
         return audio
@@ -566,26 +568,28 @@ class AudioEnhancer:
             return audio
 
         try:
-            # 1. Zvýšení hlasitosti podle úrovně důrazu (zvýšeno pro výraznější efekt)
+            # 1. Zvýšení hlasitosti podle úrovně důrazu
+            # POZOR: Tyto hodnoty byly zvýšeny a způsobily přebuzení - vráceno na původní bezpečné hodnoty
             if level == 'STRONG':
-                # Silný důraz: +6-12 dB podle intenzity (zvýšeno z 3-6 dB)
-                gain_db = 6.0 + (6.0 * intensity)  # 6-12 dB
-            else:  # MODERATE
-                # Mírný důraz: +3-6 dB podle intenzity (zvýšeno z 1.5-3 dB)
+                # Silný důraz: +3-6 dB podle intenzity (původní bezpečná hodnota)
                 gain_db = 3.0 + (3.0 * intensity)  # 3-6 dB
+            else:  # MODERATE
+                # Mírný důraz: +1.5-3 dB podle intenzity (původní bezpečná hodnota)
+                gain_db = 1.5 + (1.5 * intensity)  # 1.5-3 dB
 
             gain_linear = 10 ** (gain_db / 20.0)
             audio = audio * gain_linear
 
-            # 2. Výrazné zvýšení středních frekvencí (1-4 kHz) - kde je důraz nejvýraznější
+            # 2. Zvýšení středních frekvencí (1-4 kHz) - kde je důraz nejvýraznější
             nyquist = sr / 2
             sos_boost = signal.butter(4, [1000, 4000], btype='band', fs=sr, output='sos')
             boosted = signal.sosfiltfilt(sos_boost, audio)
-            # Boost podle úrovně a intenzity (zvýšeno pro výraznější efekt)
+            # Boost podle úrovně a intenzity
+            # POZOR: Tyto hodnoty byly zvýšeny a způsobily přebuzení - vráceno na původní bezpečné hodnoty
             if level == 'STRONG':
-                boost_amount = 0.15 + (0.15 * intensity)  # 15-30% boost (zvýšeno z 5-10%)
+                boost_amount = 0.05 + (0.05 * intensity)  # 5-10% boost (původní bezpečná hodnota)
             else:
-                boost_amount = 0.08 + (0.12 * intensity)  # 8-20% boost (zvýšeno z 2-5%)
+                boost_amount = 0.02 + (0.03 * intensity)  # 2-5% boost (původní bezpečná hodnota)
             audio = audio + (boost_amount * boosted)
 
             # 3. Dynamická komprese pro větší kontrast (pouze pro STRONG)
@@ -613,11 +617,21 @@ class AudioEnhancer:
             if level == 'STRONG' and intensity > 0.5:
                 try:
                     import librosa
-                    # Zvýšení pitch (1-2 semitony podle intenzity, zvýšeno z 0.5-1.0)
-                    pitch_shift = 1.0 + (1.0 * (intensity - 0.5) * 2)  # 1.0-2.0 semiton
+                    # Zvýšení pitch (0.5-1.0 semiton podle intenzity - původní bezpečná hodnota)
+                    # POZOR: Hodnota byla zvýšena na 1.0-2.0 a způsobila přebuzení
+                    pitch_shift = 0.5 + (0.5 * (intensity - 0.5) * 2)  # 0.5-1.0 semiton
                     audio = librosa.effects.pitch_shift(audio, sr=sr, n_steps=pitch_shift)
                 except Exception:
                     pass  # Pokud pitch shift selže, pokračuj bez něj
+
+            # 5. Ochrana proti clippingu - zajistit, že audio nikdy nepřekročí bezpečný limit
+            # Headroom -18 dB = 0.125 v lineárních jednotkách, použijeme -3 dB = 0.708 pro bezpečnost
+            max_safe_amplitude = 10 ** (-3.0 / 20.0)  # -3 dB jako bezpečný limit
+            peak = np.max(np.abs(audio)) if len(audio) > 0 else 0.0
+            if peak > max_safe_amplitude:
+                # Ztlumit audio, aby nepřekročilo bezpečný limit
+                scale = max_safe_amplitude / peak
+                audio = audio * scale
 
             return audio
         except Exception as e:

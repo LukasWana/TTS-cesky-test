@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { useSectionColor } from '../contexts/SectionColorContext'
 import VoiceSelector from './VoiceSelector'
 import TextInput from './TextInput'
 import AudioPlayer from './AudioPlayer'
@@ -36,6 +37,12 @@ const loadVariantSettings = (voiceId, variantId) => {
 }
 
 function F5TTS({ text: textProp, setText: setTextProp }) {
+  const { color, rgb } = useSectionColor()
+  const style = {
+    '--section-color': color,
+    '--section-color-rgb': rgb
+  }
+
   const [internalText, setInternalText] = useState('')
   const text = textProp !== undefined ? textProp : internalText
   const setText = setTextProp !== undefined ? setTextProp : setInternalText
@@ -609,7 +616,7 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
 
 
   return (
-    <div className="f5tts-container">
+    <div className="f5tts-container" style={style}>
       <div className="f5tts-header">
         <h2>F5-TTS Generování</h2>
         <p className="f5tts-description">

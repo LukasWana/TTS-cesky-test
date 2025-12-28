@@ -26,7 +26,9 @@ python -c "import demucs" >/dev/null 2>&1 || (
 )
 
 # Výchozí headroom (pokud není nastaven zvenku)
-: "${OUTPUT_HEADROOM_DB:=-9.0}"
+# POZOR: Musí odpovídat výchozí hodnotě v backend/config.py (-18.0 dB)!
+# Změna této hodnoty může způsobit přebuzení audio!
+: "${OUTPUT_HEADROOM_DB:=-18.0}"
 export OUTPUT_HEADROOM_DB
 
 # Spuštění backendu

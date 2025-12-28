@@ -47,12 +47,12 @@
 }
 
 .btn-project.btn-new {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
+  border-color: rgba(var(--section-color-rgb, 99, 102, 241), 0.4);
 }
 
 .btn-project.btn-new:hover {
-  background: rgba(99, 102, 241, 0.3);
+  background: rgba(var(--section-color-rgb, 99, 102, 241), 0.3);
 }
 
 .btn-project.btn-save {
@@ -76,8 +76,8 @@
 .current-project-name {
   padding: 8px 12px;
   border-radius: 6px;
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(var(--section-color-rgb, 99, 102, 241), 0.1);
+  border: 1px solid rgba(var(--section-color-rgb, 99, 102, 241), 0.3);
   color: rgba(255, 255, 255, 0.8);
   font-size: 0.85rem;
   font-weight: 500;
@@ -138,9 +138,9 @@
 }
 
 .modal-form input:focus {
-  border-color: #6366f1;
+  border-color: var(--section-color, #6366f1);
   background: rgba(0, 0, 0, 0.4);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 3px rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
 }
 
 .modal-buttons {
@@ -385,8 +385,8 @@
 }
 
 .time-display-duration-input:focus {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  border-color: var(--section-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
 }
 
 .time-display-auto-btn {
@@ -867,8 +867,8 @@
 .layer-settings-content .control-group input[type="range"]:focus,
 .layer-settings-content .control-group input[type="number"]:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  border-color: var(--section-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(var(--section-color-rgb, 99, 102, 241), 0.2);
 }
 
 .layer-settings-content .btn-delete-layer {
@@ -1500,7 +1500,7 @@
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #6366f1;
+  accent-color: var(--section-color, #6366f1);
 }
 
 .control-hint {

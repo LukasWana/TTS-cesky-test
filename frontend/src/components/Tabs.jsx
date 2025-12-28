@@ -12,7 +12,7 @@ function Tabs({ activeTab, onTabChange, tabs }) {
       'bark': 'bark',
       'audioeditor': 'file',
       'history': 'file',
-      'voicepreparation': 'file'
+      'voicepreparation': 'voicepreparation'
     }
     return categoryMap[tabId] || 'file'
   }
