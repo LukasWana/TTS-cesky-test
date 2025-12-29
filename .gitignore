@@ -74,3 +74,6 @@ bark_history.json
 
 # Speaker cache (temporary processed reference audio)
 speaker_cache/
+
+# work data
+data/
