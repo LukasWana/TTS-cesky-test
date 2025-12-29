@@ -391,7 +391,8 @@ async def generate_speech(
                 "length_penalty": tts_length_penalty,
                 "repetition_penalty": tts_repetition_penalty,
                 "top_k": tts_top_k,
-                "top_p": tts_top_p
+                "top_p": tts_top_p,
+                "ref_text": ref_text
             }
 
             history_entry = HistoryManager.add_entry(
@@ -686,7 +687,8 @@ async def generate_speech_f5(
 
         tts_params_dict = {
             "speed": tts_speed,
-            "engine": "f5-tts"
+            "engine": "f5-tts",
+            "ref_text": ref_text
         }
 
         history_entry = HistoryManager.add_entry(
@@ -956,7 +958,8 @@ async def generate_speech_f5_sk(
 
         tts_params_dict = {
             "speed": tts_speed,
-            "engine": "f5-tts-slovak"
+            "engine": "f5-tts-slovak",
+            "ref_text": ref_text
         }
 
         history_entry = HistoryManager.add_entry(
@@ -1171,8 +1174,23 @@ async def generate_speech_multi(
             job_id=job_id
         )
 
-        filename = Path(output_path).name
-        audio_url = f"/api/audio/{filename}"
+        # Uložení do historie pro vícemluvčí režim
+        voice_type = "multi"
+        voice_name = "Multi-speaker Mix"
+
+        tts_params_dict = {
+            "engine": "multi-speaker",
+            "speaker_count": len(speakers_to_use)
+        }
+
+        history_entry = HistoryManager.add_entry(
+            audio_url=audio_url,
+            filename=filename,
+            text=text,
+            voice_type=voice_type,
+            voice_name=voice_name,
+            tts_params=tts_params_dict
+        )
 
         if job_id:
             ProgressManager.done(job_id)
@@ -1182,6 +1200,7 @@ async def generate_speech_multi(
             "filename": filename,
             "success": True,
             "job_id": job_id,
+            "history_id": history_entry["id"]
         }
 
     except HTTPException:

@@ -121,9 +121,13 @@ async def generate_music(
             audio_url=audio_url,
             filename=filename,
             prompt=prompt,
-            duration=duration,
-            model=model,
-            seed=seed,
+            music_params={
+                "duration": duration,
+                "model": model,
+                "seed": seed,
+                "ambience": ambience_clean,
+                "ambience_files": ambience_files if kinds else []
+            }
         )
 
         return {
