@@ -373,8 +373,7 @@ class CzechTextProcessor:
 
     def _apply_glottal_stop(self, text: str) -> str:
         """Vkládá ráz (glottální okluze)"""
-        # Oprava: pattern pro předložky bez \b, protože ho přidáme explicitně v regexu
-        prepositions_pattern = r"(v|z|s|k|o|u|nad|pod|před|přes|bez|od|do)"
+        prepositions = r"\b(v|z|s|k|o|u|nad|pod|před|přes|bez|od|do)\b"
         vowels = "aeiouáéíóúyý"
 
         def add_raz(match):
@@ -383,15 +382,15 @@ class CzechTextProcessor:
             return f"{prep} '{word}"
 
         # Nejdřív zpracujeme diftongy (delší sekvence), pak jednotlivé samohlásky
-        # Ráz po předložkách před diftongy (ou, au, eu, ei, ai, oi) - zachytíme celé slovo
-        processed = re.sub(rf"\b{prepositions_pattern}\s+((ou|au|eu|ei|ai|oi)\w*)", add_raz, text, flags=re.IGNORECASE)
-        # Ráz po předložkách před samohláskami - OPRAVA: zachytíme celé slovo, ne jen první písmeno
-        processed = re.sub(rf"\b{prepositions_pattern}\s+([{vowels}]\w*)", add_raz, processed, flags=re.IGNORECASE)
+        # Ráz po předložkách před diftongy (ou, au, eu, ei, ai, oi)
+        processed = re.sub(rf"({prepositions})\s+(ou|au|eu|ei|ai|oi)", add_raz, text, flags=re.IGNORECASE)
+        # Ráz po předložkách před samohláskami
+        processed = re.sub(rf"({prepositions})\s+([{vowels}])", add_raz, processed, flags=re.IGNORECASE)
 
-        # Ráz na začátku věty nebo po interpunkci před diftongy - zachytíme celé slovo
-        processed = re.sub(rf"(^|[.!?]\s+)((ou|au|eu|ei|ai|oi)\w*)", r"\1'\2", processed, flags=re.IGNORECASE)
-        # Ráz na začátku věty nebo po interpunkci před samohláskami - OPRAVA: zachytíme celé slovo
-        processed = re.sub(rf"(^|[.!?]\s+)([{vowels}]\w*)", r"\1'\2", processed, flags=re.IGNORECASE)
+        # Ráz na začátku věty nebo po interpunkci před diftongy
+        processed = re.sub(rf"(^|[.!?]\s+)(ou|au|eu|ei|ai|oi)", r"\1'\2", processed, flags=re.IGNORECASE)
+        # Ráz na začátku věty nebo po interpunkci před samohláskami
+        processed = re.sub(rf"(^|[.!?]\s+)([{vowels}])", r"\1'\2", processed, flags=re.IGNORECASE)
 
         return processed
 

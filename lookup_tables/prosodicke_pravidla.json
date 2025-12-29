@@ -1,121 +1,20 @@
 {
-  "description": "Lookup tabulka pro prosodická pravidla (přízvuk, intonace, pauzy)",
-  "source": "ZVUKOVE_VLASTNOSTI_SOUVISLE_RECI.md, VĚTNÁ INTONACE.html, VĚTNÝ PŘÍZVUK.html",
-  "version": "1.0",
-  "slabika": {
-    "slabikotvorne_souhlasky": ["r", "l", "m"],
-    "priklady": {
-      "vlk": "v-lk (dvě slabiky)",
-      "srdce": "sr-dce (dvě slabiky)",
-      "sedm": "sed-m (dvě slabiky)"
-    },
-    "pobocna_slabika": {
-      "description": "Pobočná slabika na začátku slova (rtuť, lžu, msta, jdu)",
-      "priklady": ["rtuť", "lžu", "msta", "jdu"],
-      "poznamka": "Slova jsou vnímána jako jednoslabičná"
+  "version": "2.0",
+  "source": "ParCzech 4.0",
+  "intonace_podle_typu_vety": {
+    "oznamovací": "FALL",
+    "tázací": "RISE",
+    "rozkazovací": "FALL",
+    "zvolací": "FALL"
+  },
+  "pauzy": {},
+  "statistiky": {
+    "celkem_vět": 196182,
+    "typ_věty": {
+      "oznamovací": 101861,
+      "rozkazovací": 89973,
+      "tázací": 2747,
+      "zvolací": 1601
     }
-  },
-  "slovni_prizvuk": {
-    "pravidlo": "Přízvuk je vždy na první slabice slova",
-    "priklady": {
-      "babička": "'b a b i č k a",
-      "člověk": "'č l o v ě k",
-      "automaticky": "'a u t o m a t i c k ý"
-    },
-    "klitika": {
-      "description": "Nepřízvučné částice (jednoslabičné předložky, částice, zájmena)",
-      "priklady": {
-        "na stole": "n a 's t o l e",
-        "se mnou": "s e 'm n o u",
-        "ti lidé": "t i 'l i d é"
-      }
-    },
-    "predlozky": {
-      "jednoslabicne": "Nepřízvučné (na, v, z, s, k, o, u)",
-      "dvouslabicne": "Přízvučné (nad, pod, před, za)"
-    }
-  },
-  "vetny_prizvuk": {
-    "pravidlo": "Větný přízvuk se klade na obsahově nejdůležitější slovo ve větě",
-    "priklady": {
-      "Přijde zítra.": "Přijde 'zítra.",
-      "Zítra přijde.": "'Zítra přijde.",
-      "Kdo přijde?": "'Kdo přijde?",
-      "Přijde kdo?": "Přijde 'kdo?"
-    }
-  },
-  "intonační_frazy": {
-    "description": "Jednotky delší než slovo, ale kratší než věta",
-    "priklady": {
-      "Koupil jsem knihu, tužku a sešit.": "Koupil jsem knihu | tužku a sešit."
-    }
-  },
-  "melodémy": {
-    "klesavý": {
-      "nazev": "kadence",
-      "popis": "Závěrečná intonace u oznamovacích vět",
-      "priklady": ["Přijde zítra.", "Koupil jsem knihu."],
-      "charakteristika": "Pokles na konci věty"
-    },
-    "stoupavý": {
-      "nazev": "antikadence",
-      "popis": "Intonace u otázek zjišťovacích",
-      "priklady": ["Přijde zítra?", "Máte to hotové?"],
-      "charakteristika": "Vzestup na konci věty"
-    },
-    "neukončující": {
-      "nazev": "polokadence",
-      "popis": "Intonace ve větách nedokončených nebo v souvětích",
-      "priklady": ["Když přijde, zavolej mi.", "Koupil jsem knihu, ale zapomněl jsem tužku."],
-      "charakteristika": "Mírný pokles, ale ne závěrečný"
-    }
-  },
-  "tempo_recí": {
-    "prumer": "5 slabik za sekundu",
-    "priklady": {
-      "rychle": "6-7 slabik/s",
-      "normální": "5 slabik/s",
-      "pomalé": "3-4 slabiky/s"
-    },
-    "faktory": [
-      "Rychlé tempo může vést ke krácení dlouhých samohlásek",
-      "Pomalé tempo zlepšuje srozumitelnost"
-    ]
-  },
-  "pauzy": {
-    "clenicí": {
-      "description": "Oddělují intonační fráze a věty",
-      "priklady": ["Koupil jsem knihu, | tužku a sešit."],
-      "delka": "0.2-0.5 sekundy"
-    },
-    "důrazové": {
-      "description": "Zdůrazňují význam slova",
-      "priklady": ["To je || opravdu || zajímavé."],
-      "delka": "0.1-0.3 sekundy"
-    },
-    "formulační": {
-      "description": "Při hledání správného výrazu",
-      "priklady": ["To je... ehm... zajímavé."],
-      "delka": "variabilní"
-    },
-    "hezitace": {
-      "description": "Nerozhodnost, myšlení",
-      "priklady": ["To je... no... zajímavé."],
-      "zvuky": ["ehm", "no", "hmm"]
-    }
-  },
-  "frazovani": {
-    "důležité": "Frázování určuje význam",
-    "priklady": {
-      "dokončili jsme poslední || úspěšný pokus": "Poslední pokus, který byl úspěšný",
-      "dokončili jsme || poslední úspěšný pokus": "Poslední ze všech úspěšných pokusů"
-    }
-  },
-  "ssml_tagy": {
-    "prizvuk": "<prosody stress=\"primary\">slovo</prosody>",
-    "pauza": "<break time=\"200ms\"/>",
-    "intonace_klesavá": "<prosody contour=\"(0%,0%) (50%,0%) (100%,-20%)\">",
-    "intonace_stoupavá": "<prosody contour=\"(0%,0%) (50%,0%) (100%,+20%)\">"
   }
 }
-
