@@ -80,15 +80,14 @@ class HistoryManager:
         """
         history = HistoryManager._load_history()
 
-        # Dedupe: kontrolovat text + parametry + filename
-        # Pokud je vše stejné, vrátit existující záznam
+        # Dedupe: kontrolovat pouze filename (každý generovaný soubor má unikátní UUID)
+        # Pokud je filename stejné, vrátit existující záznam (to by se nemělo stát, ale pro jistotu)
         if history and len(history) > 0:
-            last_entry = history[0]  # Nejnovější záznam je na začátku
-            if (last_entry.get("text") == text and
-                last_entry.get("filename") == filename and
-                last_entry.get("tts_params") == (tts_params or {})):
-                # Všechno stejné, neukládat duplikát
-                return last_entry
+            # Zkontroluj, zda už existuje záznam se stejným filename
+            existing_entry = next((entry for entry in history if entry.get("filename") == filename), None)
+            if existing_entry:
+                # Stejný filename - vrátit existující záznam (to by se nemělo stát, protože filename je UUID)
+                return existing_entry
 
         # Omezit historii na max 1000 záznamů před přidáním nového
         if len(history) >= 1000:
