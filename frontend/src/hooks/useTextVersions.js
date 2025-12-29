@@ -42,10 +42,26 @@ export const useTextVersions = (activeTab) => {
       const key = `tts_text_versions_${tabId}`
       const stored = localStorage.getItem(key)
       if (stored) {
-        return JSON.parse(stored)
+        // Zkontroluj, zda je to validní JSON (začíná [ nebo {)
+        const trimmed = stored.trim()
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+          return JSON.parse(stored)
+        } else {
+          // Poškozená data - není to JSON, vyčistit
+          console.warn('Poškozená data v localStorage, mazání:', key)
+          localStorage.removeItem(key)
+          return []
+        }
       }
     } catch (err) {
       console.error('Chyba při načítání historie verzí:', err)
+      // Pokud selže parsování, vyčistit poškozená data
+      try {
+        const key = `tts_text_versions_${tabId}`
+        localStorage.removeItem(key)
+      } catch (cleanupErr) {
+        console.error('Chyba při čištění poškozených dat:', cleanupErr)
+      }
     }
     return []
   }
@@ -121,6 +137,19 @@ export const useTextVersions = (activeTab) => {
 
   const saveTextVersion = (textToSave) => {
     if (!textToSave || !textToSave.trim()) return
+
+    // Normalizuj text pro porovnání (trim a případně další normalizace)
+    const normalizedText = textToSave.trim()
+
+    // Zkontroluj, zda už existuje verze se stejným textem
+    const existingVersion = textVersions.find(
+      version => version.text && version.text.trim() === normalizedText
+    )
+
+    // Pokud už existuje verze se stejným textem, neukládej novou
+    if (existingVersion) {
+      return
+    }
 
     const newVersion = {
       id: Date.now(),
