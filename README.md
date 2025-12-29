@@ -38,43 +38,19 @@ Offline webová aplikace pro testování XTTS-v2 Text-to-Speech a voice cloningu
 
 ### Windows
 
-**Automatická instalace (doporučeno)**
-```bash
-run.bat
-```
+**DŮLEŽITÉ**: TTS vyžaduje Python 3.9-3.11. Pokud máte Python 3.12+, použijte `run_python311.bat` nebo nainstalujte Python 3.11.
 
-Skript automaticky:
-- Vyhledá Python 3.11, 3.10 nebo 3.9 (v tomto pořadí)
-- Vytvoří virtual environment s kompatibilní verzí
-- Nainstaluje všechny závislosti
-
-### Windows (spuštění jedním příkazem)
-
-Po instalaci (nebo klidně rovnou místo ručního spouštění) použijte:
-
-```bash
-start_all.bat
-```
-
-Tento skript:
-- vybere kompatibilní Python (3.11/3.10/3.9)
-- vytvoří/aktivuje `venv`
-- doinstaluje backend závislosti jen když chybí
-- doinstaluje frontend závislosti jen když chybí
-- spustí backend i frontend ve dvou oknech a otevře `http://localhost:3000`
-
-Ukončení obou procesů:
-
-```bash
-stop_all.bat
-```
-
-**Alternativní skript**
+**Možnost 1: Automatická instalace (Python 3.11)**
 ```bash
 run_python311.bat
 ```
 
-Pokud nemáte kompatibilní verzi Pythonu, stáhněte si Python 3.10 nebo 3.11 z [python.org](https://www.python.org/downloads/).
+**Možnost 2: Standardní instalace**
+```bash
+run.bat
+```
+
+Pokud máte Python 3.12+, skript vás upozorní a musíte nainstalovat Python 3.11 z [python.org](https://www.python.org/downloads/).
 
 ### Linux/Mac
 
@@ -165,69 +141,12 @@ Otevřete prohlížeč a přejděte na: **http://localhost:3000**
 
 ## 🎤 Demo hlasy
 
-### Příprava demo hlasů
+Pro přidání demo hlasů:
 
-Pro nejlepší výsledky použijte utility scripty pro přípravu audio vzorků:
-
-#### Metoda 1: Python script (doporučeno)
-
-```bash
-# Základní konverze
-python scripts/prepare_demo_voice.py input.mp3 frontend/assets/demo-voices/male_cz.wav
-
-# Ořez na 10 sekund od 5. sekundy
-python scripts/prepare_demo_voice.py input.mp3 frontend/assets/demo-voices/male_cz.wav --trim 5 10
-
-# S pokročilým zpracováním (noise reduction + high-pass filter)
-python scripts/prepare_demo_voice.py input.mp3 frontend/assets/demo-voices/male_cz.wav --noise-reduction --highpass
-
-# Automaticky do demo-voices složky
-python scripts/prepare_demo_voice.py input.mp3 --demo-dir
-```
-
-#### Metoda 2: Batch script (Windows)
-
-```bash
-# Základní použití
-scripts\prepare_demo_voice.bat input.mp3 output.wav
-```
-
-#### Metoda 3: FFmpeg (pokud máte FFmpeg nainstalovaný)
-
-```bash
-# Z MP3 na WAV, 22050 Hz, mono
-ffmpeg -i input.mp3 -ar 22050 -ac 1 output.wav
-
-# S normalizací
-ffmpeg -i input.mp4 -ar 22050 -ac 1 -af "loudnorm" output.wav
-
-# Ořez na 10 sekund od 5. sekundy
-ffmpeg -i input.wav -ss 5 -t 10 -ar 22050 -ac 1 output.wav
-```
-
-### Testování kvality vzorku
-
-Po přípravě vzorku ho otestujte:
-
-```bash
-# Python script
-python scripts/test_voice_quality.py frontend/assets/demo-voices/male_cz.wav
-
-# S vlastním testovacím textem
-python scripts/test_voice_quality.py frontend/assets/demo-voices/male_cz.wav --text "Vlastní testovací text"
-
-# Batch script (Windows)
-scripts\test_voice_quality.bat frontend/assets/demo-voices/male_cz.wav
-```
-
-### Požadavky na demo hlasy
-
-- **Délka:** Minimálně 6 sekund (doporučeno 10-30 sekund)
-- **Formát:** WAV, 22050 Hz, mono
-- **Kvalita:** Studiová kvalita, tichá místnost, dobrý mikrofon
-- **Obsah:** Přirozený mluvený projev, různorodá intonace, celé věty
-
-📖 **Více informací:** Viz `frontend/assets/demo-voices/README.md`
+1. Připravte audio soubory (WAV, 22050 Hz, mono)
+2. Uložte je do `frontend/assets/demo-voices/`
+3. Pojmenujte je např. `demo1.wav`, `demo2.wav`
+4. Restartujte backend
 
 ## 🏗️ Struktura projektu
 
@@ -238,23 +157,13 @@ xtts-v2-demo/
 │   ├── tts_engine.py         # XTTS-v2 wrapper
 │   ├── audio_processor.py    # Audio utilities
 │   └── config.py             # Konfigurace
-├── backend/
-│   ├── main.py              # FastAPI aplikace
-│   ├── tts_engine.py         # XTTS-v2 wrapper
-│   ├── audio_processor.py    # Audio utilities (s FFmpeg fallback)
-│   └── config.py             # Konfigurace
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx           # Hlavní komponenta
 │   │   ├── components/        # React komponenty
 │   │   └── services/          # API client
 │   └── assets/
-│       └── demo-voices/       # Demo audio soubory + README.md
-├── scripts/
-│   ├── prepare_demo_voice.py  # Utility pro přípravu demo hlasů
-│   ├── test_voice_quality.py  # Test kvality voice vzorku
-│   ├── prepare_demo_voice.bat # Windows wrapper
-│   └── test_voice_quality.bat # Windows wrapper
+│       └── demo-voices/       # Demo audio soubory
 ├── models/                    # Cache pro XTTS-v2 modely
 ├── uploads/                   # Nahrané audio soubory
 ├── outputs/                   # Generované audio
@@ -282,103 +191,17 @@ export XTTS_MODEL_NAME="tts_models/multilingual/multi-dataset/xtts_v2"  # TTS re
 ## 🔧 API Endpoints
 
 - `POST /api/tts/generate` - Generování TTS
-- `POST /api/voice/upload` - Upload audio souboru (automaticky zpracuje s pokročilým post-processing)
+- `POST /api/voice/upload` - Upload audio souboru
 - `POST /api/voice/record` - Nahrání z mikrofonu
 - `GET /api/voices/demo` - Seznam demo hlasů
 - `GET /api/models/status` - Status modelu
 - `GET /api/audio/{filename}` - Stáhnutí audio
 
-## 🛠️ Utility Scripty
-
-Projekt obsahuje utility scripty pro práci s audio vzorky:
-
-### `scripts/prepare_demo_voice.py`
-Připraví audio vzorek pro XTTS-v2 voice cloning:
-- Konverze na 22050 Hz, mono
-- Normalizace hlasitosti
-- Ořez ticha
-- Volitelné: noise reduction, high-pass filter
-- Ořez na konkrétní časový úsek
-
-### `scripts/test_voice_quality.py`
-Otestuje kvalitu voice vzorku:
-- Načte XTTS-v2 model
-- Vygeneruje testovací řeč
-- Uloží výstup pro poslech
-
-**Všechny utility scripty podporují FFmpeg fallback** - pokud librosa selže, automaticky použije FFmpeg (pokud je nainstalovaný).
-
 ## ⚡ Performance
 
 - **CPU only**: 5-15 sekund na generování (1-2 věty)
 - **GPU (4GB)**: 1-3 sekundy na generování
-- **GPU (6GB, RTX 3060)**: 1-2 sekundy na generování (s optimalizacemi)
 - **GPU (8GB+)**: < 1 sekunda
-
-### GPU akcelerace a přepínání Device
-
-Pro použití GPU (NVIDIA) místo CPU:
-
-1. **Zkontrolujte CUDA dostupnost:**
-   ```bash
-   python -c "import torch; print(torch.cuda.is_available())"
-   ```
-
-2. **Pokud je False, nainstalujte PyTorch s CUDA:**
-   ```bash
-   # Pro RTX 3060 (CUDA 11.8)
-   pip uninstall torch torchaudio -y
-   pip install torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
-   ```
-
-   Nebo použijte automatický skript:
-   ```bash
-   install_pytorch_gpu.bat
-   ```
-
-3. **Pro GPU s 6GB VRAM (RTX 3060) použijte optimalizace:**
-   ```bash
-   # Před spuštěním backendu
-   set SUNO_USE_SMALL_MODELS=True
-   set SUNO_OFFLOAD_CPU=True
-   ```
-
-4. **Restartujte backend** - model se automaticky načte na GPU
-
-**Výhody GPU:**
-- 5-10x rychlejší generování než CPU
-- Reálný čas pro krátké texty
-- Lepší uživatelský zážitek
-
-#### Přepínání mezi CPU a GPU
-
-Můžete vynutit použití CPU nebo GPU přes environment variable `FORCE_DEVICE`:
-
-**Vynutit CPU:**
-```bash
-set FORCE_DEVICE=cpu
-start_all.bat
-```
-
-**Vynutit GPU:**
-```bash
-set FORCE_DEVICE=cuda
-start_all.bat
-```
-
-**Automatická detekce (výchozí):**
-```bash
-set FORCE_DEVICE=auto
-start_all.bat
-# nebo jednoduše bez nastavení proměnné
-start_all.bat
-```
-
-**Poznámky:**
-- Pokud vynutíte GPU (`FORCE_DEVICE=cuda`) ale GPU není dostupné, automaticky se použije CPU
-- Pokud vynutíte CPU (`FORCE_DEVICE=cpu`), GPU se nepoužije ani když je dostupné
-- Aktuální device je zobrazen v UI (v hlavičce aplikace)
-- Pro změnu device je potřeba restartovat backend server
 
 ## 🐛 Řešení problémů
 
@@ -415,3 +238,4 @@ Version: 1.0
 
 - [Coqui TTS](https://github.com/coqui-ai/TTS) za XTTS-v2 model
 - Komunita za podporu a feedback
+

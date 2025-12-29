@@ -109,3 +109,7 @@ Zkuste vygenerovat texty s:
 
 
 
+
+
+
+
