@@ -169,10 +169,11 @@ class AudioEnhancer:
 
         # 7. Finální normalizace podle best practices pro hlas
         if use_normalization:
-            # Použij target_headroom_db pokud je zadán, jinak výchozí -24 dB
-            peak_target = target_headroom_db if target_headroom_db is not None else -24.0
+            # Použij target_headroom_db pokud je zadán, jinak výchozí -18 dB (zvýšeno z -24 dB pro lepší hlasitost)
+            peak_target = target_headroom_db if target_headroom_db is not None else -18.0
             # Peak: použije se target_headroom_db z UI (umožňuje ovládat hlasitost výstupu), RMS: -18 dB
-            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=peak_target, rms_target_db=-18.0)
+            # Sníženo RMS target na -20 dB pro jemnější normalizaci (místo -18 dB)
+            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=peak_target, rms_target_db=-20.0)
 
         # 8. Headroom se aplikuje v normalizaci výše (pokud enable_normalization=True)
         # Pokud je normalizace vypnutá, headroom se aplikuje až po HiFi-GAN a speed změně
@@ -308,8 +309,9 @@ class AudioEnhancer:
             sos = signal.butter(4, [1000, 4000], btype='band', fs=sr, output='sos')
             boosted = signal.sosfiltfilt(sos, audio)
 
-            # Jemné zvýraznění (sníženo na 1% pro eliminaci přebuzení)
-            audio = audio + 0.01 * boosted
+            # Velmi jemné zvýraznění (0.5% - pouze lehké dokreslení, ne boost)
+            # Sníženo z 1% na 0.5% pro eliminaci přebuzení a zachování přirozeného zvuku
+            audio = audio + 0.005 * boosted
 
             # NENORMALIZUJEME - normalizace bude až na konci řetězce
 
@@ -339,9 +341,9 @@ class AudioEnhancer:
             # Odhad šumu z tichých částí (10. percentil)
             noise_floor = np.percentile(magnitude, 10)
 
-            # Spektrální subtrakce (zmírněno pro lepší kvalitu)
-            alpha = 1.5  # Over-subtraction factor (sníženo z 2.0 na 1.5)
-            beta = 0.01  # Spectral floor
+            # Spektrální subtrakce (velmi jemné pro zachování přirozeného zvuku)
+            alpha = 1.2  # Over-subtraction factor (sníženo z 1.5 na 1.2 pro jemnější redukci)
+            beta = 0.02  # Spectral floor (zvýšeno z 0.01 na 0.02 pro zachování více signálu)
 
             magnitude_clean = magnitude - alpha * noise_floor
             magnitude_clean = np.maximum(magnitude_clean, beta * magnitude)
@@ -456,14 +458,15 @@ class AudioEnhancer:
             return audio
 
     @staticmethod
-    def compress_dynamic_range(audio: np.ndarray, ratio: float = 2.0, threshold: float = -18.0) -> np.ndarray:
+    def compress_dynamic_range(audio: np.ndarray, ratio: float = 1.5, threshold: float = -12.0) -> np.ndarray:
         """
-        Komprese dynamiky optimalizovaná pro řeč - zlepšuje inteligibilitu a konzistenci
+        Komprese dynamiky optimalizovaná pro řeč - jemná komprese pouze pro vyrovnání hlasitosti
+        Snížená intenzita pro zachování přirozeného zvuku (ne boost jako ze starého rádia)
 
         Args:
             audio: Audio data
-            ratio: Kompresní poměr (2.0-4.0 pro řeč, výchozí 2.0 pro jemnou kompresi)
-            threshold: Threshold v dB (-18 dB pro řeč - zachovává přirozenou dynamiku)
+            ratio: Kompresní poměr (1.5 pro jemnou kompresi, výchozí sníženo z 2.0)
+            threshold: Threshold v dB (-12 dB pro jemnější kompresi, zvýšeno z -18 dB)
 
         Returns:
             Komprimované audio (BEZ normalizace - normalizace bude až na konci)
@@ -493,16 +496,17 @@ class AudioEnhancer:
             return audio
 
     @staticmethod
-    def apply_deesser(audio: np.ndarray, sr: int, freq_range: tuple = (4000, 10000), threshold: float = -18.0, ratio: float = 4.0) -> np.ndarray:
+    def apply_deesser(audio: np.ndarray, sr: int, freq_range: tuple = (4000, 10000), threshold: float = -12.0, ratio: float = 3.0) -> np.ndarray:
         """
         De-esser pro potlačení ostrých sykavek (s, š, c, č)
+        Jemnější nastavení pro zachování přirozeného zvuku
 
         Args:
             audio: Audio data
             sr: Sample rate
             freq_range: Rozsah frekvencí sykavek (výchozí 4-10 kHz)
-            threshold: Threshold v dB pro detekci sykavek
-            ratio: Kompresní poměr pro sykavky
+            threshold: Threshold v dB pro detekci sykavek (zvýšeno z -18 dB na -12 dB pro jemnější redukci)
+            ratio: Kompresní poměr pro sykavky (sníženo z 4.0 na 3.0 pro jemnější redukci)
 
         Returns:
             Audio s potlačenými sykavkami
