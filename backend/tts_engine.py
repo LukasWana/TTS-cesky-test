@@ -57,14 +57,37 @@ from backend.phonetic_translator import get_phonetic_translator
 try:
     def _expand_number_cs(m, lang="en"):
         lang_code = "cs" if lang.split("-")[0] == "cs" else lang
-        return num2words(int(m.group(0)), lang=lang_code)
+        try:
+            return num2words(int(m.group(0)), lang=lang_code)
+        except (NotImplementedError, ValueError):
+            # Fallback na angličtinu pokud čeština není podporována
+            return num2words(int(m.group(0)), lang="en")
 
     def _expand_ordinal_cs(m, lang="en"):
         lang_code = "cs" if lang.split("-")[0] == "cs" else lang
-        return num2words(int(m.group(1)), ordinal=True, lang=lang_code)
+        try:
+            return num2words(int(m.group(1)), ordinal=True, lang=lang_code)
+        except (NotImplementedError, ValueError):
+            # Fallback na angličtinu pokud čeština není podporována
+            return num2words(int(m.group(1)), ordinal=True, lang="en")
+
+    def _expand_decimal_point_cs(m, lang="en"):
+        """Opravená verze _expand_decimal_point s ošetřením chyby pro češtinu"""
+        amount = float(m.group(0))
+        lang_code = "cs" if lang != "cs" else "cz"  # XTTS používá "cz" místo "cs"
+        try:
+            return num2words(amount, lang=lang_code)
+        except (NotImplementedError, ValueError):
+            # Fallback na angličtinu pokud čeština není podporována
+            try:
+                return num2words(amount, lang="en")
+            except (NotImplementedError, ValueError):
+                # Pokud ani angličtina nefunguje, vrať číslo jako text
+                return str(amount)
 
     xtts_tokenizer._expand_number = _expand_number_cs
     xtts_tokenizer._expand_ordinal = _expand_ordinal_cs
+    xtts_tokenizer._expand_decimal_point = _expand_decimal_point_cs
 except Exception as patch_err:
     # Nechceme spadnout při importu – jen zalogujeme
     print(f"Warning: Czech number expansion patch not applied: {patch_err}")
