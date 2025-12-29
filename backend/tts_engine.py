@@ -1931,6 +1931,8 @@ class XTTSEngine:
                     # Pokud má část jen jeden segment, použij standardní generování
                     if len(part_segments) == 1:
                         seg = part_segments[0]
+                        # Odstraň enable_batch z kwargs, protože ho explicitně nastavujeme
+                        part_kwargs = {k: v for k, v in kwargs.items() if k != 'enable_batch'}
                         part_audio = await self.generate(
                             text=seg.text,
                             speaker_wav=seg.speaker_wav or default_speaker_wav,
@@ -1938,15 +1940,15 @@ class XTTSEngine:
                             enable_batch=False,
                             handle_pauses=False,  # Pauzy už jsme zpracovali
                             job_id=None,
-                            **kwargs
+                            **part_kwargs
                         )
                         audio_files.append(part_audio)
                     else:
                         # Více segmentů v části - generuj každý segment zvlášť a spoj
                         part_audio_files = []
                         for seg in part_segments:
-                            # Odstraň enable_trim z kwargs, protože ho explicitně nastavujeme
-                            seg_kwargs = {k: v for k, v in kwargs.items() if k != 'enable_trim'}
+                            # Odstraň enable_trim a enable_batch z kwargs, protože ho explicitně nastavujeme
+                            seg_kwargs = {k: v for k, v in kwargs.items() if k not in ('enable_trim', 'enable_batch')}
                             seg_audio = await self.generate(
                                 text=seg.text,
                                 speaker_wav=seg.speaker_wav or default_speaker_wav,
@@ -2058,6 +2060,8 @@ class XTTSEngine:
 
             # Pro cross-language generování uprav parametry
             segment_kwargs = kwargs.copy()
+            # Odstraň enable_batch z kwargs, protože ho explicitně nastavujeme
+            segment_kwargs.pop('enable_batch', None)
             speaker_wav_path = segment.speaker_wav or default_speaker_wav
             is_cross_language = False
 
@@ -2129,8 +2133,8 @@ class XTTSEngine:
 
             print(f"🎤 Generuji segment {i+1}/{len(segments)}: lang={segment.language}, speaker={segment.speaker_id or 'default'}")
 
-            # Odstraň enable_trim z kwargs, protože ho explicitně nastavujeme
-            segment_kwargs = {k: v for k, v in kwargs.items() if k != 'enable_trim'}
+            # Odstraň enable_trim a enable_batch z kwargs, protože ho explicitně nastavujeme
+            segment_kwargs = {k: v for k, v in kwargs.items() if k not in ('enable_trim', 'enable_batch')}
 
             # Pro cross-language generování (např. český hlas pro anglický text) použij lepší parametry
             # XTTS může mít problémy s cross-language cloning, takže upravíme parametry
