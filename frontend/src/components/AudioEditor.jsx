@@ -245,6 +245,44 @@ function AudioEditor() {
     }
   }, [])
 
+  // Pomocná funkce pro serializaci historyEntry (odstraní neserializovatelné hodnoty)
+  const sanitizeHistoryEntry = useCallback((entry) => {
+    if (!entry) return null
+
+    try {
+      // Vytvořit kopii pouze s serializovatelnými hodnotami
+      const sanitized = {}
+      const allowedKeys = ['id', 'audio_url', 'filename', 'text', 'prompt', 'voice_type', 'voice_name',
+                          'tts_params', 'music_params', 'bark_params', 'created_at', 'source', 'sourceLabel']
+
+      for (const key of allowedKeys) {
+        if (entry.hasOwnProperty(key)) {
+          const value = entry[key]
+          // Zkontrolovat, zda je hodnota serializovatelná
+          if (value !== undefined && value !== null) {
+            if (typeof value === 'object' && !Array.isArray(value)) {
+              // Pro objekty zkusit serializaci
+              try {
+                JSON.stringify(value)
+                sanitized[key] = value
+              } catch (e) {
+                // Pokud objekt není serializovatelný, přeskočit
+                console.warn(`Neserializovatelná hodnota v historyEntry.${key}:`, e)
+              }
+            } else {
+              sanitized[key] = value
+            }
+          }
+        }
+      }
+
+      return Object.keys(sanitized).length > 0 ? sanitized : null
+    } catch (err) {
+      console.warn('Chyba při sanitizaci historyEntry:', err)
+      return null
+    }
+  }, [])
+
   // Ukládání stavu do localStorage
   useEffect(() => {
     if (isLoadingStateRef.current) return
@@ -271,7 +309,7 @@ function AudioEditor() {
             loopAnchorTime: (layer.loopAnchorTime !== undefined && layer.loopAnchorTime !== null)
               ? layer.loopAnchorTime
               : layer.startTime,
-            historyEntry: layer.historyEntry,
+            historyEntry: sanitizeHistoryEntry(layer.historyEntry),
             category: layer.category || 'file',
             color: layer.color || getCategoryColor(layer.category || 'file', 0)
           })),
@@ -294,7 +332,7 @@ function AudioEditor() {
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [layers, masterVolume, currentTime, selectedLayerId, showHistory, historyType, maxDuration, manualMaxDuration])
+  }, [layers, masterVolume, currentTime, selectedLayerId, showHistory, historyType, maxDuration, manualMaxDuration, sanitizeHistoryEntry])
 
   // Inicializace AudioContext - pouze jednou při mountu
   useEffect(() => {
@@ -1378,38 +1416,41 @@ function AudioEditor() {
   const confirmSaveProject = () => {
     const name = projectName.trim() || `Projekt ${new Date().toLocaleString('cs-CZ')}`
 
-    const projectData = {
-      id: currentProjectId || Date.now().toString(),
-      name: name,
-      createdAt: currentProjectId ? savedProjects.find(p => p.id === currentProjectId)?.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      manualMaxDuration,
-      maxDuration,
-      layers: layers.map(layer => ({
-        id: layer.id,
-        name: layer.name,
-        audioUrl: layer.audioUrl,
-        startTime: layer.startTime,
-        duration: layer.duration,
-        volume: layer.volume,
-        fadeIn: layer.fadeIn,
-        fadeOut: layer.fadeOut,
-        trimStart: layer.trimStart,
-        trimEnd: layer.trimEnd,
-        loop: layer.loop || false,
-        loopAnchorTime: (layer.loopAnchorTime !== undefined && layer.loopAnchorTime !== null)
-          ? layer.loopAnchorTime
-          : layer.startTime,
-        historyEntry: layer.historyEntry,
-        category: layer.category || 'file',
-        color: layer.color || getCategoryColor(layer.category || 'file', 0)
-      })),
-      masterVolume,
-      currentTime: 0, // Uložit na začátek
-      selectedLayerId: null
-    }
-
     try {
+      const projectData = {
+        id: currentProjectId || Date.now().toString(),
+        name: name,
+        createdAt: currentProjectId ? savedProjects.find(p => p.id === currentProjectId)?.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        manualMaxDuration,
+        maxDuration,
+        layers: layers.map(layer => ({
+          id: layer.id,
+          name: layer.name,
+          audioUrl: layer.audioUrl,
+          startTime: layer.startTime,
+          duration: layer.duration,
+          volume: layer.volume,
+          fadeIn: layer.fadeIn,
+          fadeOut: layer.fadeOut,
+          trimStart: layer.trimStart,
+          trimEnd: layer.trimEnd,
+          loop: layer.loop || false,
+          loopAnchorTime: (layer.loopAnchorTime !== undefined && layer.loopAnchorTime !== null)
+            ? layer.loopAnchorTime
+            : layer.startTime,
+          historyEntry: sanitizeHistoryEntry(layer.historyEntry),
+          category: layer.category || 'file',
+          color: layer.color || getCategoryColor(layer.category || 'file', 0)
+        })),
+        masterVolume,
+        currentTime: 0, // Uložit na začátek
+        selectedLayerId: null
+      }
+
+      // Zkusit serializaci před uložením, abychom zachytili chyby
+      const serialized = JSON.stringify(projectData)
+
       let projects = [...savedProjects]
       if (currentProjectId) {
         // Aktualizovat existující projekt
@@ -1430,7 +1471,8 @@ function AudioEditor() {
       alert(`Projekt "${name}" byl uložen`)
     } catch (err) {
       console.error('Chyba při ukládání projektu:', err)
-      alert('Chyba při ukládání projektu')
+      const errorMessage = err.message || 'Neznámá chyba'
+      alert(`Chyba při ukládání projektu: ${errorMessage}\n\nZkuste zkontrolovat konzoli pro více informací.`)
     }
   }
 
