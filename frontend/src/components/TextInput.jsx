@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useSectionColor } from '../contexts/SectionColorContext'
+import ProsodyMarkersHelp from './ProsodyMarkersHelp'
 import './TextInput.css'
 
 function TextInput({ value, onChange, maxLength = 100000, versions = [], onSaveVersion, onDeleteVersion }) {
@@ -44,6 +45,7 @@ function TextInput({ value, onChange, maxLength = 100000, versions = [], onSaveV
       <div className="text-input-header">
         <h2>Text k syntéze</h2>
         <div className="text-actions">
+          <ProsodyMarkersHelp />
           <button
             className="btn-text-action"
             onClick={onSaveVersion}
@@ -73,8 +75,35 @@ function TextInput({ value, onChange, maxLength = 100000, versions = [], onSaveV
                   ) : (
                     versions.map((v) => (
                       <div key={v.id} className="history-dropdown-item" onClick={() => {
-                        onChange(v.text)
-                        setShowHistory(false)
+                        // Sanitizace: zajisti, že text je skutečně string
+                        let textToSet = v.text
+                        if (typeof textToSet !== 'string') {
+                          console.warn('Verze má neplatný text, přeskočeno:', v)
+                          return
+                        }
+                        // Odstranit případné JSON fragmenty z textu
+                        // Odstranit JSON fragmenty (např. ","timestamp":"...","id":...)
+                        textToSet = textToSet.replace(/["\']?,\s*["\']?(?:timestamp|id|created_at|updated_at)["\']?\s*:\s*["\']?[^"\']*["\']?/g, '')
+                        // Odstranit JSON struktury (např. {...})
+                        // POZOR: Zachovat validní markery v hranatých závorkách
+                        textToSet = textToSet.replace(/\{[^}]*\}/g, '')
+                        // Odstranit hranaté závorky, ale ZACHOVAT validní markery:
+                        // - [pause], [pause:200], [pause:200ms], [PAUSE] (case-insensitive)
+                        // - [intonation:fall]text[/intonation] a všechny varianty
+                        // - [lang:speaker]text[/lang] a [lang]text[/lang]
+                        // - [/intonation], [/lang] (uzavírací tagy)
+                        textToSet = textToSet.replace(/\[(?!pause|PAUSE|intonation|\/intonation|lang|\/lang)[^\]]*\]/gi, '')
+                        // Odstranit zbytky JSON syntaxe (ale ne dvojtečky v markerech jako [pause:200])
+                        textToSet = textToSet.replace(/["\']?\s*,\s*["\']?/g, ' ')
+                        // Normalizovat mezery
+                        textToSet = textToSet.replace(/\s+/g, ' ').trim()
+
+                        if (textToSet) {
+                          onChange(textToSet)
+                          setShowHistory(false)
+                        } else {
+                          console.warn('Verze má prázdný text po sanitizaci, přeskočeno:', v)
+                        }
                       }}>
                         <div className="version-info">
                           <span className="version-date">{formatDate(v.timestamp)}</span>

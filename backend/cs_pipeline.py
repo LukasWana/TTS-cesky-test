@@ -2,6 +2,7 @@
 Sdílený modul pro český text preprocessing pipeline
 Používá se jak pro XTTS, tak pro F5-TTS a další TTS enginy
 """
+import re
 from typing import Optional
 from backend.config import (
     ENABLE_PHONETIC_TRANSLATION,
@@ -38,6 +39,22 @@ def preprocess_czech_text(
     """
     if language != "cs":
         return text
+
+    # Sanitizace: Odstranit JSON fragmenty a další neplatné znaky
+    # Odstranit JSON fragmenty (např. ","timestamp":"...","id":...)
+    text = re.sub(r'["\']?,\s*["\']?(?:timestamp|id|created_at|updated_at)["\']?\s*:\s*["\']?[^"\']*["\']?', '', text)
+    # Odstranit JSON struktury (např. {...})
+    text = re.sub(r'\{[^}]*\}', '', text)
+    # Odstranit hranaté závorky, ale ZACHOVAT validní markery:
+    # - [pause], [pause:200], [pause:200ms], [PAUSE] (case-insensitive)
+    # - [intonation:fall]text[/intonation] a všechny varianty
+    # - [lang:speaker]text[/lang] a [lang]text[/lang]
+    # - [/intonation], [/lang] (uzavírací tagy)
+    text = re.sub(r'\[(?!pause|PAUSE|intonation|/intonation|lang|/lang)[^\]]*\]', '', text, flags=re.IGNORECASE)
+    # Odstranit zbytky JSON syntaxe (ale ne dvojtečky v markerech jako [pause:200])
+    text = re.sub(r'["\']?\s*,\s*["\']?', ' ', text)
+    # Normalizovat mezery
+    text = re.sub(r'\s+', ' ', text).strip()
 
     # 0. Fonetický přepis cizích slov (před ostatním předzpracováním)
     if ENABLE_PHONETIC_TRANSLATION:

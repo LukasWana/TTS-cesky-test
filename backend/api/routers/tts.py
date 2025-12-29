@@ -2,6 +2,7 @@
 TTS router - endpointy pro text-to-speech generování
 """
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
@@ -73,10 +74,32 @@ async def generate_speech(
     target_headroom_db: str = Form(None),
     auto_enhance_voice: str = Form(None),
     allow_poor_voice: str = Form(None),
+    ref_text: str = Form(None),
 ):
     """
     Generuje řeč z textu pomocí XTTS
     """
+    # Sanitizace textu - odstranit JSON fragmenty a další neplatné znaky
+    # Odstranit JSON fragmenty (např. ","timestamp":"...","id":...)
+    text = re.sub(r'["\']?,\s*["\']?(?:timestamp|id|created_at|updated_at)["\']?\s*:\s*["\']?[^"\']*["\']?', '', text)
+    # Odstranit JSON struktury (např. {...})
+    # POZOR: Zachovat validní markery v hranatých závorkách
+    text = re.sub(r'\{[^}]*\}', '', text)
+    # Odstranit hranaté závorky, ale ZACHOVAT validní markery:
+    # - [pause], [pause:200], [pause:200ms], [PAUSE] (case-insensitive)
+    # - [intonation:fall]text[/intonation] a všechny varianty
+    # - [lang:speaker]text[/lang] a [lang]text[/lang]
+    # - [/intonation], [/lang] (uzavírací tagy)
+    text = re.sub(r'\[(?!pause|PAUSE|intonation|/intonation|lang|/lang)[^\]]*\]', '', text, flags=re.IGNORECASE)
+    # Odstranit zbytky JSON syntaxe (ale ne dvojtečky v markerech jako [pause:200])
+    text = re.sub(r'["\']?\s*,\s*["\']?', ' ', text)
+    # Normalizovat mezery
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    # Pokud je text prázdný po sanitizaci, vrátit chybu
+    if not text or not text.strip():
+        raise HTTPException(status_code=400, detail="Text je prázdný nebo obsahuje pouze neplatné znaky")
+
     try:
         if job_id:
             ProgressManager.start(
@@ -224,8 +247,40 @@ async def generate_speech(
                         job_id=job_id
                     )
                     filename = Path(output_path).name
+                    audio_url = f"/api/audio/{filename}"
+
+                    # Uložit každou variantu do historie
+                    voice_type = "upload" if voice_file else "demo"
+                    voice_name = None
+                    if demo_voice:
+                        voice_name = demo_voice
+                    elif voice_file:
+                        voice_name = voice_file.filename
+
+                    tts_params_dict = {
+                        "speed": tts_speed,
+                        "temperature": tts_temperature + (0.05 * (i % 3 - 1)),
+                        "length_penalty": tts_length_penalty,
+                        "repetition_penalty": tts_repetition_penalty,
+                        "top_k": tts_top_k,
+                        "top_p": tts_top_p,
+                        "seed": v_seed,
+                        "engine": "xtts",
+                        "multi_lang": True,
+                        "variant_index": i + 1
+                    }
+
+                    HistoryManager.add_entry(
+                        audio_url=audio_url,
+                        filename=filename,
+                        text=text,
+                        voice_type=voice_type,
+                        voice_name=voice_name,
+                        tts_params=tts_params_dict
+                    )
+
                     variants.append({
-                        "audio_url": f"/api/audio/{filename}",
+                        "audio_url": audio_url,
                         "filename": filename,
                         "seed": v_seed,
                         "temperature": tts_temperature + (0.05 * (i % 3 - 1)),
@@ -281,6 +336,35 @@ async def generate_speech(
             filename = Path(output_path).name
             audio_url = f"/api/audio/{filename}"
 
+            # Uložit do historie
+            voice_type = "upload" if voice_file else "demo"
+            voice_name = None
+            if demo_voice:
+                voice_name = demo_voice
+            elif voice_file:
+                voice_name = voice_file.filename
+
+            tts_params_dict = {
+                "speed": tts_speed,
+                "temperature": tts_temperature,
+                "length_penalty": tts_length_penalty,
+                "repetition_penalty": tts_repetition_penalty,
+                "top_k": tts_top_k,
+                "top_p": tts_top_p,
+                "seed": params.get("seed"),
+                "engine": "xtts",
+                "multi_lang": True
+            }
+
+            history_entry = HistoryManager.add_entry(
+                audio_url=audio_url,
+                filename=filename,
+                text=text,
+                voice_type=voice_type,
+                voice_name=voice_name,
+                tts_params=tts_params_dict
+            )
+
             if job_id:
                 ProgressManager.done(job_id)
 
@@ -290,6 +374,7 @@ async def generate_speech(
                 "success": True,
                 "job_id": job_id,
                 "multi_lang": True,
+                "history_id": history_entry["id"]
             }
 
         # Batch processing rozhodnutí podle délky textu
@@ -367,6 +452,40 @@ async def generate_speech(
         )
 
         if isinstance(result, list):
+            # Multi-pass varianty - uložit každou variantu do historie
+            voice_type = "upload" if voice_file else "demo"
+            voice_name = None
+            if demo_voice:
+                voice_name = demo_voice
+            elif voice_file:
+                voice_name = voice_file.filename
+
+            for variant in result:
+                filename = variant.get("filename")
+                audio_url = variant.get("audio_url", "")
+                if filename and audio_url:
+                    tts_params_dict = {
+                        "speed": tts_speed,
+                        "temperature": variant.get("temperature", tts_temperature),
+                        "length_penalty": tts_length_penalty,
+                        "repetition_penalty": tts_repetition_penalty,
+                        "top_k": tts_top_k,
+                        "top_p": tts_top_p,
+                        "seed": variant.get("seed", seed),
+                        "engine": "xtts",
+                        "multi_pass": True,
+                        "variant_index": variant.get("index", 0)
+                    }
+
+                    HistoryManager.add_entry(
+                        audio_url=audio_url,
+                        filename=filename,
+                        text=text,
+                        voice_type=voice_type,
+                        voice_name=voice_name,
+                        tts_params=tts_params_dict
+                    )
+
             return {
                 "variants": result,
                 "success": True,
@@ -392,7 +511,8 @@ async def generate_speech(
                 "repetition_penalty": tts_repetition_penalty,
                 "top_k": tts_top_k,
                 "top_p": tts_top_p,
-                "ref_text": ref_text
+                "ref_text": ref_text,
+                "engine": "xtts"
             }
 
             history_entry = HistoryManager.add_entry(
