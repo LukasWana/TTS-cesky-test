@@ -51,8 +51,8 @@ def preprocess_slovak_text(
             slovak_processor = get_slovak_text_processor()
             text = slovak_processor.process_text(
                 text,
-                apply_voicing=True,  # Aktivované pre lepšiu výslovnosť
-                apply_glottal_stop=True,  # Aktivované pre lepšiu zrozumiteľnosť
+                apply_voicing=False,  # Deaktivované - spôsobuje "drmolenie" v F5-TTS
+                apply_glottal_stop=False,  # Deaktivované - model mätie ráz/apostrof
                 apply_consonant_groups=False,  # Pre slovenštinu zatiaľ neimplementované
                 expand_abbreviations=True,
                 expand_numbers=True
