@@ -48,6 +48,7 @@ from backend.api.routers import (
     asr,
     audio,
     models,
+    prompts,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,7 @@ app.include_router(voice.router)
 app.include_router(asr.router)
 app.include_router(audio.router)
 app.include_router(models.router)
+app.include_router(prompts.router)
 
 @app.get("/")
 async def root():

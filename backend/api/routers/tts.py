@@ -21,6 +21,9 @@ from backend.api.handlers.multi_lang_handler import (
 )
 from backend.progress_manager import ProgressManager
 from backend.history_manager import HistoryManager
+from backend.xtts_prompts_history_manager import XTTSPromptsHistoryManager
+from backend.f5tts_prompts_history_manager import F5TTSPromptsHistoryManager
+from backend.f5tts_sk_prompts_history_manager import F5TTSSKPromptsHistoryManager
 from backend.config import (
     MAX_TEXT_LENGTH,
     AUDIO_ENHANCEMENT_PRESET,
@@ -391,12 +394,19 @@ async def generate_speech(
                 "top_p": tts_top_p
             }
 
+            # Uložit do historie WAV souborů (pro audio editor)
             history_entry = HistoryManager.add_entry(
                 audio_url=audio_url,
                 filename=filename,
                 text=text,
                 voice_type=voice_type,
                 voice_name=voice_name,
+                tts_params=tts_params_dict
+            )
+
+            # Uložit prompt do samostatné historie promptů (XTTS)
+            XTTSPromptsHistoryManager.add_entry(
+                prompt=text,
                 tts_params=tts_params_dict
             )
 
@@ -686,12 +696,19 @@ async def generate_speech_f5(
             "engine": "f5-tts"
         }
 
+        # Uložit do historie WAV souborů (pro audio editor)
         history_entry = HistoryManager.add_entry(
             audio_url=audio_url,
             filename=filename,
             text=text,
             voice_type=voice_type,
             voice_name=voice_name,
+            tts_params=tts_params_dict
+        )
+
+        # Uložit prompt do samostatné historie promptů (F5-TTS)
+        F5TTSPromptsHistoryManager.add_entry(
+            prompt=text,
             tts_params=tts_params_dict
         )
 
@@ -952,12 +969,19 @@ async def generate_speech_f5_sk(
             "engine": "f5-tts-slovak"
         }
 
+        # Uložit do historie WAV souborů (pro audio editor)
         history_entry = HistoryManager.add_entry(
             audio_url=audio_url,
             filename=filename,
             text=text,
             voice_type=voice_type,
             voice_name=voice_name,
+            tts_params=tts_params_dict
+        )
+
+        # Uložit prompt do samostatné historie promptů (F5-TTS-SK)
+        F5TTSSKPromptsHistoryManager.add_entry(
+            prompt=text,
             tts_params=tts_params_dict
         )
 
