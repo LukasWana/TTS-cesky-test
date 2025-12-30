@@ -23,6 +23,7 @@ import { useTTSProgress } from './hooks/useTTSProgress'
 import { useTTSGeneration } from './hooks/useTTSGeneration'
 import { getDefaultSlotSettings } from './constants/ttsDefaults'
 import { SectionColorProvider } from './contexts/SectionColorContext'
+import PromptsHistory from './components/PromptsHistory'
 import './App.css'
 
 function App() {
@@ -284,6 +285,11 @@ function App() {
                       versions={textVersions}
                       onSaveVersion={() => saveTextVersion(text)}
                       onDeleteVersion={deleteTextVersion}
+                    />
+
+                    <PromptsHistory
+                      modelType="xtts"
+                      onSelectPrompt={setText}
                     />
 
                     <div className="generate-section">

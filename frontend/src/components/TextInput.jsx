@@ -44,8 +44,15 @@ function TextInput({
   }
 
   const handleVersionClick = (versionText) => {
-    onChange(versionText)
-    setShowHistory(false)
+    // Zajistit, že se vloží pouze text, ne celý objekt
+    const textToInsert = typeof versionText === 'string'
+      ? versionText
+      : (versionText?.text || '')
+
+    if (textToInsert) {
+      onChange(textToInsert)
+      setShowHistory(false)
+    }
   }
 
   const handleDeleteVersion = (e, index) => {
@@ -100,11 +107,17 @@ function TextInput({
                           Žádné uložené verze
                         </div>
                       ) : (
-                        versions.map((version, index) => (
+                        versions.map((version, index) => {
+                          // Extrahovat text z verze - podporovat jak string, tak objekt
+                          const versionText = typeof version === 'string'
+                            ? version
+                            : (version?.text || '')
+
+                          return (
                           <div
                             key={index}
                             className="history-dropdown-item"
-                            onClick={() => handleVersionClick(version.text || version)}
+                            onClick={() => handleVersionClick(versionText)}
                           >
                             <div className="version-info">
                               <span className="version-date">
@@ -130,10 +143,11 @@ function TextInput({
                               )}
                             </div>
                             <div className="version-preview">
-                              {typeof version === 'string' ? version : (version.text || '')}
+                              {versionText}
                             </div>
                           </div>
-                        ))
+                          )
+                        })
                       )}
                     </div>
                   </div>

@@ -9,6 +9,7 @@ import Button from './ui/Button'
 import Icon from './ui/Icons'
 import { generateF5TTSSlovak, getDemoVoices, subscribeToTtsProgress, uploadVoice, recordVoice, downloadYouTubeVoice, transcribeReferenceAudio } from '../services/api'
 import { getDefaultSlotSettings } from '../constants/ttsDefaults'
+import PromptsHistory from './PromptsHistory'
 import './F5TTS.css'
 
 // Klíče pro localStorage - varianty jsou vázané na konkrétní hlas (id)
