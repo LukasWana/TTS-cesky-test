@@ -34,7 +34,7 @@ def preprocess_czech_text(
         enable_dialect_conversion: Zda povolit převod na nářečí (None = použít z config, True/False = přepsat)
         dialect_code: Kód nářečí (None = použít z config, jinak přepsat)
         dialect_intensity: Intenzita převodu (0.0-1.0)
-        apply_voicing: Zda aplikovat spodobu znělosti (None = výchozí True)
+        apply_voicing: Zda aplikovat spodobu znělosti (None = výchozí False, deaktivováno pro moderní TTS modely)
         apply_glottal_stop: Zda vkládat ráz (None = výchozí True)
 
     Returns:
@@ -58,7 +58,8 @@ def preprocess_czech_text(
             czech_processor = get_czech_text_processor()
 
             # Výchozí hodnoty pro apply_voicing a apply_glottal_stop
-            voicing = apply_voicing if apply_voicing is not None else True
+            # Spodoba znělosti je výchozí False - moderní TTS modely (F5-TTS, XTTS) ji zvládají automaticky
+            voicing = apply_voicing if apply_voicing is not None else False
             glottal = apply_glottal_stop if apply_glottal_stop is not None else True
 
             text = czech_processor.process_text(
