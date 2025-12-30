@@ -10,16 +10,61 @@ import {
 import Icon from './ui/Icons'
 import './PromptsHistory.css'
 
+// Pomocné funkce pro práci s localStorage
+const getExpandedStorageKey = (modelType) => {
+  return `prompts_history_expanded_${modelType}`
+}
+
+const loadExpandedState = (modelType) => {
+  try {
+    const key = getExpandedStorageKey(modelType)
+    const stored = localStorage.getItem(key)
+    if (stored !== null) {
+      return stored === 'true'
+    }
+  } catch (err) {
+    console.warn('Chyba při načítání stavu rozbalení z localStorage:', err)
+  }
+  return false
+}
+
+const saveExpandedState = (modelType, expanded) => {
+  try {
+    const key = getExpandedStorageKey(modelType)
+    localStorage.setItem(key, String(expanded))
+  } catch (err) {
+    console.warn('Chyba při ukládání stavu rozbalení do localStorage:', err)
+  }
+}
+
 function PromptsHistory({ modelType, onSelectPrompt }) {
   // modelType: 'xtts' | 'f5tts' | 'f5tts-sk'
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(() => loadExpandedState(modelType))
 
+  // Ukládání stavu expanded do localStorage při jeho změně
+  useEffect(() => {
+    saveExpandedState(modelType, expanded)
+  }, [expanded, modelType])
+
+  // Resetovat historii a načíst správný stav expanded při změně modelType
+  useEffect(() => {
+    setHistory([])
+    setError(null)
+    setLoading(true)
+    const newExpanded = loadExpandedState(modelType)
+    setExpanded(newExpanded)
+  }, [modelType])
+
+  // Načítání historie při rozbalení nebo změně modelType
   useEffect(() => {
     if (expanded) {
       loadHistory()
+    } else {
+      // Pokud není rozbalené, resetovat loading
+      setLoading(false)
     }
   }, [expanded, modelType])
 

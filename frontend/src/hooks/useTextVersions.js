@@ -20,7 +20,8 @@ export const useTextVersions = (activeTab) => {
 
   const loadTabText = (tabId) => {
     try {
-      const key = STORAGE_KEYS.TEXT_VERSIONS(tabId)
+      // Použít jiný klíč pro plain text (ne verze)
+      const key = `tts_text_content_${tabId}`
       return localStorage.getItem(key) || ''
     } catch (err) {
       console.error('Chyba při načítání textu:', err)
@@ -30,7 +31,8 @@ export const useTextVersions = (activeTab) => {
 
   const saveTabText = (tabId, text) => {
     try {
-      const key = STORAGE_KEYS.TEXT_VERSIONS(tabId)
+      // Použít jiný klíč pro plain text (ne verze)
+      const key = `tts_text_content_${tabId}`
       localStorage.setItem(key, text)
     } catch (err) {
       console.error('Chyba při ukládání textu:', err)
@@ -41,18 +43,68 @@ export const useTextVersions = (activeTab) => {
     try {
       const key = `tts_text_versions_${tabId}`
       const stored = localStorage.getItem(key)
-      if (stored) {
-        // Zkontroluj, zda je to validní JSON (začíná [ nebo {)
-        const trimmed = stored.trim()
-        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-          return JSON.parse(stored)
-        } else {
-          // Poškozená data - není to JSON, vyčistit
+      if (!stored) {
+        return []
+      }
+
+      // Prázdný string není validní JSON
+      const trimmed = stored.trim()
+      if (trimmed === '') {
+        console.warn('Prázdná data v localStorage, mazání:', key)
+        localStorage.removeItem(key)
+        return []
+      }
+
+      // Zkontroluj, zda je to validní JSON (začíná [ nebo {)
+      if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) {
+        // Možná je to plain text místo JSON - zkusit to zachránit
+        console.warn('Neočekávaný formát dat v localStorage, pokus o opravu:', key)
+        try {
+          // Zkusit parsovat jako JSON string
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed)) {
+            return parsed
+          }
+        } catch (e) {
+          // Pokud to není validní JSON, smazat
           console.warn('Poškozená data v localStorage, mazání:', key)
           localStorage.removeItem(key)
           return []
         }
+        // Pokud to není pole, smazat
+        console.warn('Data nejsou pole, mazání:', key)
+        localStorage.removeItem(key)
+        return []
       }
+
+      // Pokusit se parsovat JSON
+      const parsed = JSON.parse(stored)
+
+      // Validovat, že je to pole
+      if (!Array.isArray(parsed)) {
+        console.warn('Data nejsou pole, mazání:', key)
+        localStorage.removeItem(key)
+        return []
+      }
+
+      // Validovat strukturu pole - každý prvek by měl mít text a id
+      const validVersions = parsed.filter(v => {
+        if (typeof v !== 'object' || v === null) return false
+        if (typeof v.text !== 'string') return false
+        return true
+      })
+
+      // Pokud se počet liší, opravit data
+      if (validVersions.length !== parsed.length) {
+        console.warn('Některé verze byly nevalidní, opravuji:', key)
+        try {
+          localStorage.setItem(key, JSON.stringify(validVersions))
+        } catch (saveErr) {
+          console.error('Chyba při opravě dat:', saveErr)
+        }
+      }
+
+      return validVersions
     } catch (err) {
       console.error('Chyba při načítání historie verzí:', err)
       // Pokud selže parsování, vyčistit poškozená data
@@ -68,10 +120,32 @@ export const useTextVersions = (activeTab) => {
 
   const saveTabVersions = (tabId, versions) => {
     try {
+      // Validovat, že versions je pole
+      if (!Array.isArray(versions)) {
+        console.warn('Pokus o uložení nevalidních verzí (není pole), ignoruji')
+        return
+      }
+
       const key = `tts_text_versions_${tabId}`
-      localStorage.setItem(key, JSON.stringify(versions))
+
+      // Omezit počet verzí na 20 (aby se neplnil localStorage)
+      const versionsToSave = versions.slice(0, 20)
+
+      localStorage.setItem(key, JSON.stringify(versionsToSave))
     } catch (err) {
-      console.error('Chyba při ukládání historie verzí:', err)
+      if (err.name === 'QuotaExceededError' || err.code === 22) {
+        // Pokud je localStorage plný, zkusit uložit jen posledních 5 verzí
+        try {
+          const key = `tts_text_versions_${tabId}`
+          const limitedVersions = versions.slice(0, 5)
+          localStorage.setItem(key, JSON.stringify(limitedVersions))
+          console.warn('Uloženo jen posledních 5 verzí kvůli QuotaExceededError')
+        } catch (retryErr) {
+          console.error('Chyba při ukládání historie verzí i po omezení:', retryErr)
+        }
+      } else {
+        console.error('Chyba při ukládání historie verzí:', err)
+      }
     }
   }
 

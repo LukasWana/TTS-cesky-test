@@ -1,6 +1,131 @@
 import { useState, useEffect, useRef } from 'react'
 import { getDefaultSlotSettings, STORAGE_KEYS } from '../constants/ttsDefaults'
 
+// Maximální počet uložených variant settings (LRU cache)
+const MAX_VARIANT_SETTINGS = 50
+
+/**
+ * Získá všechny klíče variant settings z localStorage (XTTS i F5TTS)
+ */
+const getAllVariantSettingsKeys = () => {
+  const keys = []
+  const prefixes = ['tts_variant_settings_', 'f5tts_voice_']
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key) {
+        for (const prefix of prefixes) {
+          if (key.startsWith(prefix)) {
+            keys.push(key)
+            break
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Chyba při procházení localStorage:', err)
+  }
+  return keys
+}
+
+/**
+ * Vyčistí staré variant settings, pokud překročíme limit
+ * Používá LRU strategii - odstraní nejstarší záznamy
+ */
+const cleanupOldVariantSettings = () => {
+  try {
+    const keys = getAllVariantSettingsKeys()
+
+    if (keys.length <= MAX_VARIANT_SETTINGS) {
+      return // Není potřeba čistit
+    }
+
+    // Seřadit podle času posledního přístupu (pokud máme timestamp)
+    // Pokud ne, odstranit nejstarší (první v seznamu)
+    const toRemove = keys.length - MAX_VARIANT_SETTINGS
+
+    // Odstranit nejstarší záznamy
+    for (let i = 0; i < toRemove; i++) {
+      try {
+        localStorage.removeItem(keys[i])
+      } catch (err) {
+        console.warn('Chyba při mazání starého nastavení:', keys[i], err)
+      }
+    }
+
+    console.log(`Vyčištěno ${toRemove} starých variant settings z localStorage`)
+  } catch (err) {
+    console.error('Chyba při čištění starých variant settings:', err)
+  }
+}
+
+/**
+ * Pokusí se vyčistit localStorage při QuotaExceededError
+ */
+const handleQuotaExceeded = () => {
+  try {
+    // 1. Vyčistit staré variant settings
+    cleanupOldVariantSettings()
+
+    // 2. Zkusit vyčistit waveform cache (může být velký)
+    try {
+      const waveformKeys = ['waveform_peaks_cache_v3', 'audio_not_found_cache']
+      waveformKeys.forEach(key => {
+        try {
+          localStorage.removeItem(key)
+        } catch (e) {
+          // Ignorovat
+        }
+      })
+    } catch (e) {
+      // Ignorovat
+    }
+
+    // 3. Zkusit vyčistit staré text versions (ponechat jen aktuální)
+    try {
+      // Ponechat jen posledních 5 verzí pro každou záložku
+      const tabs = ['generate', 'f5tts', 'musicgen', 'bark', 'audioeditor']
+      tabs.forEach(tab => {
+        const tabKey = `tts_text_versions_${tab}`
+        try {
+          const stored = localStorage.getItem(tabKey)
+          if (stored) {
+            const trimmed = stored.trim()
+            // Validovat, že je to validní JSON
+            if (trimmed && (trimmed.startsWith('[') || trimmed.startsWith('{'))) {
+              try {
+                const versions = JSON.parse(stored)
+                if (Array.isArray(versions) && versions.length > 5) {
+                  const limitedVersions = versions.slice(-5)
+                  localStorage.setItem(tabKey, JSON.stringify(limitedVersions))
+                }
+              } catch (parseErr) {
+                // Pokud selže parsování, data jsou poškozená - smazat
+                console.warn('Poškozená text versions data při čištění, mazání:', tabKey)
+                localStorage.removeItem(tabKey)
+              }
+            } else {
+              // Nevalidní formát - smazat
+              console.warn('Nevalidní formát text versions při čištění, mazání:', tabKey)
+              localStorage.removeItem(tabKey)
+            }
+          }
+        } catch (e) {
+          // Ignorovat chyby při čištění jednotlivých záložek
+          console.warn('Chyba při čištění text versions pro:', tab, e)
+        }
+      })
+    } catch (e) {
+      // Ignorovat
+      console.warn('Chyba při čištění text versions:', e)
+    }
+
+    console.log('Provedeno automatické čištění localStorage kvůli QuotaExceededError')
+  } catch (err) {
+    console.error('Chyba při automatickém čištění localStorage:', err)
+  }
+}
+
 /**
  * Hook pro správu TTS nastavení s localStorage persistence
  */
@@ -41,8 +166,56 @@ export const useTTSSettings = (selectedVoice, voiceType, activeVariant) => {
     try {
       const key = STORAGE_KEYS.VARIANT_SETTINGS(`${voiceId}_${variantId}`)
       localStorage.setItem(key, JSON.stringify(settings))
+
+      // Pravidelně kontrolovat a čistit stará nastavení
+      if (Math.random() < 0.1) { // 10% šance na kontrolu (aby nebylo příliš často)
+        cleanupOldVariantSettings()
+      }
     } catch (err) {
-      console.error('Chyba při ukládání nastavení:', err)
+      if (err.name === 'QuotaExceededError' || err.code === 22) {
+        console.warn('localStorage quota překročena, provádím automatické čištění...')
+        handleQuotaExceeded()
+
+        // Zkusit znovu po vyčištění
+        try {
+          localStorage.setItem(key, JSON.stringify(settings))
+          console.log('Nastavení úspěšně uloženo po automatickém čištění')
+        } catch (retryErr) {
+          console.error('Chyba při ukládání nastavení i po čištění:', retryErr)
+          // Pokud stále selže, zkusit uložit bez některých nepodstatných hodnot
+          try {
+            const minimalSettings = {
+              ttsSettings: {
+                speed: settings.ttsSettings.speed,
+                temperature: settings.ttsSettings.temperature,
+                lengthPenalty: settings.ttsSettings.lengthPenalty,
+                repetitionPenalty: settings.ttsSettings.repetitionPenalty,
+                topK: settings.ttsSettings.topK,
+                topP: settings.ttsSettings.topP,
+                seed: settings.ttsSettings.seed
+              },
+              qualitySettings: {
+                qualityMode: settings.qualitySettings.qualityMode,
+                enhancementPreset: settings.qualitySettings.enhancementPreset,
+                enableEnhancement: settings.qualitySettings.enableEnhancement,
+                useHifigan: settings.qualitySettings.useHifigan,
+                enableNormalization: settings.qualitySettings.enableNormalization,
+                enableDenoiser: settings.qualitySettings.enableDenoiser,
+                enableCompressor: settings.qualitySettings.enableCompressor,
+                enableDeesser: settings.qualitySettings.enableDeesser,
+                enableEq: settings.qualitySettings.enableEq,
+                enableTrim: settings.qualitySettings.enableTrim
+              }
+            }
+            localStorage.setItem(key, JSON.stringify(minimalSettings))
+            console.log('Nastavení uloženo v minimalizované podobě')
+          } catch (minimalErr) {
+            console.error('Nepodařilo se uložit ani minimalizované nastavení:', minimalErr)
+          }
+        }
+      } else {
+        console.error('Chyba při ukládání nastavení:', err)
+      }
     }
   }
 

@@ -148,6 +148,34 @@
 
 .container {
   width: 100%;
+  padding-top: 70px; /* Dostatečný padding od horního okraje, aby nadpisy nekolidovaly s tlačítkem menu */
+}
+
+/* Sjednocené styly pro nadpisy sekcí - konzistentní s MusicGen */
+.musicgen-header h2,
+.bark-header h2,
+.section-header h2,
+.voice-preparation h2 {
+  margin: 0 0 10px 0;
+  color: #fff;
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Sjednocené styly pro popisky sekcí */
+.musicgen-hint,
+.bark-hint,
+.section-hint {
+  margin: 6px 0 0 0;
+  opacity: 0.75;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+
+.section-header {
+  margin-bottom: 24px;
 }
 
 .generate-layout {
@@ -358,6 +386,7 @@
 
   .container {
     padding: 0;
+    padding-top: 70px; /* Zachovat padding-top i na mobilu */
   }
 
   .main-header-row {

@@ -1,47 +1,4 @@
-.f5tts-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.f5tts-header {
-  margin-bottom: 30px;
-}
-
-.f5tts-header h2 {
-  margin: 0 0 10px 0;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.f5tts-description {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 14px;
-  margin: 0;
-}
-
-.f5tts-content {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.f5tts-main {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.generate-section {
-  margin-top: 10px;
-}
-
-.settings-panel {
-  margin-top: 20px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 8px;
-}
+/* F5TTS nyní používá stejné styly jako generate tab - žádné specifické styly nejsou potřeba */
 
 .settings-toggle {
   margin-top: 10px;

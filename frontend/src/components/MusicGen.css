@@ -5,8 +5,11 @@
 }
 
 .musicgen-header h2 {
-  margin: 0;
+  margin: 0 0 10px 0;
   color: #fff;
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .musicgen-hint {

@@ -36,7 +36,6 @@ function App() {
   const [demoVoices, setDemoVoices] = useState([])
   const [modelStatus, setModelStatus] = useState(null)
   const [voiceQuality, setVoiceQuality] = useState(null)
-  const [showSettings, setShowSettings] = useState(true)
 
   // Hooks - useVariantManager musí být před useTTSSettings, protože useTTSSettings potřebuje activeVariant
   const { activeVariant, handleVariantChange, setSaveCurrentVariantNow } = useVariantManager()
@@ -233,28 +232,6 @@ function App() {
 
           <main className="app-main">
             <div className="container">
-              <div className="main-header-row">
-
-                {activeTab === 'generate' && (
-                  <button
-                    className={`btn-toggle-settings ${!showSettings ? 'collapsed' : ''}`}
-                    onClick={() => setShowSettings(!showSettings)}
-                    title={showSettings ? "Skrýt nastavení" : "Zobrazit nastavení"}
-                  >
-                    {showSettings ? (
-                      <>
-                        <Icon name="close" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
-                        Skrýt nastavení
-                      </>
-                    ) : (
-                      <>
-                        <Icon name="settings" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
-                        Nastavení
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
 
               {activeTab === 'voicepreparation' && (
                 <VoicePreparation
@@ -268,8 +245,15 @@ function App() {
               )}
 
               {activeTab === 'generate' && (
-                <div className={`generate-layout ${!showSettings ? 'full-width' : ''}`}>
+                <div className="generate-layout">
                   <div className="generate-content">
+                    <div className="section-header">
+                      <h2>XTTS (české slovo)</h2>
+                      <p className="section-hint">
+                        Generování řeči v češtině pomocí XTTS modelu. Podporuje různé hlasy a varianty generování.
+                      </p>
+                    </div>
+
                     <VoiceSelector
                       demoVoices={demoVoices}
                       selectedVoice={selectedVoice}
@@ -349,30 +333,28 @@ function App() {
                     )}
                   </div>
 
-                  {showSettings && (
-                    <div className="settings-panel">
-                      <TTSSettings
-                        settings={ttsSettings}
-                        onChange={setTtsSettings}
-                        onReset={() => {
-                          // Resetovat nastavení pro aktuální variantu na slot-specifické defaultní hodnoty
-                          const defaultSlot = getDefaultSlotSettings(activeVariant)
-                          const resetTts = { ...defaultSlot.ttsSettings }
-                          const resetQuality = { ...defaultSlot.qualitySettings }
+                  <div className="settings-panel">
+                    <TTSSettings
+                      settings={ttsSettings}
+                      onChange={setTtsSettings}
+                      onReset={() => {
+                        // Resetovat nastavení pro aktuální variantu na slot-specifické defaultní hodnoty
+                        const defaultSlot = getDefaultSlotSettings(activeVariant)
+                        const resetTts = { ...defaultSlot.ttsSettings }
+                        const resetQuality = { ...defaultSlot.qualitySettings }
 
-                          setTtsSettings(resetTts)
-                          setQualitySettings(resetQuality)
+                        setTtsSettings(resetTts)
+                        setQualitySettings(resetQuality)
 
-                          // Uložit resetované hodnoty do localStorage pro tuto variantu
-                          // saveCurrentVariantNow se zavolá automaticky přes debounce v useTTSSettings
-                        }}
-                        qualitySettings={qualitySettings}
-                        onQualityChange={setQualitySettings}
-                        activeVariant={activeVariant}
-                        onVariantChange={handleVariantChange}
-                      />
-                    </div>
-                  )}
+                        // Uložit resetované hodnoty do localStorage pro tuto variantu
+                        // saveCurrentVariantNow se zavolá automaticky přes debounce v useTTSSettings
+                      }}
+                      qualitySettings={qualitySettings}
+                      onQualityChange={setQualitySettings}
+                      activeVariant={activeVariant}
+                      onVariantChange={handleVariantChange}
+                    />
+                  </div>
                 </div>
               )}
 

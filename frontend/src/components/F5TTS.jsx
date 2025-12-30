@@ -21,7 +21,38 @@ const saveVariantSettings = (voiceId, variantId, settings) => {
   try {
     localStorage.setItem(getVariantStorageKey(voiceId, variantId), JSON.stringify(settings))
   } catch (err) {
-    console.error('Chyba při ukládání nastavení:', err)
+    if (err.name === 'QuotaExceededError' || err.code === 22) {
+      console.warn('localStorage quota překročena v F5TTS, provádím automatické čištění...')
+      // Zkusit vyčistit staré F5TTS variant settings
+      try {
+        const prefix = 'f5tts_voice_'
+        const keys = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.startsWith(prefix)) {
+            keys.push(key)
+          }
+        }
+        // Odstranit nejstarší (ponechat jen posledních 50)
+        if (keys.length > 50) {
+          const toRemove = keys.length - 50
+          for (let i = 0; i < toRemove; i++) {
+            try {
+              localStorage.removeItem(keys[i])
+            } catch (e) {
+              // Ignorovat
+            }
+          }
+        }
+        // Zkusit znovu
+        localStorage.setItem(getVariantStorageKey(voiceId, variantId), JSON.stringify(settings))
+        console.log('F5TTS nastavení úspěšně uloženo po automatickém čištění')
+      } catch (cleanupErr) {
+        console.error('Chyba při ukládání F5TTS nastavení i po čištění:', cleanupErr)
+      }
+    } else {
+      console.error('Chyba při ukládání nastavení:', err)
+    }
   }
 }
 
@@ -55,7 +86,6 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
   const [ttsProgress, setTtsProgress] = useState(null)
   const [generatedAudio, setGeneratedAudio] = useState(null)
   const [error, setError] = useState(null)
-  const [showSettings, setShowSettings] = useState(true)
   // F5TTS je v tomto projektu fixně pro slovenštinu (nepřepíná se do češtiny).
   const language = 'sk'
   const [uploadedVoiceFileName, setUploadedVoiceFileName] = useState(null)
@@ -622,36 +652,23 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
 
 
   return (
-    <div className="f5tts-container" style={style}>
-      <div className="f5tts-header">
-        <h2>F5-TTS Generování</h2>
-        <p className="f5tts-description">
-          Pokročilý TTS engine s flow matching. V této aplikaci je nastavený pouze pro slovenštinu.
-        </p>
-      </div>
-
-      <div className="main-header-row">
-        <button
-          className={`btn-toggle-settings ${!showSettings ? 'collapsed' : ''}`}
-          onClick={() => setShowSettings(!showSettings)}
-          title={showSettings ? "Skrýt nastavení" : "Zobrazit nastavení"}
-        >
-          {showSettings ? (
-            <>
-              <Icon name="close" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
-              Skrýt nastavení
-            </>
-          ) : (
-            <>
-              <Icon name="settings" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
-              Nastavení
-            </>
-          )}
-        </button>
-      </div>
-
-      <div className={`generate-layout ${!showSettings ? 'full-width' : ''}`}>
+    <div className="generate-layout">
         <div className="generate-content">
+          <div className="section-header">
+            <h2>F5-TTS (slovenské slovo)</h2>
+            <p className="section-hint">
+              Pokročilý TTS engine s flow matching. V této aplikaci je nastavený pouze pro slovenštinu.
+            </p>
+          </div>
+
+          <VoiceSelector
+            selectedVoice={selectedVoice}
+            onVoiceSelect={setSelectedVoice}
+            demoVoices={demoVoices}
+            voiceQuality={voiceQuality}
+            language={language}
+          />
+
           <TextInput
             value={text}
             onChange={setText}
@@ -662,12 +679,9 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
             onDeleteVersion={onDeleteVersion}
           />
 
-          <VoiceSelector
-            selectedVoice={selectedVoice}
-            onVoiceSelect={setSelectedVoice}
-            demoVoices={demoVoices}
-            voiceQuality={voiceQuality}
-            language={language}
+          <PromptsHistory
+            modelType="f5tts-sk"
+            onSelectPrompt={setText}
           />
 
           <div className="reftext-section" style={{ marginTop: '12px' }}>
@@ -760,48 +774,45 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
           )}
         </div>
 
-        {showSettings && (
-          <div className="settings-panel">
-            <TTSSettings
-              engine="f5-slovak"
-              settings={ttsSettings}
-              onChange={setTtsSettings}
-              onReset={() => {
-                // Resetovat nastavení pro aktuální variantu na slot-specifické defaultní hodnoty
-                const defaultSlot = getDefaultSlotSettings(activeVariant)
-                const resetTts = { ...defaultSlot.ttsSettings }
-                const resetQuality = { ...defaultSlot.qualitySettings }
+        <div className="settings-panel">
+          <TTSSettings
+            engine="f5-slovak"
+            settings={ttsSettings}
+            onChange={setTtsSettings}
+            onReset={() => {
+              // Resetovat nastavení pro aktuální variantu na slot-specifické defaultní hodnoty
+              const defaultSlot = getDefaultSlotSettings(activeVariant)
+              const resetTts = { ...defaultSlot.ttsSettings }
+              const resetQuality = { ...defaultSlot.qualitySettings }
 
-                setTtsSettings(resetTts)
-                setQualitySettings(resetQuality)
+              setTtsSettings(resetTts)
+              setQualitySettings(resetQuality)
 
-                // Aktualizovat ref okamžitě
-                currentSettingsRef.current = {
-                  ttsSettings: { ...resetTts },
-                  qualitySettings: { ...resetQuality }
-                }
+              // Aktualizovat ref okamžitě
+              currentSettingsRef.current = {
+                ttsSettings: { ...resetTts },
+                qualitySettings: { ...resetQuality }
+              }
 
-                // Uložit resetované hodnoty do localStorage pro tuto variantu
-                if (selectedVoice && (voiceType === 'demo' || voiceType === 'record' || voiceType === 'youtube')) {
-                  const voiceId = typeof selectedVoice === 'string' ? selectedVoice : (selectedVoice?.id || selectedVoice?.name)
-                  if (voiceId) {
-                    const resetSettings = {
-                      ttsSettings: { ...resetTts },
-                      qualitySettings: { ...resetQuality }
-                    }
-                    saveVariantSettings(voiceId, activeVariant, resetSettings)
+              // Uložit resetované hodnoty do localStorage pro tuto variantu
+              if (selectedVoice && (voiceType === 'demo' || voiceType === 'record' || voiceType === 'youtube')) {
+                const voiceId = typeof selectedVoice === 'string' ? selectedVoice : (selectedVoice?.id || selectedVoice?.name)
+                if (voiceId) {
+                  const resetSettings = {
+                    ttsSettings: { ...resetTts },
+                    qualitySettings: { ...resetQuality }
                   }
+                  saveVariantSettings(voiceId, activeVariant, resetSettings)
                 }
-              }}
-              qualitySettings={qualitySettings}
-              onQualityChange={setQualitySettings}
-              activeVariant={activeVariant}
-              onVariantChange={handleVariantChange}
-            />
-          </div>
-        )}
+              }
+            }}
+            qualitySettings={qualitySettings}
+            onQualityChange={setQualitySettings}
+            activeVariant={activeVariant}
+            onVariantChange={handleVariantChange}
+          />
+        </div>
       </div>
-    </div>
   )
 }
 
