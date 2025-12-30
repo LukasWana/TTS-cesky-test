@@ -2,6 +2,7 @@
 Audio router - endpointy pro serving audio souborů
 """
 import logging
+import time
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
@@ -12,6 +13,10 @@ from backend.config import OUTPUTS_DIR
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/audio", tags=["audio"])
+
+# Cache pro varování o neexistujících souborech (aby se neopakovaly stále dokola)
+_missing_file_warnings = {}  # {filename: timestamp}
+_WARNING_CACHE_TTL = 60  # Logovat varování maximálně jednou za 60 sekund pro stejný soubor
 
 
 @router.get("/{filename}")
@@ -30,7 +35,20 @@ async def get_audio(filename: str):
         raise HTTPException(status_code=400, detail=f"Neplatná cesta: {str(e)}")
 
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Audio soubor neexistuje")
+        # Logovat varování pouze jednou za čas (aby se neopakovaly stále dokola)
+        current_time = time.time()
+        last_warning_time = _missing_file_warnings.get(filename, 0)
+
+        if current_time - last_warning_time > _WARNING_CACHE_TTL:
+            logger.warning(f"Audio file not found: {file_path} (requested as {filename})")
+            _missing_file_warnings[filename] = current_time
+
+            # Vyčistit staré záznamy (starší než 5 minut) pro úsporu paměti
+            if len(_missing_file_warnings) > 1000:
+                cutoff_time = current_time - 300  # 5 minut
+                _missing_file_warnings.clear()  # Pro jednoduchost vyčistit vše, pokud je cache příliš velká
+
+        raise HTTPException(status_code=404, detail="Soubor nebyl nalezen")
 
     return FileResponse(
         str(file_path),
