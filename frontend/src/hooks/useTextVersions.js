@@ -135,6 +135,14 @@ export const useTextVersions = (activeTab) => {
     previousTabRef.current = activeTab
   }, [activeTab])
 
+  // Automatické ukládání verzí při změně textVersions
+  useEffect(() => {
+    if (!isInitializedRef.current) return
+    if (isLoadingTextRef.current) return
+
+    saveTabVersions(activeTab, textVersions)
+  }, [textVersions, activeTab])
+
   const saveTextVersion = (textToSave) => {
     if (!textToSave || !textToSave.trim()) return
 

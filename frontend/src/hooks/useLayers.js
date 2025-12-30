@@ -15,6 +15,15 @@ export function useLayers() {
   // Načtení audio z URL (vyžaduje audioContextRef)
   const loadAudioFromUrl = useCallback(async (audioUrl, audioContextRef) => {
     try {
+      // Validace URL
+      if (!audioUrl || typeof audioUrl !== 'string' || audioUrl.trim() === '') {
+        throw new Error('Neplatná audio URL: URL musí být neprázdný řetězec')
+      }
+
+      if (!audioContextRef?.current) {
+        throw new Error('AudioContext není inicializován')
+      }
+
       let fullUrl = audioUrl
       if (!audioUrl.startsWith('http')) {
         fullUrl = `${API_BASE_URL}${audioUrl.startsWith('/') ? audioUrl : '/' + audioUrl}`
@@ -26,8 +35,8 @@ export function useLayers() {
       }
 
       const arrayBuffer = await response.arrayBuffer()
-      if (!audioContextRef?.current) {
-        throw new Error('AudioContext není inicializován')
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        throw new Error('Prázdný audio soubor')
       }
 
       const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer)
