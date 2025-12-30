@@ -9,47 +9,39 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from backend.config import BASE_DIR, OUTPUTS_DIR
 
-HISTORY_FILE = BASE_DIR / "history.json"
-
 
 class HistoryManager:
     """Správa historie generovaných audio souborů"""
+    HISTORY_FILE = BASE_DIR / "history.json"
 
-    @staticmethod
-    def _load_history() -> List[Dict]:
+    @classmethod
+    def _load_history(cls) -> List[Dict]:
         """Načte historii z JSON souboru"""
-        if not HISTORY_FILE.exists():
+        if not cls.HISTORY_FILE.exists():
             return []
 
         try:
-            with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+            with open(cls.HISTORY_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return []
 
-    @staticmethod
-    def _save_history(history: List[Dict]):
-        """Uloží historii do JSON souboru atomicky (write temp + rename)"""
+    @classmethod
+    def _save_history(cls, history: List[Dict]):
+        """Uloží historii do JSON souboru atomicky."""
+        temp_path = cls.HISTORY_FILE.with_suffix(".tmp")
         try:
-            # Atomický zápis: zapíšeme do temp souboru, pak přejmenujeme
-            temp_file = HISTORY_FILE.with_suffix('.tmp')
-            with open(temp_file, 'w', encoding='utf-8') as f:
+            with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
-                f.flush()
-                os.fsync(f.fileno())  # Zajistit, že data jsou na disku
 
-            # Atomické přejmenování (na Windows může selhat, pokud soubor existuje)
-            if temp_file.exists():
-                if HISTORY_FILE.exists():
-                    HISTORY_FILE.unlink()
-                temp_file.rename(HISTORY_FILE)
-        except IOError as e:
-            print(f"Chyba při ukládání historie: {e}")
-            # Pokus o cleanup temp souboru
-            temp_file = HISTORY_FILE.with_suffix('.tmp')
-            if temp_file.exists():
+            # os.replace handles overwriting existing files atomically on both Windows and POSIX
+            import os
+            os.replace(str(temp_path), str(cls.HISTORY_FILE))
+        except Exception as e:
+            logger.error(f"Failed to save history: {e}")
+            if temp_path.exists():
                 try:
-                    temp_file.unlink()
+                    temp_path.unlink()
                 except:
                     pass
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from colorama import init, Fore, Style
 
 # Inicializace colorama
-init(autoreset=True, strip=False, convert=True)
+init(autoreset=True, strip=False)
 
 # Cesta k main.py
 backend_dir = Path(__file__).parent

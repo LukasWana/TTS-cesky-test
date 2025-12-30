@@ -31,23 +31,32 @@ DEMO_VOICES_SK_DIR.mkdir(parents=True, exist_ok=True)
 # FORCE_DEVICE=auto -> automatická detekce (výchozí)
 FORCE_DEVICE = os.getenv("FORCE_DEVICE", "auto").lower()
 
+try:
+    from colorama import Fore, Style
+    COLOR_OK = Fore.GREEN
+    COLOR_WARN = Fore.YELLOW
+    COLOR_INFO = Fore.CYAN
+    COLOR_RESET = Style.RESET_ALL
+except ImportError:
+    COLOR_OK = COLOR_WARN = COLOR_INFO = COLOR_RESET = ""
+
 if FORCE_DEVICE == "cpu":
     DEVICE = "cpu"
-    print("[WARN] Device vynucen na CPU (FORCE_DEVICE=cpu)")
+    print(f"{COLOR_WARN}[WARN] Device vynucen na CPU (FORCE_DEVICE=cpu){COLOR_RESET}")
 elif FORCE_DEVICE == "cuda":
     if torch.cuda.is_available():
         DEVICE = "cuda"
-        print("[OK] Device vynucen na GPU (FORCE_DEVICE=cuda)")
+        print(f"{COLOR_OK}[OK] Device vynucen na GPU (FORCE_DEVICE=cuda){COLOR_RESET}")
     else:
         DEVICE = "cpu"
-        print("[WARN] GPU není dostupné, používá se CPU (FORCE_DEVICE=cuda byl ignorován)")
+        print(f"{COLOR_WARN}[WARN] GPU není dostupné, používá se CPU (FORCE_DEVICE=cuda byl ignorován){COLOR_RESET}")
 else:
     # Automatická detekce (výchozí)
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     if DEVICE == "cuda":
-        print("[OK] Automatická detekce: GPU dostupné, používá se CUDA")
+        print(f"{COLOR_OK}[OK] Automatická detekce: GPU dostupné, používá se CUDA{COLOR_RESET}")
     else:
-        print("[INFO] Automatická detekce: GPU nedostupné, používá se CPU")
+        print(f"{COLOR_INFO}[INFO] Automatická detekce: GPU nedostupné, používá se CPU{COLOR_RESET}")
 
 # GPU memory optimization for 6GB VRAM cards (RTX 3060, etc.)
 # Pokud máte GPU s 6GB VRAM, můžete použít tyto optimalizace:
