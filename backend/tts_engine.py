@@ -292,7 +292,9 @@ class XTTSEngine:
         hifigan_refinement_intensity: Optional[float] = None,
         hifigan_normalize_output: Optional[bool] = None,
         hifigan_normalize_gain: Optional[float] = None,
-        job_id: Optional[str] = None
+        job_id: Optional[str] = None,
+        apply_voicing: Optional[bool] = None,
+        apply_glottal_stop: Optional[bool] = None
     ):
         """
         Generuje řeč z textu
@@ -629,7 +631,9 @@ class XTTSEngine:
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity,
-                job_id=job_id
+                job_id=job_id,
+                apply_voicing=apply_voicing,
+                apply_glottal_stop=apply_glottal_stop
             )
 
         # Prosody preprocessing
@@ -689,6 +693,8 @@ class XTTSEngine:
             job_id,
             enable_enhancement,
             prosody_metadata,
+            apply_voicing,
+            apply_glottal_stop
         )
 
         # finální 100% řeší backend/main.py (ProgressManager.done(job_id))
@@ -728,7 +734,9 @@ class XTTSEngine:
         hifigan_normalize_gain: Optional[float] = None,
         job_id: Optional[str] = None,
         enable_enhancement: Optional[bool] = None,
-        prosody_metadata: Optional[Dict] = None
+        prosody_metadata: Optional[Dict] = None,
+        apply_voicing: Optional[bool] = None,
+        apply_glottal_stop: Optional[bool] = None
     ):
         # DEBUG: Ověření, že speed parametr skutečně přichází
         print(f"🔍 DEBUG _generate_sync START: speed={speed}, type={type(speed)}, output_path={output_path}")
@@ -771,7 +779,9 @@ class XTTSEngine:
                 language,
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
-                dialect_intensity=dialect_intensity
+                dialect_intensity=dialect_intensity,
+                apply_voicing=apply_voicing,
+                apply_glottal_stop=apply_glottal_stop
             )
 
             # Úprava: Odstranit koncovou tečku jen pro XTTS model,
@@ -1550,7 +1560,9 @@ class XTTSEngine:
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
-        job_id: Optional[str] = None
+        job_id: Optional[str] = None,
+        apply_voicing: Optional[bool] = None,
+        apply_glottal_stop: Optional[bool] = None
     ) -> List[dict]:
         """
         Generuje více variant řeči s různými parametry
@@ -1635,7 +1647,9 @@ class XTTSEngine:
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity,
-                job_id=job_id
+                job_id=job_id,
+                apply_voicing=apply_voicing,
+                apply_glottal_stop=apply_glottal_stop
             )
 
             filename = Path(output_path).name
@@ -1676,7 +1690,9 @@ class XTTSEngine:
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
-        job_id: Optional[str] = None
+        job_id: Optional[str] = None,
+        apply_voicing: Optional[bool] = None,
+        apply_glottal_stop: Optional[bool] = None
     ) -> str:
         """
         Generuje řeč pro dlouhý text pomocí batch processing

@@ -236,7 +236,8 @@ class TextProcessor:
         return [c for c in safe_chunks if c.strip()]
 
     def preprocess_text(self, text: str, language: str, enable_dialect_conversion: Optional[bool] = None,
-                       dialect_code: Optional[str] = None, dialect_intensity: float = 1.0) -> str:
+                       dialect_code: Optional[str] = None, dialect_intensity: float = 1.0,
+                       apply_voicing: Optional[bool] = None, apply_glottal_stop: Optional[bool] = None) -> str:
         """
         Předzpracuje text pro TTS generování.
 
@@ -246,6 +247,8 @@ class TextProcessor:
             enable_dialect_conversion: Zapnout převod na nářečí
             dialect_code: Kód nářečí
             dialect_intensity: Intenzita převodu
+            apply_voicing: Zda aplikovat spodobu znělosti
+            apply_glottal_stop: Zda vkládat ráz
 
         Returns:
             Předzpracovaný text
@@ -256,6 +259,8 @@ class TextProcessor:
             language,
             enable_dialect_conversion=enable_dialect_conversion,
             dialect_code=dialect_code,
-            dialect_intensity=dialect_intensity
+            dialect_intensity=dialect_intensity,
+            apply_voicing=apply_voicing,
+            apply_glottal_stop=apply_glottal_stop
         )
 

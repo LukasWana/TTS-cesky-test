@@ -19,7 +19,9 @@ def preprocess_czech_text(
     language: str,
     enable_dialect_conversion: Optional[bool] = None,
     dialect_code: Optional[str] = None,
-    dialect_intensity: float = 1.0
+    dialect_intensity: float = 1.0,
+    apply_voicing: Optional[bool] = None,
+    apply_glottal_stop: Optional[bool] = None
 ) -> str:
     """
     Předzpracuje text pro češtinu - převede čísla na slova, normalizuje interpunkci,
@@ -71,13 +73,15 @@ def preprocess_czech_text(
             czech_processor = get_czech_text_processor()
             text = czech_processor.process_text(
                 text,
-                apply_voicing=True,  # Aktivováno pro lepší výslovnost
-                apply_glottal_stop=True,  # Aktivováno pro lepší srozumitelnost
+                apply_voicing=apply_voicing if apply_voicing is not None else False,
+                apply_glottal_stop=apply_glottal_stop if apply_glottal_stop is not None else False,
                 apply_consonant_groups=True,
                 expand_abbreviations=True,
                 expand_numbers=True
             )
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"[WARN] Varovani: Czech text processing selhal: {e}")
 
     # 0.6. Převod na nářečí (pokud je zapnuto)
