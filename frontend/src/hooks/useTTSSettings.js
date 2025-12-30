@@ -300,7 +300,7 @@ export const useTTSSettings = (selectedVoice, voiceType, activeVariant) => {
       loadedQuality = {
         qualityMode: saved.qualitySettings.qualityMode !== undefined ? saved.qualitySettings.qualityMode : defaultQuality.qualityMode,
         enhancementPreset: saved.qualitySettings.enhancementPreset || defaultQuality.enhancementPreset,
-        enableEnhancement: saved.qualitySettings.enableEnhancement !== undefined ? saved.qualitySettings.enableEnhancement : defaultQuality.enableEnhancement,
+        enableEnhancement: true, // Automaticky zapnuté
         multiPass: saved.qualitySettings.multiPass !== undefined ? saved.qualitySettings.multiPass : defaultQuality.multiPass,
         multiPassCount: typeof saved.qualitySettings.multiPassCount === 'number' && !isNaN(saved.qualitySettings.multiPassCount) && saved.qualitySettings.multiPassCount > 0
           ? saved.qualitySettings.multiPassCount
@@ -320,7 +320,7 @@ export const useTTSSettings = (selectedVoice, voiceType, activeVariant) => {
         enableCompressor: saved.qualitySettings.enableCompressor !== undefined ? saved.qualitySettings.enableCompressor : defaultQuality.enableCompressor,
         enableDeesser: saved.qualitySettings.enableDeesser !== undefined ? saved.qualitySettings.enableDeesser : defaultQuality.enableDeesser,
         enableEq: saved.qualitySettings.enableEq !== undefined ? saved.qualitySettings.enableEq : defaultQuality.enableEq,
-        enableTrim: saved.qualitySettings.enableTrim !== undefined ? saved.qualitySettings.enableTrim : defaultQuality.enableTrim,
+        enableTrim: true, // Automaticky zapnuté
         enableDialectConversion: saved.qualitySettings.enableDialectConversion !== undefined ? saved.qualitySettings.enableDialectConversion : defaultQuality.enableDialectConversion,
         dialectCode: saved.qualitySettings.dialectCode !== undefined ? saved.qualitySettings.dialectCode : defaultQuality.dialectCode,
         dialectIntensity: typeof saved.qualitySettings.dialectIntensity === 'number' && !isNaN(saved.qualitySettings.dialectIntensity)
@@ -336,6 +336,13 @@ export const useTTSSettings = (selectedVoice, voiceType, activeVariant) => {
     } else {
       loadedTts = { ...defaultTts }
       loadedQuality = { ...defaultQuality }
+    }
+
+    // Automaticky zapnout enableEnhancement a enableTrim
+    loadedQuality = {
+      ...loadedQuality,
+      enableEnhancement: true,
+      enableTrim: true
     }
 
     setTtsSettings(loadedTts)

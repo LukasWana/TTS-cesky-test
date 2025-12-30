@@ -51,6 +51,25 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
 
   const quality = qualitySettings || defaultQualitySettings
 
+  // Automaticky zapnout enableEnhancement a enableTrim
+  useEffect(() => {
+    if (qualitySettings && onQualityChange) {
+      const needsUpdate =
+        qualitySettings.enableEnhancement === false ||
+        qualitySettings.enableTrim === false ||
+        qualitySettings.enableEnhancement === undefined ||
+        qualitySettings.enableTrim === undefined
+
+      if (needsUpdate) {
+        onQualityChange({
+          ...qualitySettings,
+          enableEnhancement: true,
+          enableTrim: true
+        })
+      }
+    }
+  }, [qualitySettings, onQualityChange])
+
   const handleChange = (key, value) => {
     // Pro seed použijeme integer, pro ostatní float
     if (key === 'seed') {
@@ -271,165 +290,34 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
               />
             )}
 
-            <SelectRow
-              label="Audio enhancement preset"
-              icon="wand"
-              value={quality.enhancementPreset || 'natural'}
-              onChange={(val) => onQualityChange && onQualityChange({
-                ...quality,
-                enhancementPreset: val
-              })}
-              options={[
-                { value: 'high_quality', label: 'Vysoká kvalita' },
-                { value: 'natural', label: 'Přirozený' },
-                { value: 'fast', label: 'Rychlý' }
-              ]}
-            />
+            {/* Audio enhancement UI blok je schovaný - hodnoty se automaticky nastavují */}
+            {/* enableEnhancement a enableTrim jsou automaticky zapnuté */}
+            {/* enhancementPreset je automaticky nastavený na 'natural' */}
 
-            <div className="feature-checkbox-item">
-              <input
-                type="checkbox"
-                id="enableEnhancement"
-                className="large-checkbox"
-                checked={quality.enableEnhancement !== false}
-                onChange={(e) => onQualityChange && onQualityChange({
+            {/* Headroom nastavení */}
+            <div style={{ marginTop: '20px' }}>
+              <SliderRow
+                label="Výstupní headroom"
+                value={quality.targetHeadroomDb !== undefined ? quality.targetHeadroomDb : -15.0}
+                min={-128.0}
+                max={0.0}
+                step={1.0}
+                onChange={(v) => onQualityChange && onQualityChange({
                   ...quality,
-                  enableEnhancement: e.target.checked
+                  targetHeadroomDb: v
                 })}
+                onReset={() => onQualityChange && onQualityChange({
+                  ...quality,
+                  targetHeadroomDb: -15.0
+                })}
+                formatValue={(v) => v.toFixed(1)}
+                valueUnit=" dB"
+                showTicks={false}
               />
-              <label htmlFor="enableEnhancement" className="feature-checkbox-text">
-                <span className="feature-title">Zapnout audio enhancement</span>
-                <span className="feature-description">Post-processing pro vylepšení kvality zvuku</span>
-              </label>
-            </div>
-
-            {quality.enableEnhancement && (
-              <div className="enhancement-features" style={{ marginTop: '15px', marginLeft: '54px' }}>
-                <div className="features-grid">
-                  <div className="feature-checkbox-item">
-                    <input
-                      type="checkbox"
-                      id="enableNormalization"
-                      className="large-checkbox"
-                      checked={quality.enableNormalization !== false}
-                      onChange={(e) => onQualityChange && onQualityChange({
-                        ...quality,
-                        enableNormalization: e.target.checked
-                      })}
-                    />
-                    <label htmlFor="enableNormalization" className="feature-checkbox-text">
-                      <span className="feature-title">Normalizace</span>
-                      <span className="feature-description">Automatická normalizace zvuku na optimální úroveň</span>
-                    </label>
-                  </div>
-                  <div className="feature-checkbox-item">
-                    <input
-                      type="checkbox"
-                      id="enableDenoiser"
-                      className="large-checkbox"
-                      checked={quality.enableDenoiser !== false}
-                      onChange={(e) => onQualityChange && onQualityChange({
-                        ...quality,
-                        enableDenoiser: e.target.checked
-                      })}
-                    />
-                    <label htmlFor="enableDenoiser" className="feature-checkbox-text">
-                      <span className="feature-title">Denoiser</span>
-                      <span className="feature-description">Odstranění šumu z audio signálu</span>
-                    </label>
-                  </div>
-                  <div className="feature-checkbox-item">
-                    <input
-                      type="checkbox"
-                      id="enableCompressor"
-                      className="large-checkbox"
-                      checked={quality.enableCompressor !== false}
-                      onChange={(e) => onQualityChange && onQualityChange({
-                        ...quality,
-                        enableCompressor: e.target.checked
-                      })}
-                    />
-                    <label htmlFor="enableCompressor" className="feature-checkbox-text">
-                      <span className="feature-title">Compressor</span>
-                      <span className="feature-description">Dynamická komprese pro vyrovnání hlasitosti</span>
-                    </label>
-                  </div>
-                  <div className="feature-checkbox-item">
-                    <input
-                      type="checkbox"
-                      id="enableDeesser"
-                      className="large-checkbox"
-                      checked={quality.enableDeesser !== false}
-                      onChange={(e) => onQualityChange && onQualityChange({
-                        ...quality,
-                        enableDeesser: e.target.checked
-                      })}
-                    />
-                    <label htmlFor="enableDeesser" className="feature-checkbox-text">
-                      <span className="feature-title">De-esser</span>
-                      <span className="feature-description">Redukce sykavek a ostrých sykavých zvuků</span>
-                    </label>
-                  </div>
-                  <div className="feature-checkbox-item">
-                    <input
-                      type="checkbox"
-                      id="enableEq"
-                      className="large-checkbox"
-                      checked={quality.enableEq !== false}
-                      onChange={(e) => onQualityChange && onQualityChange({
-                        ...quality,
-                        enableEq: e.target.checked
-                      })}
-                    />
-                    <label htmlFor="enableEq" className="feature-checkbox-text">
-                      <span className="feature-title">Equalizer</span>
-                      <span className="feature-description">Úprava frekvenčního spektra pro lepší zvuk</span>
-                    </label>
-                  </div>
-                  <div className="feature-checkbox-item">
-                    <input
-                      type="checkbox"
-                      id="enableTrim"
-                      className="large-checkbox"
-                      checked={quality.enableTrim !== false}
-                      onChange={(e) => onQualityChange && onQualityChange({
-                        ...quality,
-                        enableTrim: e.target.checked
-                      })}
-                    />
-                    <label htmlFor="enableTrim" className="feature-checkbox-text">
-                      <span className="feature-title">Ořez ticha</span>
-                      <span className="feature-description">Automatické odstranění ticha na začátku a konci</span>
-                    </label>
-                  </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Headroom nastavení */}
-              <div style={{ marginTop: '20px', marginLeft: '54px' }}>
-                <SliderRow
-                  label="Výstupní headroom"
-                  value={quality.targetHeadroomDb !== undefined ? quality.targetHeadroomDb : -15.0}
-                  min={-128.0}
-                  max={0.0}
-                  step={1.0}
-                  onChange={(v) => onQualityChange && onQualityChange({
-                    ...quality,
-                    targetHeadroomDb: v
-                  })}
-                  onReset={() => onQualityChange && onQualityChange({
-                    ...quality,
-                    targetHeadroomDb: -15.0
-                  })}
-                  formatValue={(v) => v.toFixed(1)}
-                  valueUnit=" dB"
-                  showTicks={false}
-                />
-                <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
-                  Nižší hodnota = tišší výstup (méně "přebuzelý"), vyšší = hlasitější. Doporučené: -15.0 dB
-                </div>
+              <div className="setting-description" style={{ fontSize: '12px', marginTop: '5px' }}>
+                Nižší hodnota = tišší výstup (méně "přebuzelý"), vyšší = hlasitější. Doporučené: -15.0 dB
               </div>
+            </div>
             </div>
           </Section>
 
