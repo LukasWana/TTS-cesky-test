@@ -113,10 +113,7 @@ export const useTTSGeneration = (
 
       // Automaticky uložit text do historie verzí po úspěšném generování
       if (saveTextVersion) {
-        console.log('[useTTSGeneration] Volám saveTextVersion s textem:', text.substring(0, 50))
         saveTextVersion(text)
-      } else {
-        console.warn('[useTTSGeneration] saveTextVersion není definován!')
       }
     } catch (err) {
       setError(err.message || 'Chyba při generování řeči')

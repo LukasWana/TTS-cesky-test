@@ -37,32 +37,6 @@ export const useTextVersions = (activeTab) => {
     }
   }
 
-  const sanitizeText = (text) => {
-    if (typeof text !== 'string') {
-      return null
-    }
-    // Odstranit JSON fragmenty z textu
-    let sanitized = text
-      // Odstranit JSON fragmenty (např. ","timestamp":"...","id":...)
-      .replace(/["\']?,\s*["\']?(?:timestamp|id|created_at|updated_at)["\']?\s*:\s*["\']?[^"\']*["\']?/g, '')
-      // Odstranit JSON struktury (např. {...})
-      // POZOR: Zachovat validní markery v hranatých závorkách
-      .replace(/\{[^}]*\}/g, '')
-      // Odstranit hranaté závorky, ale ZACHOVAT validní markery:
-      // - [pause], [pause:200], [pause:200ms], [PAUSE] (case-insensitive)
-      // - [intonation:fall]text[/intonation] a všechny varianty
-      // - [lang:speaker]text[/lang] a [lang]text[/lang]
-      // - [/intonation], [/lang] (uzavírací tagy)
-      .replace(/\[(?!pause|PAUSE|intonation|\/intonation|lang|\/lang)[^\]]*\]/gi, '')
-      // Odstranit zbytky JSON syntaxe (ale ne dvojtečky v markerech jako [pause:200])
-      .replace(/["\']?\s*,\s*["\']?/g, ' ')
-      // Normalizovat mezery
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    return sanitized.length > 0 ? sanitized : null
-  }
-
   const loadTabVersions = (tabId) => {
     try {
       const key = `tts_text_versions_${tabId}`
@@ -71,41 +45,7 @@ export const useTextVersions = (activeTab) => {
         // Zkontroluj, zda je to validní JSON (začíná [ nebo {)
         const trimmed = stored.trim()
         if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-          const parsed = JSON.parse(stored)
-          // Validace: zkontroluj, že je to pole a každá verze má správnou strukturu
-          if (Array.isArray(parsed)) {
-            // Filtruj a oprav poškozené verze
-            const validVersions = parsed
-              .filter(v => v && typeof v === 'object')
-              .map(v => {
-                // Zajisti, že text je string a ne JSON objekt
-                if (v.text && typeof v.text === 'string') {
-                  const sanitizedText = sanitizeText(v.text)
-                  if (sanitizedText) {
-                    return {
-                      id: v.id || Date.now(),
-                      text: sanitizedText,
-                      timestamp: v.timestamp || new Date().toISOString()
-                    }
-                  }
-                }
-                // Pokud text není string nebo je poškozený, přeskočit
-                return null
-              })
-              .filter(v => v !== null)
-
-            // Pokud byly nějaké poškozené verze, ulož opravené
-            if (validVersions.length !== parsed.length) {
-              console.warn(`Opraveno ${parsed.length - validVersions.length} poškozených verzí v tabu ${tabId}`)
-              saveTabVersions(tabId, validVersions)
-            }
-
-            return validVersions
-          }
-          // Pokud to není pole, vyčistit
-          console.warn('Poškozená data v localStorage - není to pole, mazání:', key)
-          localStorage.removeItem(key)
-          return []
+          return JSON.parse(stored)
         } else {
           // Poškozená data - není to JSON, vyčistit
           console.warn('Poškozená data v localStorage, mazání:', key)
@@ -169,24 +109,11 @@ export const useTextVersions = (activeTab) => {
     }))
   }
 
-  // Auto-save aktuálního textu do tab-specific storage
+  // Auto-save aktuálního textu
   useEffect(() => {
     if (isLoadingTextRef.current) return
     if (!isInitializedRef.current) return
     saveTabText(activeTab, text)
-  }, [text, activeTab])
-
-  // Debounced auto-save verze textu do historie
-  useEffect(() => {
-    if (isLoadingTextRef.current) return
-    if (!isInitializedRef.current) return
-    if (!text || !text.trim()) return
-
-    const timer = setTimeout(() => {
-      saveTextVersion(text)
-    }, 10000) // 10 sekund stability před uložením verze
-
-    return () => clearTimeout(timer)
   }, [text, activeTab])
 
   // Ukládání a načítání při změně záložky
@@ -209,20 +136,10 @@ export const useTextVersions = (activeTab) => {
   }, [activeTab])
 
   const saveTextVersion = (textToSave) => {
-    if (!textToSave || !textToSave.trim()) {
-      console.log('[saveTextVersion] Přeskočeno - prázdný text')
-      return
-    }
-
-    // Sanitizace textu před uložením - odstranit JSON fragmenty
-    const sanitizedText = sanitizeText(textToSave)
-    if (!sanitizedText) {
-      console.log('[saveTextVersion] Přeskočeno - text je prázdný po sanitizaci')
-      return
-    }
+    if (!textToSave || !textToSave.trim()) return
 
     // Normalizuj text pro porovnání (trim a případně další normalizace)
-    const normalizedText = sanitizedText.trim()
+    const normalizedText = textToSave.trim()
 
     // Zkontroluj, zda už existuje verze se stejným textem
     const existingVersion = textVersions.find(
@@ -231,20 +148,18 @@ export const useTextVersions = (activeTab) => {
 
     // Pokud už existuje verze se stejným textem, neukládej novou
     if (existingVersion) {
-      console.log('[saveTextVersion] Přeskočeno - verze se stejným textem již existuje:', normalizedText.substring(0, 50))
       return
     }
 
     const newVersion = {
       id: Date.now(),
-      text: sanitizedText,
+      text: textToSave,
       timestamp: new Date().toISOString()
     }
 
     const updatedVersions = [newVersion, ...textVersions.slice(0, 19)]
     setTextVersions(updatedVersions)
     saveTabVersions(activeTab, updatedVersions)
-    console.log('[saveTextVersion] Uložena nová verze:', normalizedText.substring(0, 50), 'pro tab:', activeTab)
   }
 
   const deleteTextVersion = (versionId) => {
