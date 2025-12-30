@@ -626,8 +626,8 @@ class AudioProcessor:
             # 4. EQ korekce pro vyrovnání frekvenčního spektra
             audio = AudioEnhancer.apply_eq(audio, sr)
 
-            # 5. Jemná komprese pro zvládnutí transientů (sníženo z 2.5 na 1.5 pro jemnější zpracování)
-            audio = AudioEnhancer.compress_dynamic_range(audio, ratio=1.5, threshold=-12.0)
+            # 5. Jemná komprese pro zvládnutí transientů
+            audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
 
             # 6. Fade in/out
             audio = AudioEnhancer.apply_fade(audio, sr, fade_ms=30)

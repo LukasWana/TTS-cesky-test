@@ -27,7 +27,7 @@ class AudioEnhancer:
         enable_noise_reduction: Optional[bool] = None,
         enable_compression: Optional[bool] = None,
         enable_deesser: Optional[bool] = None,
-        enable_normalization: Optional[bool] = None,
+        enable_normalization: bool = True,
         enable_trim: bool = True,
         enable_whisper: bool = False,
         whisper_intensity: float = 1.0,
@@ -87,9 +87,6 @@ class AudioEnhancer:
         # Určení, zda použít VAD
         use_vad = enable_vad if enable_vad is not None else CONFIG_ENABLE_VAD
 
-        # Určení, zda použít normalizaci
-        use_normalization = enable_normalization if enable_normalization is not None else enhancement_config.get("enable_normalization", False)
-
         # Počítáme aktivní kroky pro progress
         active_steps = []
         if enable_trim:
@@ -144,7 +141,7 @@ class AudioEnhancer:
             current_pct += step_size
             if progress_callback:
                 progress_callback(current_pct, "enhance", "Komprese dynamiky…")
-            audio = AudioEnhancer.compress_dynamic_range(audio)  # Použije default hodnoty optimalizované pro řeč
+            audio = AudioEnhancer.compress_dynamic_range(audio, ratio=2.5)
 
         # 5. De-esser (pokud zapnuto) - odstranění ostrých sykavek
         if use_deesser:
@@ -168,15 +165,11 @@ class AudioEnhancer:
         audio = AudioEnhancer.remove_dc_offset(audio)
 
         # 7. Finální normalizace podle best practices pro hlas
-        if use_normalization:
-            # Použij target_headroom_db pokud je zadán, jinak výchozí -18 dB (zvýšeno z -24 dB pro lepší hlasitost)
-            peak_target = target_headroom_db if target_headroom_db is not None else -18.0
-            # Peak: použije se target_headroom_db z UI (umožňuje ovládat hlasitost výstupu), RMS: -18 dB
-            # Sníženo RMS target na -20 dB pro jemnější normalizaci (místo -18 dB)
-            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=peak_target, rms_target_db=-20.0)
+        if enable_normalization:
+            # Peak: -3 dB, RMS: -18 dB
+            audio = AudioEnhancer.normalize_audio(audio, peak_target_db=-3.0, rms_target_db=-18.0)
 
-        # 8. Headroom se aplikuje v normalizaci výše (pokud enable_normalization=True)
-        # Pokud je normalizace vypnutá, headroom se aplikuje až po HiFi-GAN a speed změně
+        # 8. Headroom se NEAPLIKUJE zde - aplikuje se až po HiFi-GAN a speed změně
         # (viz tts_engine._generate_sync finální headroom sekce)
 
         # Uložení zpět do souboru
@@ -240,10 +233,10 @@ class AudioEnhancer:
         return audio - np.mean(audio)
 
     @staticmethod
-    def normalize_audio(audio: np.ndarray, peak_target_db: float = -24.0, rms_target_db: float = -18.0) -> np.ndarray:
+    def normalize_audio(audio: np.ndarray, peak_target_db: float = -3.0, rms_target_db: float = -18.0) -> np.ndarray:
         """
         Normalizace audio podle best practices pro hlas:
-        - Peak: -24 dB (tišší výstup pro češtinu)
+        - Peak: -3 dB
         - RMS: -18 dB
         - Ochrana proti extrémnímu zesílení (max +12 dB)
         """
@@ -262,7 +255,7 @@ class AudioEnhancer:
 
             audio = audio * rms_gain
 
-        # 2. Peak normalizace na cílovou hodnotu (výchozí -24 dB pro tišší výstup)
+        # 2. Peak normalizace na -3 dB
         peak_target_linear = 10 ** (peak_target_db / 20)
         current_peak = np.max(np.abs(audio))
         if current_peak > 0:
@@ -273,17 +266,15 @@ class AudioEnhancer:
             audio = audio * peak_gain
 
         # 3. Soft limiter (tanh) pro přirozenější ořez špiček
-        # POZOR: Původní threshold -1 dB byl příliš blízko 0 dB a způsoboval přebuzení
-        # Změněno na -3 dB pro bezpečnější limit
-        threshold = 10 ** (-3.0 / 20)  # -3 dB místo -1 dB
+        # Vše nad -1 dB začne být jemně komprimováno
+        threshold = 10 ** (-1.0 / 20)
         mask = np.abs(audio) > threshold
         if np.any(mask):
             # Aplikujeme tanh pro hladký ořez
             audio[mask] = np.sign(audio[mask]) * (threshold + (1.0 - threshold) * np.tanh((np.abs(audio[mask]) - threshold) / (1.0 - threshold)))
 
-        # Finální hard clip na -0.5 dB pro jistotu (místo -0.1 dB)
-        # POZOR: Původní -0.1 dB byl příliš blízko 0 dB a způsoboval přebuzení
-        limiter_threshold = 10 ** (-0.5 / 20)  # -0.5 dB místo -0.1 dB
+        # Finální hard clip na -0.1 dB pro jistotu
+        limiter_threshold = 10 ** (-0.1 / 20)
         audio = np.clip(audio, -limiter_threshold, limiter_threshold)
 
         return audio
@@ -309,9 +300,8 @@ class AudioEnhancer:
             sos = signal.butter(4, [1000, 4000], btype='band', fs=sr, output='sos')
             boosted = signal.sosfiltfilt(sos, audio)
 
-            # Velmi jemné zvýraznění (0.5% - pouze lehké dokreslení, ne boost)
-            # Sníženo z 1% na 0.5% pro eliminaci přebuzení a zachování přirozeného zvuku
-            audio = audio + 0.005 * boosted
+            # Jemné zvýraznění (sníženo na 1% pro eliminaci přebuzení)
+            audio = audio + 0.01 * boosted
 
             # NENORMALIZUJEME - normalizace bude až na konci řetězce
 
@@ -341,9 +331,9 @@ class AudioEnhancer:
             # Odhad šumu z tichých částí (10. percentil)
             noise_floor = np.percentile(magnitude, 10)
 
-            # Spektrální subtrakce (velmi jemné pro zachování přirozeného zvuku)
-            alpha = 1.2  # Over-subtraction factor (sníženo z 1.5 na 1.2 pro jemnější redukci)
-            beta = 0.02  # Spectral floor (zvýšeno z 0.01 na 0.02 pro zachování více signálu)
+            # Spektrální subtrakce (zmírněno pro lepší kvalitu)
+            alpha = 1.5  # Over-subtraction factor (sníženo z 2.0 na 1.5)
+            beta = 0.01  # Spectral floor
 
             magnitude_clean = magnitude - alpha * noise_floor
             magnitude_clean = np.maximum(magnitude_clean, beta * magnitude)
@@ -458,15 +448,14 @@ class AudioEnhancer:
             return audio
 
     @staticmethod
-    def compress_dynamic_range(audio: np.ndarray, ratio: float = 1.5, threshold: float = -12.0) -> np.ndarray:
+    def compress_dynamic_range(audio: np.ndarray, ratio: float = 2.5, threshold: float = -12.0) -> np.ndarray:
         """
-        Komprese dynamiky optimalizovaná pro řeč - jemná komprese pouze pro vyrovnání hlasitosti
-        Snížená intenzita pro zachování přirozeného zvuku (ne boost jako ze starého rádia)
+        Jemná komprese dynamiky pro zvládnutí transientů (zmírněno pro lepší kvalitu)
 
         Args:
             audio: Audio data
-            ratio: Kompresní poměr (1.5 pro jemnou kompresi, výchozí sníženo z 2.0)
-            threshold: Threshold v dB (-12 dB pro jemnější kompresi, zvýšeno z -18 dB)
+            ratio: Kompresní poměr (sníženo z 3.0 na 2.5 pro jemnější kompresi)
+            threshold: Threshold v dB
 
         Returns:
             Komprimované audio (BEZ normalizace - normalizace bude až na konci)
@@ -496,17 +485,16 @@ class AudioEnhancer:
             return audio
 
     @staticmethod
-    def apply_deesser(audio: np.ndarray, sr: int, freq_range: tuple = (4000, 10000), threshold: float = -12.0, ratio: float = 3.0) -> np.ndarray:
+    def apply_deesser(audio: np.ndarray, sr: int, freq_range: tuple = (4000, 10000), threshold: float = -18.0, ratio: float = 4.0) -> np.ndarray:
         """
         De-esser pro potlačení ostrých sykavek (s, š, c, č)
-        Jemnější nastavení pro zachování přirozeného zvuku
 
         Args:
             audio: Audio data
             sr: Sample rate
             freq_range: Rozsah frekvencí sykavek (výchozí 4-10 kHz)
-            threshold: Threshold v dB pro detekci sykavek (zvýšeno z -18 dB na -12 dB pro jemnější redukci)
-            ratio: Kompresní poměr pro sykavky (sníženo z 4.0 na 3.0 pro jemnější redukci)
+            threshold: Threshold v dB pro detekci sykavek
+            ratio: Kompresní poměr pro sykavky
 
         Returns:
             Audio s potlačenými sykavkami
@@ -572,28 +560,26 @@ class AudioEnhancer:
             return audio
 
         try:
-            # 1. Zvýšení hlasitosti podle úrovně důrazu
-            # POZOR: Tyto hodnoty byly zvýšeny a způsobily přebuzení - vráceno na původní bezpečné hodnoty
+            # 1. Zvýšení hlasitosti podle úrovně důrazu (zvýšeno pro výraznější efekt)
             if level == 'STRONG':
-                # Silný důraz: +3-6 dB podle intenzity (původní bezpečná hodnota)
-                gain_db = 3.0 + (3.0 * intensity)  # 3-6 dB
+                # Silný důraz: +6-12 dB podle intenzity (zvýšeno z 3-6 dB)
+                gain_db = 6.0 + (6.0 * intensity)  # 6-12 dB
             else:  # MODERATE
-                # Mírný důraz: +1.5-3 dB podle intenzity (původní bezpečná hodnota)
-                gain_db = 1.5 + (1.5 * intensity)  # 1.5-3 dB
+                # Mírný důraz: +3-6 dB podle intenzity (zvýšeno z 1.5-3 dB)
+                gain_db = 3.0 + (3.0 * intensity)  # 3-6 dB
 
             gain_linear = 10 ** (gain_db / 20.0)
             audio = audio * gain_linear
 
-            # 2. Zvýšení středních frekvencí (1-4 kHz) - kde je důraz nejvýraznější
+            # 2. Výrazné zvýšení středních frekvencí (1-4 kHz) - kde je důraz nejvýraznější
             nyquist = sr / 2
             sos_boost = signal.butter(4, [1000, 4000], btype='band', fs=sr, output='sos')
             boosted = signal.sosfiltfilt(sos_boost, audio)
-            # Boost podle úrovně a intenzity
-            # POZOR: Tyto hodnoty byly zvýšeny a způsobily přebuzení - vráceno na původní bezpečné hodnoty
+            # Boost podle úrovně a intenzity (zvýšeno pro výraznější efekt)
             if level == 'STRONG':
-                boost_amount = 0.05 + (0.05 * intensity)  # 5-10% boost (původní bezpečná hodnota)
+                boost_amount = 0.15 + (0.15 * intensity)  # 15-30% boost (zvýšeno z 5-10%)
             else:
-                boost_amount = 0.02 + (0.03 * intensity)  # 2-5% boost (původní bezpečná hodnota)
+                boost_amount = 0.08 + (0.12 * intensity)  # 8-20% boost (zvýšeno z 2-5%)
             audio = audio + (boost_amount * boosted)
 
             # 3. Dynamická komprese pro větší kontrast (pouze pro STRONG)
@@ -621,21 +607,11 @@ class AudioEnhancer:
             if level == 'STRONG' and intensity > 0.5:
                 try:
                     import librosa
-                    # Zvýšení pitch (0.5-1.0 semiton podle intenzity - původní bezpečná hodnota)
-                    # POZOR: Hodnota byla zvýšena na 1.0-2.0 a způsobila přebuzení
-                    pitch_shift = 0.5 + (0.5 * (intensity - 0.5) * 2)  # 0.5-1.0 semiton
+                    # Zvýšení pitch (1-2 semitony podle intenzity, zvýšeno z 0.5-1.0)
+                    pitch_shift = 1.0 + (1.0 * (intensity - 0.5) * 2)  # 1.0-2.0 semiton
                     audio = librosa.effects.pitch_shift(audio, sr=sr, n_steps=pitch_shift)
                 except Exception:
                     pass  # Pokud pitch shift selže, pokračuj bez něj
-
-            # 5. Ochrana proti clippingu - zajistit, že audio nikdy nepřekročí bezpečný limit
-            # Headroom -18 dB = 0.125 v lineárních jednotkách, použijeme -3 dB = 0.708 pro bezpečnost
-            max_safe_amplitude = 10 ** (-3.0 / 20.0)  # -3 dB jako bezpečný limit
-            peak = np.max(np.abs(audio)) if len(audio) > 0 else 0.0
-            if peak > max_safe_amplitude:
-                # Ztlumit audio, aby nepřekročilo bezpečný limit
-                scale = max_safe_amplitude / peak
-                audio = audio * scale
 
             return audio
         except Exception as e:

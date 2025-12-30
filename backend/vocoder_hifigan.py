@@ -28,6 +28,15 @@ class HiFiGANVocoder:
             return
 
         try:
+            from colorama import Fore, Style
+            COLOR_OK = Fore.GREEN
+            COLOR_WARN = Fore.YELLOW
+            COLOR_INFO = Fore.CYAN
+            COLOR_RESET = Style.RESET_ALL
+        except ImportError:
+            COLOR_OK = COLOR_WARN = COLOR_INFO = COLOR_RESET = ""
+
+        try:
             # Zkus načíst parallel-wavegan (nejběžnější implementace)
             try:
                 from parallel_wavegan.utils import download_pretrained_model, load_model
@@ -35,20 +44,20 @@ class HiFiGANVocoder:
                 self._parallel_wavegan_available = True
                 self._available = True
                 # Model se načte až při prvním použití (lazy loading)
-                print("✅ parallel-wavegan je dostupný (lazy loading modelu)")
+                print(f"{COLOR_OK}✅ parallel-wavegan je dostupný (lazy loading modelu){COLOR_RESET}")
             except ImportError:
                 # Parallel-wavegan není dostupný, zkus jiné možnosti
                 try:
                     # Zkus hifigan přímo (pokud existuje)
                     import hifigan
                     self._available = True
-                    print("✅ hifigan je dostupný")
+                    print(f"{COLOR_OK}✅ hifigan je dostupný{COLOR_RESET}")
                 except ImportError:
                     self._available = False
-                    print("⚠️  HiFi-GAN není dostupný: parallel-wavegan ani hifigan nejsou nainstalovány")
+                    print(f"{COLOR_WARN}⚠️  HiFi-GAN není dostupný: parallel-wavegan ani hifigan nejsou nainstalovány{COLOR_RESET}")
         except Exception as e:
             self._available = False
-            print(f"⚠️  HiFi-GAN inicializace selhala: {e}")
+            print(f"{COLOR_WARN}⚠️  HiFi-GAN inicializace selhala: {e}{COLOR_RESET}")
 
     def _load_model(self) -> bool:
         """

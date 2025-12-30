@@ -57,37 +57,14 @@ from backend.phonetic_translator import get_phonetic_translator
 try:
     def _expand_number_cs(m, lang="en"):
         lang_code = "cs" if lang.split("-")[0] == "cs" else lang
-        try:
-            return num2words(int(m.group(0)), lang=lang_code)
-        except (NotImplementedError, ValueError):
-            # Fallback na angličtinu pokud čeština není podporována
-            return num2words(int(m.group(0)), lang="en")
+        return num2words(int(m.group(0)), lang=lang_code)
 
     def _expand_ordinal_cs(m, lang="en"):
         lang_code = "cs" if lang.split("-")[0] == "cs" else lang
-        try:
-            return num2words(int(m.group(1)), ordinal=True, lang=lang_code)
-        except (NotImplementedError, ValueError):
-            # Fallback na angličtinu pokud čeština není podporována
-            return num2words(int(m.group(1)), ordinal=True, lang="en")
-
-    def _expand_decimal_point_cs(m, lang="en"):
-        """Opravená verze _expand_decimal_point s ošetřením chyby pro češtinu"""
-        amount = float(m.group(0))
-        lang_code = "cs" if lang != "cs" else "cz"  # XTTS používá "cz" místo "cs"
-        try:
-            return num2words(amount, lang=lang_code)
-        except (NotImplementedError, ValueError):
-            # Fallback na angličtinu pokud čeština není podporována
-            try:
-                return num2words(amount, lang="en")
-            except (NotImplementedError, ValueError):
-                # Pokud ani angličtina nefunguje, vrať číslo jako text
-                return str(amount)
+        return num2words(int(m.group(1)), ordinal=True, lang=lang_code)
 
     xtts_tokenizer._expand_number = _expand_number_cs
     xtts_tokenizer._expand_ordinal = _expand_ordinal_cs
-    xtts_tokenizer._expand_decimal_point = _expand_decimal_point_cs
 except Exception as patch_err:
     # Nechceme spadnout při importu – jen zalogujeme
     print(f"Warning: Czech number expansion patch not applied: {patch_err}")
@@ -292,9 +269,7 @@ class XTTSEngine:
         hifigan_refinement_intensity: Optional[float] = None,
         hifigan_normalize_output: Optional[bool] = None,
         hifigan_normalize_gain: Optional[float] = None,
-        job_id: Optional[str] = None,
-        apply_voicing: Optional[bool] = None,
-        apply_glottal_stop: Optional[bool] = None
+        job_id: Optional[str] = None
     ):
         """
         Generuje řeč z textu
@@ -631,9 +606,7 @@ class XTTSEngine:
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity,
-                job_id=job_id,
-                apply_voicing=apply_voicing,
-                apply_glottal_stop=apply_glottal_stop
+                job_id=job_id
             )
 
         # Prosody preprocessing
@@ -693,8 +666,6 @@ class XTTSEngine:
             job_id,
             enable_enhancement,
             prosody_metadata,
-            apply_voicing,
-            apply_glottal_stop
         )
 
         # finální 100% řeší backend/main.py (ProgressManager.done(job_id))
@@ -734,9 +705,7 @@ class XTTSEngine:
         hifigan_normalize_gain: Optional[float] = None,
         job_id: Optional[str] = None,
         enable_enhancement: Optional[bool] = None,
-        prosody_metadata: Optional[Dict] = None,
-        apply_voicing: Optional[bool] = None,
-        apply_glottal_stop: Optional[bool] = None
+        prosody_metadata: Optional[Dict] = None
     ):
         # DEBUG: Ověření, že speed parametr skutečně přichází
         print(f"🔍 DEBUG _generate_sync START: speed={speed}, type={type(speed)}, output_path={output_path}")
@@ -779,9 +748,7 @@ class XTTSEngine:
                 language,
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
-                dialect_intensity=dialect_intensity,
-                apply_voicing=apply_voicing,
-                apply_glottal_stop=apply_glottal_stop
+                dialect_intensity=dialect_intensity
             )
 
             # Úprava: Odstranit koncovou tečku jen pro XTTS model,
@@ -1560,9 +1527,7 @@ class XTTSEngine:
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
-        job_id: Optional[str] = None,
-        apply_voicing: Optional[bool] = None,
-        apply_glottal_stop: Optional[bool] = None
+        job_id: Optional[str] = None
     ) -> List[dict]:
         """
         Generuje více variant řeči s různými parametry
@@ -1647,9 +1612,7 @@ class XTTSEngine:
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity,
-                job_id=job_id,
-                apply_voicing=apply_voicing,
-                apply_glottal_stop=apply_glottal_stop
+                job_id=job_id
             )
 
             filename = Path(output_path).name
@@ -1690,9 +1653,7 @@ class XTTSEngine:
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
-        job_id: Optional[str] = None,
-        apply_voicing: Optional[bool] = None,
-        apply_glottal_stop: Optional[bool] = None
+        job_id: Optional[str] = None
     ) -> str:
         """
         Generuje řeč pro dlouhý text pomocí batch processing
