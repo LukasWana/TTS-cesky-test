@@ -898,4 +898,79 @@ export async function clearBarkHistory() {
   return await response.json()
 }
 
+/**
+ * Historie promptů - XTTS
+ */
+export async function getXTTSPromptsHistory(limit = null, offset = 0) {
+  const params = new URLSearchParams({ offset: String(offset) })
+  if (limit !== null) {
+    params.append('limit', String(limit))
+  }
+  const response = await fetch(`${API_BASE_URL}/api/prompts/xtts/history?${params.toString()}`)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při načítání XTTS prompts historie')
+  }
+  return await response.json()
+}
+
+export async function deleteXTTSPromptEntry(entryId) {
+  const response = await fetch(`${API_BASE_URL}/api/prompts/xtts/history/${entryId}`, { method: 'DELETE' })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při mazání záznamu')
+  }
+  return await response.json()
+}
+
+/**
+ * Historie promptů - F5-TTS
+ */
+export async function getF5TTSPromptsHistory(limit = null, offset = 0) {
+  const params = new URLSearchParams({ offset: String(offset) })
+  if (limit !== null) {
+    params.append('limit', String(limit))
+  }
+  const response = await fetch(`${API_BASE_URL}/api/prompts/f5tts/history?${params.toString()}`)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při načítání F5-TTS prompts historie')
+  }
+  return await response.json()
+}
+
+export async function deleteF5TTSPromptEntry(entryId) {
+  const response = await fetch(`${API_BASE_URL}/api/prompts/f5tts/history/${entryId}`, { method: 'DELETE' })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při mazání záznamu')
+  }
+  return await response.json()
+}
+
+/**
+ * Historie promptů - F5-TTS-SK
+ */
+export async function getF5TTSSKPromptsHistory(limit = null, offset = 0) {
+  const params = new URLSearchParams({ offset: String(offset) })
+  if (limit !== null) {
+    params.append('limit', String(limit))
+  }
+  const response = await fetch(`${API_BASE_URL}/api/prompts/f5tts-sk/history?${params.toString()}`)
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při načítání F5-TTS-SK prompts historie')
+  }
+  return await response.json()
+}
+
+export async function deleteF5TTSSKPromptEntry(entryId) {
+  const response = await fetch(`${API_BASE_URL}/api/prompts/f5tts-sk/history/${entryId}`, { method: 'DELETE' })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || 'Chyba při mazání záznamu')
+  }
+  return await response.json()
+}
+
 
