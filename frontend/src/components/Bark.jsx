@@ -25,7 +25,9 @@ function ensureBracketedBarkPresetPrompt(raw) {
   return `${firstToken} [${rest}]`
 }
 
-function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
+import TextInput from './TextInput'
+
+function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVersion, onDeleteVersion }) {
   const { color, rgb } = useSectionColor()
   const style = {
     '--section-color': color,
@@ -81,6 +83,11 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
       return
     }
     if (loading) return
+
+    // Uložit verzi promptu do historie
+    if (onSaveVersion) {
+      onSaveVersion(prompt)
+    }
 
     setLoading(true)
     setError(null)
@@ -491,13 +498,14 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp }) {
               </div>
 
               <div>
-                <label className="bark-label">Textový prompt</label>
-                <textarea
-                  className="bark-textarea"
+                <TextInput
                   value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
+                  onChange={setPrompt}
+                  maxLength={2000}
+                  versions={versions}
+                  onSaveVersion={() => onSaveVersion && onSaveVersion(prompt)}
+                  onDeleteVersion={onDeleteVersion}
                   placeholder="Pro hudbu: [music] popis hudby&#10;Pro SFX: [zvuk1] [zvuk2] [zvuk3]&#10;Pro řeč: normální text&#10;&#10;Příklady:&#10;[music] calm piano melody&#10;[water stream] [water over rocks] [brook sounds]&#10;Ahoj! [laughter]"
-                  rows={8}
                 />
                 <small style={{ opacity: 0.7, fontSize: '0.85rem', marginTop: '6px', display: 'block' }}>
                   <strong>Speciální tokeny:</strong> <code>[music]</code> pro hudbu, <code>[laughter]</code> <code>[coughs]</code> atd. pro efekty. Pro SFX zvuky rozdělte do samostatných segmentů: <code>[zvuk1] [zvuk2] [zvuk3]</code> - používejte jednoduché, konkrétní popisy.

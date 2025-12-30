@@ -7,8 +7,9 @@ import Section from './ui/Section'
 import SliderRow from './ui/SliderRow'
 import SelectRow from './ui/SelectRow'
 import { generateMusic, getMusicProgress, subscribeToMusicProgress, getAmbienceList } from '../services/api'
+import TextInput from './TextInput'
 
-function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
+function MusicGen({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVersion, onDeleteVersion }) {
   const { color, rgb } = useSectionColor()
   const style = {
     '--section-color': color,
@@ -82,6 +83,11 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
       return
     }
     if (loading) return
+
+    // Uložit verzi promptu do historie
+    if (onSaveVersion) {
+      onSaveVersion(prompt)
+    }
 
     setLoading(true)
     setError(null)
@@ -540,12 +546,13 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp }) {
               />
 
               <div className="setting-item">
-                <label className="musicgen-label">Textový prompt (popis hudby)</label>
-                <textarea
-                  className="musicgen-textarea"
-                  rows={4}
+                <TextInput
                   value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
+                  onChange={setPrompt}
+                  maxLength={1000}
+                  versions={versions}
+                  onSaveVersion={() => onSaveVersion && onSaveVersion(prompt)}
+                  onDeleteVersion={onDeleteVersion}
                   placeholder="např. ambient lo-fi beat, 90 BPM, no vocals"
                 />
               </div>

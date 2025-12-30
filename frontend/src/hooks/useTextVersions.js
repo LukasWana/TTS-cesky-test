@@ -169,11 +169,24 @@ export const useTextVersions = (activeTab) => {
     }))
   }
 
-  // Auto-save aktuálního textu
+  // Auto-save aktuálního textu do tab-specific storage
   useEffect(() => {
     if (isLoadingTextRef.current) return
     if (!isInitializedRef.current) return
     saveTabText(activeTab, text)
+  }, [text, activeTab])
+
+  // Debounced auto-save verze textu do historie
+  useEffect(() => {
+    if (isLoadingTextRef.current) return
+    if (!isInitializedRef.current) return
+    if (!text || !text.trim()) return
+
+    const timer = setTimeout(() => {
+      saveTextVersion(text)
+    }, 10000) // 10 sekund stability před uložením verze
+
+    return () => clearTimeout(timer)
   }, [text, activeTab])
 
   // Ukládání a načítání při změně záložky

@@ -36,7 +36,7 @@ const loadVariantSettings = (voiceId, variantId) => {
   return null
 }
 
-function F5TTS({ text: textProp, setText: setTextProp }) {
+function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, onDeleteVersion }) {
   const { color, rgb } = useSectionColor()
   const style = {
     '--section-color': color,
@@ -437,7 +437,7 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
           setSelectedVoice(voiceId)
 
           if (autoTranscribe) {
-            ;(async () => {
+            ; (async () => {
               try {
                 setRefTextLoading(true)
                 const res = await transcribeReferenceAudio({ demoVoice: voiceId, language })
@@ -477,7 +477,7 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
           setSelectedVoice(voiceId)
 
           if (autoTranscribe) {
-            ;(async () => {
+            ; (async () => {
               try {
                 setRefTextLoading(true)
                 const res = await transcribeReferenceAudio({ demoVoice: voiceId, language })
@@ -522,6 +522,11 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
     }
 
     if (loading) return
+
+    // Uložit verzi textu do historie
+    if (onSaveVersion) {
+      onSaveVersion(text)
+    }
 
     setLoading(true)
     setError(null)
@@ -651,6 +656,9 @@ function F5TTS({ text: textProp, setText: setTextProp }) {
             onChange={setText}
             placeholder="Zadej text k syntéze..."
             maxLength={10000}
+            versions={versions}
+            onSaveVersion={() => onSaveVersion && onSaveVersion(text)}
+            onDeleteVersion={onDeleteVersion}
           />
 
           <VoiceSelector

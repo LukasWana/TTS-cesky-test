@@ -207,206 +207,224 @@ function App() {
           modelStatus={modelStatus}
         />
 
-      <div className={`app-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
-        <header className="app-header">
-          <button
-            className="app-menu-toggle"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label="Otevřít menu"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="3" y1="12" x2="21" y2="12"></line>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
-          </button>
-        </header>
+        <div className={`app-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
+          <header className="app-header">
+            <button
+              className="app-menu-toggle"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Otevřít menu"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+          </header>
 
-        {error && (
-          <Alert
-            type="error"
-            message={error}
-            onClose={() => setError(null)}
-          />
-        )}
-
-        <main className="app-main">
-        <div className="container">
-          <div className="main-header-row">
-
-            {activeTab === 'generate' && (
-              <button
-                className={`btn-toggle-settings ${!showSettings ? 'collapsed' : ''}`}
-                onClick={() => setShowSettings(!showSettings)}
-                title={showSettings ? "Skrýt nastavení" : "Zobrazit nastavení"}
-              >
-                {showSettings ? (
-                  <>
-                    <Icon name="close" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
-                    Skrýt nastavení
-                  </>
-                ) : (
-                  <>
-                    <Icon name="settings" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
-                    Nastavení
-                  </>
-                )}
-              </button>
-            )}
-          </div>
-
-          {activeTab === 'voicepreparation' && (
-            <VoicePreparation
-              onVoiceUpload={handleVoiceUpload}
-              onVoiceRecord={handleVoiceRecord}
-              onYouTubeImport={handleYouTubeImport}
-              uploadedVoiceFileName={uploadedVoiceFileName}
-              voiceQuality={voiceQuality}
-              language={currentLanguage}
+          {error && (
+            <Alert
+              type="error"
+              message={error}
+              onClose={() => setError(null)}
             />
           )}
 
-          {activeTab === 'generate' && (
-            <div className={`generate-layout ${!showSettings ? 'full-width' : ''}`}>
-              <div className="generate-content">
-                <VoiceSelector
-                  demoVoices={demoVoices}
-                  selectedVoice={selectedVoice}
-                  onVoiceSelect={setSelectedVoice}
+          <main className="app-main">
+            <div className="container">
+              <div className="main-header-row">
+
+                {activeTab === 'generate' && (
+                  <button
+                    className={`btn-toggle-settings ${!showSettings ? 'collapsed' : ''}`}
+                    onClick={() => setShowSettings(!showSettings)}
+                    title={showSettings ? "Skrýt nastavení" : "Zobrazit nastavení"}
+                  >
+                    {showSettings ? (
+                      <>
+                        <Icon name="close" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
+                        Skrýt nastavení
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="settings" size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'middle' }} />
+                        Nastavení
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {activeTab === 'voicepreparation' && (
+                <VoicePreparation
+                  onVoiceUpload={handleVoiceUpload}
+                  onVoiceRecord={handleVoiceRecord}
+                  onYouTubeImport={handleYouTubeImport}
+                  uploadedVoiceFileName={uploadedVoiceFileName}
                   voiceQuality={voiceQuality}
                   language={currentLanguage}
                 />
+              )}
 
-                <TextInput
-                  value={text}
-                  onChange={setText}
-                  maxLength={100000}
+              {activeTab === 'generate' && (
+                <div className={`generate-layout ${!showSettings ? 'full-width' : ''}`}>
+                  <div className="generate-content">
+                    <VoiceSelector
+                      demoVoices={demoVoices}
+                      selectedVoice={selectedVoice}
+                      onVoiceSelect={setSelectedVoice}
+                      voiceQuality={voiceQuality}
+                      language={currentLanguage}
+                    />
+
+                    <TextInput
+                      value={text}
+                      onChange={setText}
+                      maxLength={100000}
+                      versions={textVersions}
+                      onSaveVersion={() => saveTextVersion(text)}
+                      onDeleteVersion={deleteTextVersion}
+                    />
+
+                    <div className="generate-section">
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        onClick={handleGenerate}
+                        disabled={loading || !text.trim()}
+                        fullWidth
+                        icon={loading ? <Icon name="clock" size={16} /> : <Icon name="speaker" size={16} />}
+                      >
+                        {loading ? 'Generuji...' : 'Generovat řeč'}
+                      </Button>
+                    </div>
+
+                    {loading && <LoadingSpinner progress={ttsProgress} />}
+
+                    {generatedVariants && generatedVariants.length > 0 && !loading ? (
+                      <div className="variants-output-list">
+                        <div className="variants-header">
+                          <h3>✨ Vygenerované varianty ({generatedVariants.length})</h3>
+                          <button
+                            className="btn-download-all"
+                            onClick={() => {
+                              generatedVariants.forEach((variant, index) => {
+                                const link = document.createElement('a')
+                                link.href = `http://localhost:8000${variant.audio_url}`
+                                link.download = variant.filename || `varianta-${index + 1}.wav`
+                                document.body.appendChild(link)
+                                link.click()
+                                document.body.removeChild(link)
+                                // Malé zpoždění mezi stahováním, aby se soubory stáhly správně
+                                setTimeout(() => { }, 100 * index)
+                              })
+                            }}
+                            title="Stáhnout všechny varianty"
+                          >
+                            💾 Stáhnout všechny
+                          </button>
+                        </div>
+                        <div className="variants-grid">
+                          {generatedVariants.map((variant, index) => (
+                            <div key={index} className="variant-output-item">
+                              <div className="variant-label">Varianta {index + 1}</div>
+                              <AudioPlayer audioUrl={variant.audio_url} />
+                              <div className="variant-meta-info">
+                                Seed: {variant.seed} | Temp: {variant.temperature?.toFixed(2)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      generatedAudio && !loading && (
+                        <AudioPlayer audioUrl={generatedAudio} />
+                      )
+                    )}
+                  </div>
+
+                  {showSettings && (
+                    <div className="settings-panel">
+                      <TTSSettings
+                        settings={ttsSettings}
+                        onChange={setTtsSettings}
+                        onReset={() => {
+                          // Resetovat nastavení pro aktuální variantu na slot-specifické defaultní hodnoty
+                          const defaultSlot = getDefaultSlotSettings(activeVariant)
+                          const resetTts = { ...defaultSlot.ttsSettings }
+                          const resetQuality = { ...defaultSlot.qualitySettings }
+
+                          setTtsSettings(resetTts)
+                          setQualitySettings(resetQuality)
+
+                          // Uložit resetované hodnoty do localStorage pro tuto variantu
+                          // saveCurrentVariantNow se zavolá automaticky přes debounce v useTTSSettings
+                        }}
+                        qualitySettings={qualitySettings}
+                        onQualityChange={setQualitySettings}
+                        activeVariant={activeVariant}
+                        onVariantChange={handleVariantChange}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'history' && (
+                <History
+                  onRestoreText={(restoredText) => {
+                    setText(restoredText)
+                    setActiveTab('generate')
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  onRestorePrompt={(prompt) => {
+                    setText(prompt)
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  onSwitchTab={(tab) => {
+                    setActiveTab(tab)
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                />
+              )}
+
+              {activeTab === 'musicgen' && (
+                <MusicGen
+                  prompt={text}
+                  setPrompt={setText}
                   versions={textVersions}
                   onSaveVersion={() => saveTextVersion(text)}
                   onDeleteVersion={deleteTextVersion}
                 />
-
-                <div className="generate-section">
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    onClick={handleGenerate}
-                    disabled={loading || !text.trim()}
-                    fullWidth
-                    icon={loading ? <Icon name="clock" size={16} /> : <Icon name="speaker" size={16} />}
-                  >
-                    {loading ? 'Generuji...' : 'Generovat řeč'}
-                  </Button>
-                </div>
-
-                {loading && <LoadingSpinner progress={ttsProgress} />}
-
-                {generatedVariants && generatedVariants.length > 0 && !loading ? (
-                  <div className="variants-output-list">
-                    <div className="variants-header">
-                      <h3>✨ Vygenerované varianty ({generatedVariants.length})</h3>
-                      <button
-                        className="btn-download-all"
-                        onClick={() => {
-                          generatedVariants.forEach((variant, index) => {
-                            const link = document.createElement('a')
-                            link.href = `http://localhost:8000${variant.audio_url}`
-                            link.download = variant.filename || `varianta-${index + 1}.wav`
-                            document.body.appendChild(link)
-                            link.click()
-                            document.body.removeChild(link)
-                            // Malé zpoždění mezi stahováním, aby se soubory stáhly správně
-                            setTimeout(() => {}, 100 * index)
-                          })
-                        }}
-                        title="Stáhnout všechny varianty"
-                      >
-                        💾 Stáhnout všechny
-                      </button>
-                    </div>
-                    <div className="variants-grid">
-                      {generatedVariants.map((variant, index) => (
-                        <div key={index} className="variant-output-item">
-                          <div className="variant-label">Varianta {index + 1}</div>
-                          <AudioPlayer audioUrl={variant.audio_url} />
-                          <div className="variant-meta-info">
-                            Seed: {variant.seed} | Temp: {variant.temperature?.toFixed(2)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  generatedAudio && !loading && (
-                    <AudioPlayer audioUrl={generatedAudio} />
-                  )
-                )}
-              </div>
-
-              {showSettings && (
-                <div className="settings-panel">
-                  <TTSSettings
-                    settings={ttsSettings}
-                    onChange={setTtsSettings}
-                    onReset={() => {
-                      // Resetovat nastavení pro aktuální variantu na slot-specifické defaultní hodnoty
-                      const defaultSlot = getDefaultSlotSettings(activeVariant)
-                      const resetTts = { ...defaultSlot.ttsSettings }
-                      const resetQuality = { ...defaultSlot.qualitySettings }
-
-                      setTtsSettings(resetTts)
-                      setQualitySettings(resetQuality)
-
-                      // Uložit resetované hodnoty do localStorage pro tuto variantu
-                      // saveCurrentVariantNow se zavolá automaticky přes debounce v useTTSSettings
-                    }}
-                    qualitySettings={qualitySettings}
-                    onQualityChange={setQualitySettings}
-                    activeVariant={activeVariant}
-                    onVariantChange={handleVariantChange}
-                  />
-                </div>
               )}
+
+              {activeTab === 'f5tts' && (
+                <F5TTS
+                  text={text}
+                  setText={setText}
+                  versions={textVersions}
+                  onSaveVersion={() => saveTextVersion(text)}
+                  onDeleteVersion={deleteTextVersion}
+                />
+              )}
+
+              {activeTab === 'bark' && (
+                <Bark
+                  prompt={text}
+                  setPrompt={setText}
+                  versions={textVersions}
+                  onSaveVersion={() => saveTextVersion(text)}
+                  onDeleteVersion={deleteTextVersion}
+                />
+              )}
+
+              <div style={{ display: activeTab === 'audioeditor' ? 'block' : 'none' }}>
+                <AudioEditor />
+              </div>
             </div>
-          )}
-
-          {activeTab === 'history' && (
-            <History
-              onRestoreText={(restoredText) => {
-                setText(restoredText)
-                setActiveTab('generate')
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-              onRestorePrompt={(prompt) => {
-                setText(prompt)
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-              onSwitchTab={(tab) => {
-                setActiveTab(tab)
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-            />
-          )}
-
-          {activeTab === 'musicgen' && (
-            <MusicGen prompt={text} setPrompt={setText} />
-          )}
-
-          {activeTab === 'f5tts' && (
-            <F5TTS text={text} setText={setText} />
-          )}
-
-          {activeTab === 'bark' && (
-            <Bark prompt={text} setPrompt={setText} />
-          )}
-
-          <div style={{ display: activeTab === 'audioeditor' ? 'block' : 'none' }}>
-            <AudioEditor />
-          </div>
+          </main>
         </div>
-      </main>
       </div>
-    </div>
     </SectionColorProvider>
   )
 }
