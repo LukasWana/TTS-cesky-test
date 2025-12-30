@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react'
 import WaveSurfer from 'wavesurfer.js'
-import { getWaveformCache, setWaveformCache } from '../utils/waveformCache'
+import { getWaveformCache, setWaveformCache, deleteWaveformCache, isAudioNotFound, markAudioNotFound } from '../utils/waveformCache'
 import './AudioPlayer.css'
 
 function AudioPlayer({ audioUrl, variant = 'full' }) {
@@ -10,6 +10,7 @@ function AudioPlayer({ audioUrl, variant = 'full' }) {
   const [duration, setDuration] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
   const [hasError, setHasError] = useState(false)
+  const retryRef = useRef(false)
 
   const fullUrl = audioUrl.startsWith('http')
     ? audioUrl
@@ -23,6 +24,13 @@ function AudioPlayer({ audioUrl, variant = 'full' }) {
   useEffect(() => {
     // Reset chyby při změně audioUrl
     setHasError(false)
+    retryRef.current = false
+
+    // Pokud víme, že soubor neexistuje, zobrazit chybu hned
+    if (audioUrl && isAudioNotFound(audioUrl)) {
+      setHasError(true)
+      return
+    }
 
     if (waveformRef.current) {
       wavesurfer.current = WaveSurfer.create({
@@ -44,11 +52,11 @@ function AudioPlayer({ audioUrl, variant = 'full' }) {
       // Použít cached peaks pro rychlé zobrazení waveformu
       // exportPeaks vrací Array<number[]> - každý prvek je array pro jeden kanál
       const hasValidCachedPeaks = Array.isArray(cachedPeaks) &&
-                                  cachedPeaks.length > 0 &&
-                                  Array.isArray(cachedPeaks[0]) &&
-                                  cachedPeaks[0].length > 0 &&
-                                  typeof cachedDuration === 'number' &&
-                                  cachedDuration > 0
+        cachedPeaks.length > 0 &&
+        Array.isArray(cachedPeaks[0]) &&
+        cachedPeaks[0].length > 0 &&
+        typeof cachedDuration === 'number' &&
+        cachedDuration > 0
 
       // Downsample peaks stabilně: pro každý bucket vezmi vzorek s největší |amplitudou|
       // a zachovej znaménko. Abs-only dělá waveform „potichu" a vizuálně divný.
@@ -119,13 +127,8 @@ function AudioPlayer({ audioUrl, variant = 'full' }) {
 
       const loadWithRetry = (url, peaks, duration) => {
         const p = peaks ? wavesurfer.current.load(url, peaks, duration) : wavesurfer.current.load(url)
-        return p.catch(err => {
-          if (peaks) {
-            console.warn('Chyba při load s peaks, zkouším bez peaks:', err)
-            return wavesurfer.current?.load(url)
-          }
-          throw err
-        })
+        // Necháme veškerý error handling na 'error' eventu pro konzistenci
+        return p.catch(() => { })
       }
 
       if (hasValidCachedPeaks) {
@@ -182,20 +185,46 @@ function AudioPlayer({ audioUrl, variant = 'full' }) {
         if (error && (error.name === 'AbortError' || error.message?.includes('aborted'))) {
           return
         }
-        // Pokud máme cached peaks a došlo k chybě, zkusit načíst bez peaks
-        if (hasValidCachedPeaks && wavesurfer.current) {
-          console.warn('Chyba při načítání s cached peaks, zkouším bez peaks:', error)
-          try {
-            wavesurfer.current.load(fullUrl)
-          } catch (e) {
-            // Ignorovat AbortError i zde
-            if (e && (e.name === 'AbortError' || e.message?.includes('aborted'))) {
-              return
+
+        console.error('WaveSurfer error:', error)
+
+        // Pokud už jsme v procesu retry nebo jsme ho dokončili, už nic neděláme
+        if (retryRef.current) {
+          setHasError(true)
+          return
+        }
+
+        // Označíme, že jsme narazili na chybu a budeme zkoušet nápravu
+        retryRef.current = true
+
+        // HEAD request pouze pokud máme cached peaks (soubor dříve existoval) nebo pokud je to jasně 404
+        // Tím se vyhneme zbytečným requestům při jiných typech chyb
+        if (audioUrl && (hasValidCachedPeaks || error.message?.includes('404') || error.message?.includes('Not Found'))) {
+          fetch(fullUrl, { method: 'HEAD' }).then(res => {
+            if (res.status === 404) {
+              console.warn(`Audio 404 confirmed for ${audioUrl}, invalidating cache.`);
+              deleteWaveformCache(audioUrl);
+              markAudioNotFound(audioUrl); // Označit jako neexistující
             }
-            console.error('Chyba při načítání bez peaks:', e)
+          }).catch(() => { });
+        }
+
+        // Pokud je to 404 chyba (z HTTP response), označit soubor jako neexistující
+        if (error.message?.includes('404') || error.message?.includes('Not Found')) {
+          markAudioNotFound(audioUrl);
+        }
+
+        // Pokud máme cached peaks, zkusíme načíst bez nich (může být chyba v dekódování peaks)
+        if (hasValidCachedPeaks && wavesurfer.current) {
+          console.warn('Chyba při načítání s cached peaks, zkouším bez peaks...')
+          try {
+            wavesurfer.current.load(fullUrl).catch(() => { });
+          } catch (e) {
+            console.error('Chyba při inicializaci reloadu bez peaks:', e)
+            setHasError(true)
           }
         } else {
-          // Pokud nemáme cached peaks a došlo k chybě, zobrazit chybu
+          // Pokud nemáme cached peaks a došlo k chybě, rovnou zobrazit chybu
           setHasError(true)
         }
       })

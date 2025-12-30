@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import WaveSurfer from 'wavesurfer.js'
-import { getWaveformCache, setWaveformCache } from '../../utils/waveformCache'
+import { getWaveformCache, setWaveformCache, deleteWaveformCache } from '../../utils/waveformCache'
 import { getCategoryColor, getCategoryFromHistoryEntry } from '../../utils/layerColors'
 
 // Použij 127.0.0.1 místo localhost kvůli IPv6 (::1) na Windows/Chrome
@@ -20,6 +20,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
   const [isHovered, setIsHovered] = useState(false)
   const errorTimeoutRef = useRef(null)
   const observerRef = useRef(null)
+  const retryRef = useRef(false)
 
   const audioUrl = entry?.audio_url
   const prompt = entry?.text || entry?.prompt || 'Bez popisu'
@@ -126,6 +127,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
     // Reset states při novém načítání
     setHasError(false)
     setIsLoading(true)
+    retryRef.current = false
 
     // Vyčistit předchozí timeout
     if (errorTimeoutRef.current) {
@@ -195,17 +197,50 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           const errorName = error.name || (typeof error === 'string' ? error : '')
           const errorMessage = error.message || error.toString() || ''
           if (errorName === 'AbortError' ||
-              errorName === 'NotAllowedError' ||
-              errorMessage.includes('AbortError') ||
-              errorMessage.includes('NotAllowedError') ||
-              errorMessage.includes('cancelLoad') ||
-              errorMessage.includes('signal is aborted')) {
+            errorName === 'NotAllowedError' ||
+            errorMessage.includes('AbortError') ||
+            errorMessage.includes('NotAllowedError') ||
+            errorMessage.includes('cancelLoad') ||
+            errorMessage.includes('signal is aborted')) {
             return
           }
         }
-        console.error('WaveSurfer error při načítání audio:', error, fullUrl)
-        setIsLoading(false)
-        setHasError(true)
+        console.error('WaveSurfer error při načítání audio in Preview:', error, fullUrl)
+
+        // Pokud už jsme v procesu retry nebo jsme ho dokončili, už nic neděláme
+        if (retryRef.current) {
+          setIsLoading(false)
+          setHasError(true)
+          return
+        }
+
+        // Označíme, že jsme narazili na chybu
+        retryRef.current = true
+
+        // Pokud máme url, zkusíme zkontrolovat jestli soubor existuje přes HEAD request
+        if (audioUrl) {
+          fetch(fullUrl, { method: 'HEAD' }).then(res => {
+            if (res.status === 404) {
+              console.warn(`HistoryItemPreview 404 confirmed for ${audioUrl}, invalidating cache.`);
+              deleteWaveformCache(audioUrl);
+            }
+          }).catch(() => { });
+        }
+
+        // Pokud máme cached peaks, zkusíme načíst bez nich (může být chyba v dekódování peaks)
+        if (cachedPeaks && wavesurfer) {
+          console.warn('HistoryItemPreview: Chyba při načítání s cached peaks, zkouším bez peaks...')
+          try {
+            wavesurfer.load(fullUrl).catch(() => { });
+          } catch (e) {
+            console.error('HistoryItemPreview: Chyba při inicializaci reloadu bez peaks:', e)
+            setIsLoading(false)
+            setHasError(true)
+          }
+        } else {
+          setIsLoading(false)
+          setHasError(true)
+        }
       })
 
       wavesurfer.on('play', () => setIsPlaying(true))
@@ -293,23 +328,8 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           ? wavesurfer.load(fullUrl, peaksToUse, cachedDuration)
           : wavesurfer.load(fullUrl)
         if (loadPromise && typeof loadPromise.catch === 'function') {
-          loadPromise.catch((error) => {
-            // Ignorovat AbortError - je to normální při cleanup
-            if (error) {
-              const errorName = error.name || ''
-              const errorMessage = error.message || error.toString() || ''
-              if (errorName === 'AbortError' ||
-                  errorName === 'NotAllowedError' ||
-                  errorMessage.includes('AbortError') ||
-                  errorMessage.includes('NotAllowedError') ||
-                  errorMessage.includes('signal is aborted')) {
-                return
-              }
-            }
-            console.error('Chyba při načítání audio URL:', error, fullUrl)
-            setIsLoading(false)
-            setHasError(true)
-          })
+          // Necháme veškerý error handling na 'error' eventu
+          loadPromise.catch(() => { })
         }
       } catch (loadError) {
         // Ignorovat AbortError - je to normální při cleanup
@@ -317,10 +337,10 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           const errorName = loadError.name || ''
           const errorMessage = loadError.message || loadError.toString() || ''
           if (errorName === 'AbortError' ||
-              errorName === 'NotAllowedError' ||
-              errorMessage.includes('AbortError') ||
-              errorMessage.includes('NotAllowedError') ||
-              errorMessage.includes('signal is aborted')) {
+            errorName === 'NotAllowedError' ||
+            errorMessage.includes('AbortError') ||
+            errorMessage.includes('NotAllowedError') ||
+            errorMessage.includes('signal is aborted')) {
             return
           }
         }
@@ -530,8 +550,8 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
   )
 }, (prevProps, nextProps) => {
   return prevProps.entry?.id === nextProps.entry?.id &&
-         prevProps.entry?.audio_url === nextProps.entry?.audio_url &&
-         (prevProps.entry?.text || prevProps.entry?.prompt) === (nextProps.entry?.text || nextProps.entry?.prompt)
+    prevProps.entry?.audio_url === nextProps.entry?.audio_url &&
+    (prevProps.entry?.text || prevProps.entry?.prompt) === (nextProps.entry?.text || nextProps.entry?.prompt)
 })
 
 export default HistoryItemPreview

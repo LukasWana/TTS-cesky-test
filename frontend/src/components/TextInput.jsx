@@ -1,156 +1,165 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useSectionColor } from '../contexts/SectionColorContext'
-import ProsodyMarkersHelp from './ProsodyMarkersHelp'
 import './TextInput.css'
 
-function TextInput({ value, onChange, maxLength = 100000, versions = [], onSaveVersion, onDeleteVersion }) {
+function TextInput({
+  value = '',
+  onChange,
+  maxLength,
+  versions = [],
+  onSaveVersion,
+  onDeleteVersion,
+  placeholder = 'Zadej text...'
+}) {
   const [showHistory, setShowHistory] = useState(false)
+  const historyRef = useRef(null)
   const dropdownRef = useRef(null)
-  const remaining = maxLength - value.length
 
   // Zavřít dropdown při kliknutí mimo
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        historyRef.current &&
+        !historyRef.current.contains(event.target)
+      ) {
         setShowHistory(false)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
-  const formatDate = (isoString) => {
-    const date = new Date(isoString)
-    return date.toLocaleString('cs-CZ', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    if (showHistory) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showHistory])
+
+  const handleChange = (e) => {
+    const newValue = e.target.value
+    if (!maxLength || newValue.length <= maxLength) {
+      onChange(newValue)
+    }
   }
 
-  const truncateText = (text, len = 60) => {
-    if (text.length <= len) return text
-    return text.substring(0, len) + '...'
+  const handleVersionClick = (versionText) => {
+    onChange(versionText)
+    setShowHistory(false)
   }
 
-  const { color, rgb } = useSectionColor()
-  const style = {
-    '--section-color': color,
-    '--section-color-rgb': rgb
+  const handleDeleteVersion = (e, index) => {
+    e.stopPropagation()
+    if (onDeleteVersion) {
+      onDeleteVersion(index)
+    }
   }
+
+  const currentLength = value ? value.length : 0
+  const isNearLimit = maxLength && currentLength > maxLength * 0.9
 
   return (
-    <div className="text-input-section" style={style}>
-      <div className="text-input-header">
-        <h2>Text k syntéze</h2>
-        <div className="text-actions">
-          <ProsodyMarkersHelp />
-          <button
-            className="btn-text-action"
-            onClick={onSaveVersion}
-            title="Uložit aktuální verzi"
-            disabled={!value.trim()}
-          >
-            💾 Uložit verzi
-          </button>
-          <div className="history-dropdown-container" ref={dropdownRef}>
-            <button
-              className={`btn-text-action ${showHistory ? 'active' : ''}`}
-              onClick={() => setShowHistory(!showHistory)}
-              title="Historie verzí textu"
-            >
-              📜 Historie {versions.length > 0 && <span className="version-count">{versions.length}</span>}
-            </button>
-
-            {showHistory && (
-              <div className="history-dropdown">
-                <div className="history-dropdown-header">
-                  <span>Předchozí verze</span>
-                  <button className="btn-close-dropdown" onClick={() => setShowHistory(false)}>✕</button>
-                </div>
-                <div className="history-dropdown-list">
-                  {versions.length === 0 ? (
-                    <div className="history-dropdown-empty">Žádné uložené verze</div>
-                  ) : (
-                    versions.map((v) => (
-                      <div key={v.id} className="history-dropdown-item" onClick={() => {
-                        // Sanitizace: zajisti, že text je skutečně string
-                        let textToSet = v.text
-                        if (typeof textToSet !== 'string') {
-                          console.warn('Verze má neplatný text, přeskočeno:', v)
-                          return
-                        }
-                        // Odstranit případné JSON fragmenty z textu
-                        // Odstranit JSON fragmenty (např. ","timestamp":"...","id":...)
-                        textToSet = textToSet.replace(/["\']?,\s*["\']?(?:timestamp|id|created_at|updated_at)["\']?\s*:\s*["\']?[^"\']*["\']?/g, '')
-                        // Odstranit JSON struktury (např. {...})
-                        // POZOR: Zachovat validní markery v hranatých závorkách
-                        textToSet = textToSet.replace(/\{[^}]*\}/g, '')
-                        // Odstranit hranaté závorky, ale ZACHOVAT validní markery:
-                        // - [pause], [pause:200], [pause:200ms], [PAUSE] (case-insensitive)
-                        // - [intonation:fall]text[/intonation] a všechny varianty
-                        // - [lang:speaker]text[/lang] a [lang]text[/lang]
-                        // - [/intonation], [/lang] (uzavírací tagy)
-                        textToSet = textToSet.replace(/\[(?!pause|PAUSE|intonation|\/intonation|lang|\/lang)[^\]]*\]/gi, '')
-                        // Odstranit zbytky JSON syntaxe (ale ne dvojtečky v markerech jako [pause:200])
-                        textToSet = textToSet.replace(/["\']?\s*,\s*["\']?/g, ' ')
-                        // Normalizovat mezery
-                        textToSet = textToSet.replace(/\s+/g, ' ').trim()
-
-                        if (textToSet) {
-                          onChange(textToSet)
-                          setShowHistory(false)
-                        } else {
-                          console.warn('Verze má prázdný text po sanitizaci, přeskočeno:', v)
-                        }
-                      }}>
-                        <div className="version-info">
-                          <span className="version-date">{formatDate(v.timestamp)}</span>
-                          <button
-                            className="btn-delete-version"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onDeleteVersion(v.id)
-                            }}
-                            title="Smazat verzi"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                        <div className="version-preview">{truncateText(v.text)}</div>
-                      </div>
-                    ))
+    <div className="text-input-section">
+      {(versions && versions.length > 0) || onSaveVersion ? (
+        <div className="text-input-header">
+          <div className="text-actions">
+            {onSaveVersion && (
+              <button
+                className="btn-text-action"
+                onClick={onSaveVersion}
+                disabled={!value || !value.trim()}
+              >
+                💾 Uložit verzi
+              </button>
+            )}
+            {versions && versions.length > 0 && (
+              <div className="history-dropdown-container" ref={historyRef}>
+                <button
+                  className={`btn-text-action ${showHistory ? 'active' : ''}`}
+                  onClick={() => setShowHistory(!showHistory)}
+                >
+                  📜 Historie
+                  {versions.length > 0 && (
+                    <span className="version-count">{versions.length}</span>
                   )}
-                </div>
+                </button>
+                {showHistory && (
+                  <div className="history-dropdown" ref={dropdownRef}>
+                    <div className="history-dropdown-header">
+                      <span>Uložené verze ({versions.length})</span>
+                      <button
+                        className="btn-close-dropdown"
+                        onClick={() => setShowHistory(false)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="history-dropdown-list">
+                      {versions.length === 0 ? (
+                        <div className="history-dropdown-empty">
+                          Žádné uložené verze
+                        </div>
+                      ) : (
+                        versions.map((version, index) => (
+                          <div
+                            key={index}
+                            className="history-dropdown-item"
+                            onClick={() => handleVersionClick(version.text || version)}
+                          >
+                            <div className="version-info">
+                              <span className="version-date">
+                                {version.date
+                                  ? new Date(version.date).toLocaleString('cs-CZ', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })
+                                  : `Verze ${index + 1}`
+                                }
+                              </span>
+                              {onDeleteVersion && (
+                                <button
+                                  className="btn-delete-version"
+                                  onClick={(e) => handleDeleteVersion(e, index)}
+                                  title="Smazat verzi"
+                                >
+                                  🗑️
+                                </button>
+                              )}
+                            </div>
+                            <div className="version-preview">
+                              {typeof version === 'string' ? version : (version.text || '')}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
-      </div>
+      ) : null}
+
       <div className="text-input-wrapper">
         <textarea
           className="text-input"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Zadejte český text k syntéze řeči..."
-          maxLength={maxLength}
+          onChange={handleChange}
+          placeholder={placeholder}
           rows={6}
         />
-        <div className="char-counter">
-          <span className={remaining < 50 ? 'warning' : ''}>
-            {value.length}/{maxLength}
-          </span>
-        </div>
+        {maxLength && (
+          <div className={`char-counter ${isNearLimit ? 'warning' : ''}`}>
+            {currentLength} / {maxLength}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
 export default TextInput
-
-
-
-
-
-

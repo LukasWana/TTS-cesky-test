@@ -1,10 +1,15 @@
 // bump verze kvůli špatně uloženým peaks z předchozího nastavení (barcode look)
 const WAVEFORM_CACHE_KEY = 'waveform_peaks_cache_v3'
+const NOT_FOUND_CACHE_KEY = 'audio_not_found_cache'
 
 // In-memory cache to avoid JSON.parse/stringify per item render
 let _mem = null
 let _flushTimer = null
 let _dirty = false
+
+// In-memory cache pro neexistující soubory (TTL 5 sekund, stejně jako backend middleware)
+let _notFoundCache = new Map() // {url: timestamp}
+const NOT_FOUND_TTL = 5000 // 5 sekund v ms
 
 function _loadMem() {
   if (_mem) return _mem
@@ -103,6 +108,49 @@ export function clearWaveformCache() {
     localStorage.removeItem(WAVEFORM_CACHE_KEY)
   } catch (e) {
     // ignore
+  }
+}
+
+/**
+ * Zkontroluje, zda je soubor označen jako neexistující (404)
+ * @param {string} audioUrl - URL audio souboru
+ * @returns {boolean} - true pokud je soubor označen jako neexistující
+ */
+export function isAudioNotFound(audioUrl) {
+  if (!audioUrl) return false
+  const key = canonicalAudioCacheKey(audioUrl)
+  if (!key) return false
+
+  const cachedTime = _notFoundCache.get(key)
+  if (!cachedTime) return false
+
+  // Vyčistit staré záznamy
+  const now = Date.now()
+  if (now - cachedTime > NOT_FOUND_TTL) {
+    _notFoundCache.delete(key)
+    return false
+  }
+
+  return true
+}
+
+/**
+ * Označí audio soubor jako neexistující (404)
+ * @param {string} audioUrl - URL audio souboru
+ */
+export function markAudioNotFound(audioUrl) {
+  if (!audioUrl) return
+  const key = canonicalAudioCacheKey(audioUrl)
+  if (!key) return
+
+  _notFoundCache.set(key, Date.now())
+
+  // Vyčistit staré záznamy (starší než TTL)
+  const now = Date.now()
+  for (const [k, timestamp] of _notFoundCache.entries()) {
+    if (now - timestamp > NOT_FOUND_TTL) {
+      _notFoundCache.delete(k)
+    }
   }
 }
 

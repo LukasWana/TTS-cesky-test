@@ -515,27 +515,18 @@ function AudioEditor() {
       if (historyType === 'all' || historyType === 'tts' || historyType === 'f5tts') {
         try {
           const ttsData = await getHistory(null, 0)
-          console.log(`[AudioEditor] Načteno ${(ttsData.history || []).length} záznamů z API`)
-
           const ttsEntries = (ttsData.history || []).map(entry => {
             // Rozlišení mezi českým a slovenským slovem podle engine v tts_params
             const engine = entry.tts_params?.engine || ''
             const isSlovak = engine === 'f5-tts-slovak'
-            // České hlasy mají engine: "xtts" nebo prázdný engine (starší záznamy)
-            const isCzech = !isSlovak && (engine === 'xtts' || engine === '' || !engine)
-
-            console.log(`[AudioEditor] Záznam: engine="${engine}", isSlovak=${isSlovak}, isCzech=${isCzech}, text="${entry.text?.substring(0, 30)}..."`)
 
             // Filtrování podle typu
             if (historyType === 'tts' && isSlovak) {
-              console.log(`[AudioEditor] Přeskočen slovenský záznam (historyType=tts)`)
               return null // České slovo - přeskočit slovenské
             }
             if (historyType === 'f5tts' && !isSlovak) {
-              console.log(`[AudioEditor] Přeskočen český záznam (historyType=f5tts)`)
               return null // Slovenské slovo - přeskočit ostatní
             }
-            // Když je 'all', zobrazit všechny (bez filtrování)
 
             return {
               ...entry,
@@ -544,7 +535,6 @@ function AudioEditor() {
             }
           }).filter(entry => entry !== null) // Odstranit null hodnoty
 
-          console.log(`[AudioEditor] Po filtrování: ${ttsEntries.length} TTS záznamů (historyType: ${historyType})`)
           allHistory = [...allHistory, ...ttsEntries]
         } catch (err) {
           console.error('Chyba při načítání TTS historie:', err)
