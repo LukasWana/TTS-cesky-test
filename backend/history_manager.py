@@ -2,12 +2,15 @@
 Správa historie generovaných audio souborů
 """
 import json
+import logging
 import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
 from backend.config import BASE_DIR, OUTPUTS_DIR
+
+logger = logging.getLogger(__name__)
 
 
 class HistoryManager:
@@ -33,9 +36,10 @@ class HistoryManager:
         try:
             with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
 
             # os.replace handles overwriting existing files atomically on both Windows and POSIX
-            import os
             os.replace(str(temp_path), str(cls.HISTORY_FILE))
         except Exception as e:
             logger.error(f"Failed to save history: {e}")
@@ -70,6 +74,11 @@ class HistoryManager:
         Returns:
             Vytvořený záznam
         """
+        # Kontrola existence souboru před přidáním do historie
+        if filename and not (OUTPUTS_DIR / filename).exists():
+            logger.warning(f"Audio soubor neexistuje při přidávání do historie: {filename}")
+            # Pokračujeme i když soubor neexistuje (může být race condition)
+
         history = HistoryManager._load_history()
 
         # Dedupe: kontrolovat pouze filename (každý generovaný soubor má unikátní UUID)

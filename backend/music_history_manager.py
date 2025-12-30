@@ -60,16 +60,19 @@ class MusicHistoryManager:
         music_params: Optional[Dict] = None,
         created_at: Optional[str] = None,
     ) -> Dict:
+        # Kontrola existence souboru před přidáním do historie
+        if filename and not (OUTPUTS_DIR / filename).exists():
+            print(f"Varování: Audio soubor neexistuje při přidávání do music historie: {filename}")
+
         history = MusicHistoryManager._load_history()
 
-        # Dedupe: kontrolovat prompt + parametry + filename
+        # Dedupe: kontrolovat všechny záznamy (ne jen první)
+        # Kontrolujeme filename, protože každý generovaný soubor má unikátní UUID
         if history and len(history) > 0:
-            last_entry = history[0]
-            if (last_entry.get("prompt") == prompt and
-                last_entry.get("filename") == filename and
-                last_entry.get("music_params") == (music_params or {})):
-                # Všechno stejné, neukládat duplikát
-                return last_entry
+            existing_entry = next((entry for entry in history if entry.get("filename") == filename), None)
+            if existing_entry:
+                # Stejný filename - vrátit existující záznam
+                return existing_entry
 
         if len(history) >= 1000:
             history = history[:999]
