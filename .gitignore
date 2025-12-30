@@ -72,6 +72,11 @@ nul
 music_history.json
 bark_history.json
 
+# Prompts history files
+xtts_prompts_history.json
+f5tts_prompts_history.json
+f5tts_sk_prompts_history.json
+
 # Speaker cache (temporary processed reference audio)
 speaker_cache/
 
