@@ -1,8 +1,7 @@
 """
 Sdílený modul pro český text preprocessing pipeline
-Používá se jak pro XTTS, tak pro F5-TTS a další TTS enginy
+Používá se pro F5-TTS český engine a XTTS engine
 """
-import re
 from typing import Optional
 from backend.config import (
     ENABLE_PHONETIC_TRANSLATION,
@@ -27,36 +26,22 @@ def preprocess_czech_text(
     Předzpracuje text pro češtinu - převede čísla na slova, normalizuje interpunkci,
     převede zkratky a opraví formátování.
 
-    Tato funkce je sdílená mezi XTTS a F5-TTS enginy.
+    Tato funkce je určena pro F5-TTS český engine a XTTS engine.
 
     Args:
         text: Text k předzpracování
         language: Jazyk textu (pouze "cs" aktivuje české zpracování)
-        enable_dialect_conversion: Zda povolit převod na nářečí (None = použít config)
-        dialect_code: Kód nářečí (None = použít config)
+        enable_dialect_conversion: Zda povolit převod na nářečí (None = použít z config, True/False = přepsat)
+        dialect_code: Kód nářečí (None = použít z config, jinak přepsat)
         dialect_intensity: Intenzita převodu (0.0-1.0)
+        apply_voicing: Zda aplikovat spodobu znělosti (None = výchozí True)
+        apply_glottal_stop: Zda vkládat ráz (None = výchozí True)
 
     Returns:
         Předzpracovaný text
     """
     if language != "cs":
         return text
-
-    # Sanitizace: Odstranit JSON fragmenty a další neplatné znaky
-    # Odstranit JSON fragmenty (např. ","timestamp":"...","id":...)
-    text = re.sub(r'["\']?,\s*["\']?(?:timestamp|id|created_at|updated_at)["\']?\s*:\s*["\']?[^"\']*["\']?', '', text)
-    # Odstranit JSON struktury (např. {...})
-    text = re.sub(r'\{[^}]*\}', '', text)
-    # Odstranit hranaté závorky, ale ZACHOVAT validní markery:
-    # - [pause], [pause:200], [pause:200ms], [PAUSE] (case-insensitive)
-    # - [intonation:fall]text[/intonation] a všechny varianty
-    # - [lang:speaker]text[/lang] a [lang]text[/lang]
-    # - [/intonation], [/lang] (uzavírací tagy)
-    text = re.sub(r'\[(?!pause|PAUSE|intonation|/intonation|lang|/lang)[^\]]*\]', '', text, flags=re.IGNORECASE)
-    # Odstranit zbytky JSON syntaxe (ale ne dvojtečky v markerech jako [pause:200])
-    text = re.sub(r'["\']?\s*,\s*["\']?', ' ', text)
-    # Normalizovat mezery
-    text = re.sub(r'\s+', ' ', text).strip()
 
     # 0. Fonetický přepis cizích slov (před ostatním předzpracováním)
     if ENABLE_PHONETIC_TRANSLATION:
@@ -66,54 +51,38 @@ def preprocess_czech_text(
         except Exception as e:
             print(f"[WARN] Phonetic translation selhal: {e}")
 
-    # 0.5. Pokročilé české text processing pomocí lookup tabulek
+    # 0.5. Pokročilé české text processing pomocí CzechTextProcessor
     if ENABLE_CZECH_TEXT_PROCESSING:
         try:
             from backend.czech_text_processor import get_czech_text_processor
             czech_processor = get_czech_text_processor()
+
+            # Výchozí hodnoty pro apply_voicing a apply_glottal_stop
+            voicing = apply_voicing if apply_voicing is not None else True
+            glottal = apply_glottal_stop if apply_glottal_stop is not None else True
+
             text = czech_processor.process_text(
                 text,
-                apply_voicing=apply_voicing if apply_voicing is not None else False,
-                apply_glottal_stop=apply_glottal_stop if apply_glottal_stop is not None else False,
+                apply_voicing=voicing,
+                apply_glottal_stop=glottal,
                 apply_consonant_groups=True,
                 expand_abbreviations=True,
                 expand_numbers=True
             )
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"[WARN] Varovani: Czech text processing selhal: {e}")
+            print(f"[WARN] Varování: Czech text processing selhal: {e}")
 
-    # 0.6. Převod na nářečí (pokud je zapnuto)
-    # Použij parametry z API pokud jsou zadány, jinak použij config hodnoty
-    use_dialect = enable_dialect_conversion if enable_dialect_conversion is not None else ENABLE_DIALECT_CONVERSION
-    dialect_to_use = dialect_code if dialect_code else (DIALECT_CODE if DIALECT_CODE != "standardni" else None)
-    dialect_intensity_to_use = dialect_intensity if dialect_code else DIALECT_INTENSITY
+    # 1. Převod na nářečí (pokud je zapnutý)
+    should_convert_dialect = enable_dialect_conversion if enable_dialect_conversion is not None else ENABLE_DIALECT_CONVERSION
+    target_dialect = dialect_code if dialect_code is not None else DIALECT_CODE
+    target_intensity = dialect_intensity if dialect_intensity != 1.0 else DIALECT_INTENSITY
 
-    if use_dialect and dialect_to_use:
+    if should_convert_dialect and target_dialect and target_dialect != "standardni":
         try:
             from backend.dialect_converter import get_dialect_converter
-            dialect_converter = get_dialect_converter()
-            if dialect_to_use in dialect_converter.get_available_dialects():
-                text = dialect_converter.convert_to_dialect(
-                    text,
-                    dialect_to_use,
-                    intensity=dialect_intensity_to_use
-                )
-                print(f"[INFO] Text preveden na nareci: {dialect_to_use} (intenzita: {dialect_intensity_to_use})")
-            else:
-                print(f"[WARN] Neznamy kod nareci: {dialect_to_use}")
+            converter = get_dialect_converter()
+            text = converter.convert_to_dialect(text, target_dialect, intensity=target_intensity)
         except Exception as e:
-            print(f"[WARN] Varovani: Dialect conversion selhal: {e}")
+            print(f"[WARN] Varování: Dialect conversion selhal: {e}")
 
     return text
-
-
-
-
-
-
-
-
-
-
