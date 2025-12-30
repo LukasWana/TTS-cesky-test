@@ -35,3 +35,8 @@ def setup_cors(app: FastAPI):
         allow_headers=["*"],
     )
 
+
+def setup_not_found_cache(app: FastAPI):
+    """Nastaví middleware pro cachování 404 odpovědí"""
+    from backend.api.middleware.not_found_cache import NotFoundCacheMiddleware
+    app.add_middleware(NotFoundCacheMiddleware, cache_ttl=5.0)  # Cache 404 na 5 sekund
