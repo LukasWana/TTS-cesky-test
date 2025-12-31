@@ -129,7 +129,8 @@ class HiFiGANVocoder:
 
                 # Načtení modelu z lokálního checkpointu
                 from parallel_wavegan.utils import load_model
-                self._model = load_model(checkpoint_path, config_path)
+                # Převod Path objektů na stringy pro load_model
+                self._model = load_model(str(checkpoint_path), str(config_path))
                 self._model.remove_weight_norm()  # Odstranění weight norm pro inference
                 self._model.eval()
                 if torch.cuda.is_available():
