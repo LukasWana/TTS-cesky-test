@@ -560,33 +560,39 @@ class AudioEnhancer:
             return audio
 
         try:
-            # 1. Zvýšení hlasitosti podle úrovně důrazu (zvýšeno pro výraznější efekt)
+            # Ulož původní peak pro pozdější normalizaci
+            original_peak = np.max(np.abs(audio)) if len(audio) > 0 else 1.0
+            if original_peak == 0:
+                return audio
+
+            # 1. Zvýšení hlasitosti podle úrovně důrazu (dále sníženo pro čistý signál)
             if level == 'STRONG':
-                # Silný důraz: +6-12 dB podle intenzity (zvýšeno z 3-6 dB)
-                gain_db = 6.0 + (6.0 * intensity)  # 6-12 dB
+                # Silný důraz: +2-4 dB podle intenzity (sníženo z 3-6 dB)
+                gain_db = 2.0 + (2.0 * intensity)  # 2-4 dB místo 3-6 dB
             else:  # MODERATE
-                # Mírný důraz: +3-6 dB podle intenzity (zvýšeno z 1.5-3 dB)
-                gain_db = 3.0 + (3.0 * intensity)  # 3-6 dB
+                # Mírný důraz: +1.5-3 dB podle intenzity
+                gain_db = 1.5 + (1.5 * intensity)  # 1.5-3 dB
 
             gain_linear = 10 ** (gain_db / 20.0)
             audio = audio * gain_linear
 
-            # 2. Výrazné zvýšení středních frekvencí (1-4 kHz) - kde je důraz nejvýraznější
+            # 2. Zvýšení středních frekvencí (1-4 kHz) - kde je důraz nejvýraznější
+            # Sníženo pro čistší signál bez přebuzení
             nyquist = sr / 2
             sos_boost = signal.butter(4, [1000, 4000], btype='band', fs=sr, output='sos')
             boosted = signal.sosfiltfilt(sos_boost, audio)
-            # Boost podle úrovně a intenzity (zvýšeno pro výraznější efekt)
+            # Boost podle úrovně a intenzity (dále sníženo pro čistý signál)
             if level == 'STRONG':
-                boost_amount = 0.15 + (0.15 * intensity)  # 15-30% boost (zvýšeno z 5-10%)
+                boost_amount = 0.03 + (0.03 * intensity)  # 3-6% boost (sníženo z 5-10%)
             else:
-                boost_amount = 0.08 + (0.12 * intensity)  # 8-20% boost (zvýšeno z 2-5%)
+                boost_amount = 0.03 + (0.04 * intensity)  # 3-7% boost
             audio = audio + (boost_amount * boosted)
 
-            # 3. Dynamická komprese pro větší kontrast (pouze pro STRONG)
+            # 3. Dynamická komprese pro větší kontrast (pouze pro STRONG, jemnější)
             if level == 'STRONG':
-                # Mírná komprese pro větší dynamiku
-                threshold = -20.0  # dB
-                ratio = 3.0
+                # Jemnější komprese pro čistší signál
+                threshold = -18.0  # dB (mírně zvýšeno z -20.0)
+                ratio = 2.5  # Sníženo z 3.0 pro jemnější kompresi
                 # Aplikuj jednoduchou kompresi
                 audio_abs = np.abs(audio)
                 audio_max = np.max(audio_abs) if np.max(audio_abs) > 0 else 1.0
@@ -603,15 +609,51 @@ class AudioEnhancer:
                 compressed_linear = 10 ** (compressed_db / 20.0) * audio_max
                 audio = np.sign(audio) * compressed_linear
 
-            # 4. Pro silný důraz: mírné zvýšení pitch (simulace větší energie)
-            if level == 'STRONG' and intensity > 0.5:
-                try:
-                    import librosa
-                    # Zvýšení pitch (1-2 semitony podle intenzity, zvýšeno z 0.5-1.0)
-                    pitch_shift = 1.0 + (1.0 * (intensity - 0.5) * 2)  # 1.0-2.0 semiton
-                    audio = librosa.effects.pitch_shift(audio, sr=sr, n_steps=pitch_shift)
-                except Exception:
-                    pass  # Pokud pitch shift selže, pokračuj bez něj
+            # 4. Pro silný důraz: velmi mírné zvýšení pitch (nebo úplně vypnuto pro čistý signál)
+            # Pitch shift může způsobovat artefakty, takže ho buď vypneme nebo velmi snížíme
+            # if level == 'STRONG' and intensity > 0.5:
+            #     try:
+            #         import librosa
+            #         # Zvýšení pitch (0.5-1.5 semitonů podle intenzity, sníženo z 1.0-2.0)
+            #         pitch_shift = 0.5 + (1.0 * (intensity - 0.5) * 2)  # 0.5-1.5 semiton místo 1.0-2.0
+            #         audio = librosa.effects.pitch_shift(audio, sr=sr, n_steps=pitch_shift)
+            #     except Exception:
+            #         pass  # Pokud pitch shift selže, pokračuj bez něj
+
+            # 5. OCHRANA PROTI CLIPPINGU - kritické pro čistý signál
+            # Soft limiter s tanh pro hladký ořez bez deformace
+            max_peak = 0.95  # Bezpečný limit pod clipping (95% maximální amplitudy)
+            current_peak = np.max(np.abs(audio))
+
+            if current_peak > max_peak:
+                # Soft limiter: tanh pro hladký přechod
+                threshold = max_peak * 0.9  # Začátek jemného ořezu
+                if current_peak > threshold:
+                    # Aplikuj tanh limiter pro hladký ořez
+                    scale = threshold / current_peak
+                    audio = audio * scale
+                    # Pro hodnoty nad threshold použij tanh
+                    mask = np.abs(audio) > threshold
+                    if np.any(mask):
+                        audio[mask] = np.sign(audio[mask]) * (threshold + (max_peak - threshold) * np.tanh((np.abs(audio[mask]) - threshold) / (max_peak - threshold)))
+
+                # Finální hard clip jako pojistka (na 95%)
+                audio = np.clip(audio, -max_peak, max_peak)
+
+            # 6. Normalizace zpět na původní úroveň (relativní k původnímu peaku)
+            # Tím zajistíme, že důraz je slyšitelný, ale signál není přebuzený
+            new_peak = np.max(np.abs(audio))
+            if new_peak > 0 and original_peak > 0:
+                # Zajistíme, že nový peak nepřekročí 1.2x původního (maximální bezpečné zesílení)
+                max_allowed_peak = min(original_peak * 1.2, 0.95)
+                if new_peak > max_allowed_peak:
+                    audio = audio * (max_allowed_peak / new_peak)
+
+            # 7. Finální kontrola - zajistíme, že signál je v bezpečném rozsahu
+            audio = np.clip(audio, -0.95, 0.95)
+
+            # 8. Odstranění DC offsetu pro čistý signál
+            audio = audio - np.mean(audio)
 
             return audio
         except Exception as e:

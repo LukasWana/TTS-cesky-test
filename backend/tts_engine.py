@@ -1135,17 +1135,17 @@ class XTTSEngine:
                                             print(f"      Audio: text_len={text_length}, audio_len={len(audio)}, start={start_sample}, end={end_sample}, segment_len={segment_length}")
 
                                             if start_sample < end_sample and end_sample <= len(audio):
-                                                # Aplikuj emphasis efekt na segment (zvýšená intenzita pro výraznější efekt)
+                                                # Aplikuj emphasis efekt na segment
                                                 segment = audio[start_sample:end_sample]
-                                                # Pro STRONG použij vyšší intenzitu (1.5), pro MODERATE standardní (1.0)
+                                                # Pro STRONG použij jemnější intenzitu (0.5), pro MODERATE standardní (0.6)
                                                 # Pro automaticky detekovaný emphasis z vykřičníku použij ještě vyšší intenzitu
                                                 if auto_detected_emphasis and emph.get('source') == 'exclamation':
                                                     # Bezpečný důraz pro vykřičník (bez přebuzení)
-                                                    emphasis_intensity = 1.15
+                                                    emphasis_intensity = 0.7
                                                 elif level == 'STRONG':
-                                                    emphasis_intensity = 1.5
+                                                    emphasis_intensity = 0.5  # Sníženo z 0.8 na 0.5 pro jemnější důraz
                                                 else:
-                                                    emphasis_intensity = 1.0
+                                                    emphasis_intensity = 0.6  # Sníženo z 0.7 na 0.6
                                                 modified_segment = AudioEnhancer.apply_emphasis_effect(
                                                     segment, sr, level=level, intensity=emphasis_intensity
                                                 )
