@@ -8,6 +8,9 @@ import SliderRow from './ui/SliderRow'
 import SelectRow from './ui/SelectRow'
 import { generateMusic, getMusicProgress, subscribeToMusicProgress, getAmbienceList } from '../services/api'
 import TextInput from './TextInput'
+import HelpSidebar from './HelpSidebar'
+import { MusicGenHelpContent } from './HelpContent'
+import Icon from './ui/Icons'
 
 function MusicGen({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVersion, onDeleteVersion }) {
   const { color, rgb } = useSectionColor()
@@ -42,6 +45,7 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp, versions, onSa
   const [mainExpanded, setMainExpanded] = useState(true)
   const [ambienceExpanded, setAmbienceExpanded] = useState(true)
   const [advancedExpanded, setAdvancedExpanded] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(null)
@@ -453,7 +457,36 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp, versions, onSa
   return (
     <div className="musicgen" style={style}>
       <div className="musicgen-header">
-        <h2>MusicGen (hudba a ambientní zvuky)</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h2>MusicGen (hudba a ambientní zvuky)</h2>
+          <button
+            onClick={() => setHelpOpen(true)}
+            className="help-button"
+            title="Zobrazit nápovědu"
+            aria-label="Zobrazit nápovědu"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.7)',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              borderRadius: '4px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = 'rgba(255, 255, 255, 0.1)'
+              e.target.style.color = 'rgba(255, 255, 255, 0.9)'
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'transparent'
+              e.target.style.color = 'rgba(255, 255, 255, 0.7)'
+            }}
+          >
+            <Icon name="info" size={20} />
+          </button>
+        </div>
         <p className="musicgen-hint">
           Generování instrumentální hudby a ambientních zvukových scén. Presety pro meditaci, přírodu, město a abstraktní zvuky.
           Volitelně lze přidat potůček/ptáci z <code>assets/nature</code>.
@@ -748,6 +781,14 @@ function MusicGen({ prompt: promptProp, setPrompt: setPromptProp, versions, onSa
           </Section>
         </div>
       </div>
+
+      <HelpSidebar
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Nápověda - MusicGen (hudba)"
+      >
+        <MusicGenHelpContent />
+      </HelpSidebar>
     </div>
   )
 }

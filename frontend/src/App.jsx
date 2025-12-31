@@ -24,6 +24,8 @@ import { useTTSGeneration } from './hooks/useTTSGeneration'
 import { getDefaultSlotSettings } from './constants/ttsDefaults'
 import { SectionColorProvider } from './contexts/SectionColorContext'
 import PromptsHistory from './components/PromptsHistory'
+import HelpSidebar from './components/HelpSidebar'
+import { XTTSHelpContent } from './components/HelpContent'
 import './App.css'
 
 function App() {
@@ -36,6 +38,7 @@ function App() {
   const [demoVoices, setDemoVoices] = useState([])
   const [modelStatus, setModelStatus] = useState(null)
   const [voiceQuality, setVoiceQuality] = useState(null)
+  const [xttsHelpOpen, setXttsHelpOpen] = useState(false)
 
   // Hooks - useVariantManager musí být před useTTSSettings, protože useTTSSettings potřebuje activeVariant
   const { activeVariant, handleVariantChange, setSaveCurrentVariantNow } = useVariantManager()
@@ -248,7 +251,36 @@ function App() {
                 <div className="generate-layout">
                   <div className="generate-content">
                     <div className="section-header">
-                      <h2>XTTS (české slovo)</h2>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <h2>XTTS (české slovo)</h2>
+                        <button
+                          onClick={() => setXttsHelpOpen(true)}
+                          className="help-button"
+                          title="Zobrazit nápovědu"
+                          aria-label="Zobrazit nápovědu"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            borderRadius: '4px',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.background = 'rgba(255, 255, 255, 0.1)'
+                            e.target.style.color = 'rgba(255, 255, 255, 0.9)'
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.background = 'transparent'
+                            e.target.style.color = 'rgba(255, 255, 255, 0.7)'
+                          }}
+                        >
+                          <Icon name="info" size={20} />
+                        </button>
+                      </div>
                       <p className="section-hint">
                         Generování řeči v češtině pomocí XTTS modelu. Podporuje různé hlasy a varianty generování.
                       </p>
@@ -413,6 +445,14 @@ function App() {
           </main>
         </div>
       </div>
+
+      <HelpSidebar
+        isOpen={xttsHelpOpen}
+        onClose={() => setXttsHelpOpen(false)}
+        title="Nápověda - XTTS (české slovo)"
+      >
+        <XTTSHelpContent />
+      </HelpSidebar>
     </SectionColorProvider>
   )
 }

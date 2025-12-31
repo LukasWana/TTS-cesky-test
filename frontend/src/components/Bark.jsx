@@ -6,7 +6,10 @@ import AudioPlayer from './AudioPlayer'
 import Section from './ui/Section'
 import SliderRow from './ui/SliderRow'
 import SelectRow from './ui/SelectRow'
+import Icon from './ui/Icons'
 import { generateBark, getBarkProgress, subscribeToBarkProgress } from '../services/api'
+import HelpSidebar from './HelpSidebar'
+import { BarkHelpContent } from './HelpContent'
 
 function ensureBracketedBarkPresetPrompt(raw) {
   const s = (raw ?? '').trim()
@@ -53,6 +56,7 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVe
   // Stavy pro rozbalení sekcí
   const [mainExpanded, setMainExpanded] = useState(true)
   const [presetsExpanded, setPresetsExpanded] = useState(true)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(null)
@@ -362,7 +366,36 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVe
   return (
     <div className="bark" style={style}>
       <div className="bark-header">
-        <h2>Bark (Suno AI) - Text-to-Speech a audio generování</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h2>Bark (Suno AI) - Text-to-Speech a audio generování</h2>
+          <button
+            onClick={() => setHelpOpen(true)}
+            className="help-button"
+            title="Zobrazit nápovědu"
+            aria-label="Zobrazit nápovědu"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.7)',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              borderRadius: '4px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = 'rgba(255, 255, 255, 0.1)'
+              e.target.style.color = 'rgba(255, 255, 255, 0.9)'
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'transparent'
+              e.target.style.color = 'rgba(255, 255, 255, 0.7)'
+            }}
+          >
+            <Icon name="info" size={20} />
+          </button>
+        </div>
         <p className="bark-hint">
           Generuje realistickou řeč, hudbu a zvuky z textu. Použijte <code>[music]</code> pro hudbu, <code>[zvuk1] [zvuk2]</code> pro SFX zvuky (jednoduché, konkrétní popisy).
           Podporuje speciální tokeny jako <code>[laughter]</code>, <code>[coughs]</code> atd.
@@ -582,6 +615,14 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVe
           )}
         </div>
       </div>
+
+      <HelpSidebar
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Nápověda - Bark (FX & English)"
+      >
+        <BarkHelpContent />
+      </HelpSidebar>
     </div>
   )
 }

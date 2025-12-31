@@ -10,6 +10,8 @@ import Icon from './ui/Icons'
 import { generateF5TTSSlovak, getDemoVoices, subscribeToTtsProgress, uploadVoice, recordVoice, downloadYouTubeVoice, transcribeReferenceAudio } from '../services/api'
 import { getDefaultSlotSettings } from '../constants/ttsDefaults'
 import PromptsHistory from './PromptsHistory'
+import HelpSidebar from './HelpSidebar'
+import { F5TTSHelpContent } from './HelpContent'
 import './F5TTS.css'
 
 // Klíče pro localStorage - varianty jsou vázané na konkrétní hlas (id)
@@ -94,6 +96,7 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
   const [autoTranscribe, setAutoTranscribe] = useState(true)
   const [refTextLoading, setRefTextLoading] = useState(false)
   const [removeBackground, setRemoveBackground] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   // --- Persist ref_text per konkrétní hlas (aby po reloadu nezmizel) ---
   const persistRefText = (storageKey, value) => {
@@ -652,10 +655,40 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
 
 
   return (
+    <>
     <div className="generate-layout">
         <div className="generate-content">
           <div className="section-header">
-            <h2>F5-TTS (slovenské slovo)</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h2>F5-TTS (slovenské slovo)</h2>
+              <button
+                onClick={() => setHelpOpen(true)}
+                className="help-button"
+                title="Zobrazit nápovědu"
+                aria-label="Zobrazit nápovědu"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderRadius: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = 'rgba(255, 255, 255, 0.1)'
+                  e.target.style.color = 'rgba(255, 255, 255, 0.9)'
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'transparent'
+                  e.target.style.color = 'rgba(255, 255, 255, 0.7)'
+                }}
+              >
+                <Icon name="info" size={20} />
+              </button>
+            </div>
             <p className="section-hint">
               Pokročilý TTS engine s flow matching. V této aplikaci je nastavený pouze pro slovenštinu.
             </p>
@@ -813,6 +846,15 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
           />
         </div>
       </div>
+
+      <HelpSidebar
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        title="Nápověda - F5-TTS (slovenské slovo)"
+      >
+        <F5TTSHelpContent />
+      </HelpSidebar>
+    </>
   )
 }
 
