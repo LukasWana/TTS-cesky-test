@@ -294,6 +294,23 @@ class F5TTSSlovakEngine:
                 del env["PYTHONUTF8"]
             env["PYTHONUTF8"] = "1"
             env["PYTHONIOENCODING"] = "utf-8"
+            # Fix pro PYTHONHASHSEED - musí být "random" nebo integer v rozsahu [0; 4294967295]
+            # Pokud je nastaveno na neplatnou hodnotu (prázdný string, neplatné číslo), Python spadne při preinit.
+            if "PYTHONHASHSEED" in env:
+                hashseed_val = env["PYTHONHASHSEED"].strip()
+                if hashseed_val == "":
+                    # Prázdný string je neplatný
+                    del env["PYTHONHASHSEED"]
+                elif hashseed_val.lower() != "random":
+                    # Zkusit parsovat jako integer
+                    try:
+                        hashseed_int = int(hashseed_val)
+                        if hashseed_int < 0 or hashseed_int > 4294967295:
+                            # Mimo povolený rozsah
+                            del env["PYTHONHASHSEED"]
+                    except ValueError:
+                        # Není to integer ani "random"
+                        del env["PYTHONHASHSEED"]
             # Vypnout wandb console capture (častý zdroj UnicodeEncodeError)
             env["WANDB_MODE"] = "disabled"
             env["WANDB_SILENT"] = "true"

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional, Dict
 import shutil
 import os
+import torch
 
 import backend.config as config
 from backend.config import (
@@ -18,7 +19,10 @@ from backend.config import (
     F5_MODEL_NAME,
     F5_DEFAULT_NFE,
     F5_DEVICE,
-    F5_OUTPUT_SAMPLE_RATE
+    F5_OUTPUT_SAMPLE_RATE,
+    F5_CZECH_MODEL_DIR,
+    F5_CZECH_DEFAULT_NFE,
+    USE_CZECH_FINETUNED_MODEL
 )
 
 
@@ -29,25 +33,173 @@ class F5TTSEngine:
         self.device = F5_DEVICE
         self.is_loaded = False  # CLI nepotřebuje předběžné načtení modelu
         self.model_name = F5_MODEL_NAME
+        self.model_dir = F5_CZECH_MODEL_DIR
+        self.use_finetuned = USE_CZECH_FINETUNED_MODEL
+        print(f"[INIT] F5TTSEngine initialized. Use finetuned Czech model: {self.use_finetuned}")
+
+    def _validate_model(self, ckpt_path: Path, vocab_path: Path) -> bool:
+        """
+        Validates compatibility between checkpoint and vocabulary file.
+        Returns True if compatible, False otherwise.
+        """
+        try:
+            import torch
+
+            # 1. Check vocab file size
+            with open(vocab_path, "r", encoding="utf-8") as f:
+                vocab_lines = [l.strip('\n').strip('\r') for l in f.readlines() if l.strip()]
+
+            vocab_file_size = len(vocab_lines)
+            print(f"[VALIDATION] Vocab file has {vocab_file_size} lines")
+
+            # 2. Check checkpoint embedding size
+            print(f"[VALIDATION] Loading checkpoint header: {ckpt_path}")
+            # Load only map_location to avoid full load if possible, or just load
+            checkpoint = torch.load(ckpt_path, map_location='cpu')
+
+            # Identify state_dict
+            if isinstance(checkpoint, dict):
+                state_dict = checkpoint.get("ema_model_state_dict", checkpoint.get("model_state_dict"))
+                if state_dict is None:
+                    # Checkpoint might be the state_dict itself or contain it under other keys
+                    if any(k.startswith("transformer.") for k in checkpoint.keys()):
+                        state_dict = checkpoint
+                    else:
+                        print(f"[VALIDATION] ⚠️  Checkpoint structure unknown, searching for state_dict...")
+                        # Fallback: find first key that looks like a state_dict
+                        state_dict = checkpoint
+            else:
+                state_dict = checkpoint
+
+            embed_key = "transformer.text_embed.text_embed.weight"
+            if not isinstance(state_dict, dict) or embed_key not in state_dict:
+                print(f"[VALIDATION] ⚠️  Embedding key {embed_key} not found in checkpoint.")
+                print(f"[VALIDATION] Available keys (first 5): {list(state_dict.keys())[:5] if isinstance(state_dict, dict) else 'Not a dict'}")
+                print(f"[VALIDATION] Podporujeme i tak - necháme F5TTS knihovnu, ať si s tím poradí.")
+                return True
+
+            ckpt_vocab_size = state_dict[embed_key].shape[0]
+            print(f"[VALIDATION] Checkpoint embedding size: {ckpt_vocab_size}")
+
+            # 3. Compare - checkpoint vocab size by měl odpovídat vocab file size
+            if ckpt_vocab_size == vocab_file_size:
+                print(f"[VALIDATION] ✅ Kompatibilní - checkpoint a vocab mají stejnou velikost ({vocab_file_size})")
+                return True
+            elif ckpt_vocab_size == vocab_file_size + 1:
+                print(f"[VALIDATION] ✅ Kompatibilní - checkpoint má o 1 token více (padding token): {ckpt_vocab_size} = {vocab_file_size} + 1")
+                return True
+            elif ckpt_vocab_size + 1 == vocab_file_size:
+                print(f"[VALIDATION] ⚠️  Vocab soubor má o 1 token více než checkpoint")
+                print(f"[VALIDATION] ✅ Kompatibilní (vocab obsahuje padding token)")
+                return True
+            else:
+                print(f"[VALIDATION] ❌ MISMATCH: Checkpoint ({ckpt_vocab_size}) != Vocab file ({vocab_file_size})")
+                print(f"[VALIDATION] Hint: Check if vocab.txt has correct number of lines or if checkpoint needs patching.")
+                return False
+
+            print(f"[VALIDATION] ✅ Model and vocabulary are compatible.")
+            return True
+
+        except Exception as e:
+            print(f"[VALIDATION] Error during validation: {e}")
+            return False
+
+    def _check_vocab_size(self, vocab_path: Path) -> int:
+        """Zkontroluje počet tokenů v vocab souboru"""
+        if not vocab_path.exists():
+            return -1
+
+        try:
+            with open(vocab_path, "r", encoding="utf-8") as f:
+                lines = [line.strip() for line in f.readlines() if line.strip()]
+
+            # Odstranit duplikáty, ale zachovat pořadí
+            seen = set()
+            unique_tokens = []
+            for token in lines:
+                if token not in seen:
+                    seen.add(token)
+                    unique_tokens.append(token)
+
+            return len(unique_tokens)
+        except Exception:
+            return -1
+
+    def _check_checkpoint_vocab_size(self, ckpt_path: Path) -> int:
+        """Zkontroluje vocab size v checkpointu"""
+        if not ckpt_path.exists():
+            return -1
+
+        try:
+            checkpoint = torch.load(ckpt_path, map_location='cpu')
+
+            # Zkusit najít vocab size v různých možných klíčích
+            vocab_size = None
+
+            # Zkusit ema_model_state_dict
+            if 'ema_model_state_dict' in checkpoint:
+                state_dict = checkpoint['ema_model_state_dict']
+                embed_key = 'transformer.text_embed.text_embed.weight'
+                if embed_key in state_dict:
+                    vocab_size = state_dict[embed_key].shape[0]
+
+            # Zkusit model_state_dict
+            if vocab_size is None and 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+                embed_key = 'transformer.text_embed.text_embed.weight'
+                if embed_key in state_dict:
+                    vocab_size = state_dict[embed_key].shape[0]
+
+            # Zkusit přímo v root
+            if vocab_size is None:
+                embed_key = 'transformer.text_embed.text_embed.weight'
+                if embed_key in checkpoint:
+                    vocab_size = checkpoint[embed_key].shape[0]
+
+            return vocab_size if vocab_size is not None else -1
+
+        except Exception:
+            return -1
 
     async def load_model(self):
-        """Placeholder pro kompatibilitu s XTTS interface (CLI nepotřebuje předběžné načtení)"""
-        self.is_loaded = True
-        # Rychlá kontrola existence CLI (místo pomalého --help volání s timeoutem)
-        # Na Windows může --help trvat >5s kvůli importům/warningům, takže kontrolujeme jen existenci exe
+        """Načte model do paměti (pro API inference)"""
+        if self.is_loaded:
+            return
+
         try:
-            import sys
-            cli_path = shutil.which("f5-tts_infer-cli")
-            if cli_path and Path(cli_path).exists():
-                # CLI je dostupné
-                pass
+            # Importujeme F5TTS zde, aby to nezpomalovalo start backendu
+            from f5_tts.api import F5TTS
+
+            # Zkontrolovat, zda máme finetunovaný český model
+            from backend.config import F5_CZECH_CKPT_NAME, F5_CZECH_VOCAB_NAME
+
+            ckpt_path = self.model_dir / F5_CZECH_CKPT_NAME
+            vocab_path = self.model_dir / F5_CZECH_VOCAB_NAME
+
+            # Pokud neexistuje finetunovaný, načteme výchozí (nebo necháme is_loaded=False pro CLI fallback)
+            if ckpt_path.exists() and vocab_path.exists() and self.use_finetuned:
+                print(f"[INIT] Loading F5-TTS Czech model for API: {ckpt_path}")
+
+                # Validace kompatibility
+                if not self._validate_model(ckpt_path, vocab_path):
+                    print("[WARN] Model validation failed. Falling back to CLI mode for safety.")
+                    self.tts_instance = None
+                else:
+                    self.tts_instance = F5TTS(
+                        ckpt_file=str(ckpt_path),
+                        vocab_file=str(vocab_path),
+                        device=self.device
+                    )
+                    print("[OK] F5-TTS Czech model loaded successfully via API.")
             else:
-                # Zkus najít v běžných umístěních (venv/Scripts)
-                venv_scripts = Path(sys.executable).parent / "f5-tts_infer-cli.exe"
-                if not venv_scripts.exists():
-                    print("[WARN] f5-tts_infer-cli nebyl nalezen. Ujistěte se, že je f5-tts nainstalován: pip install f5-tts")
+                print("[INFO] No specific Czech model found for API loading, will use CLI mode if needed.")
+                self.tts_instance = None
+
         except Exception as e:
-            print(f"[WARN] Ověření F5-TTS CLI selhalo: {e}")
+            print(f"[ERROR] Failed to load F5-TTS via API: {e}")
+            self.tts_instance = None
+
+        self.is_loaded = True
 
     async def generate(
         self,
@@ -85,43 +237,7 @@ class F5TTSEngine:
         enable_enhancement: Optional[bool] = None,
     ) -> str:
         """
-        Generuje řeč pomocí F5-TTS
-
-        Args:
-            text: Text k syntéze
-            speaker_wav: Cesta k referenčnímu audio souboru
-            language: Jazyk (pouze "cs" aktivuje české zpracování)
-            speed: Rychlost řeči (aplikuje se jako post-processing)
-            temperature: Ignorováno (F5-TTS má jiné parametry)
-            length_penalty: Ignorováno
-            repetition_penalty: Ignorováno
-            top_k: Ignorováno
-            top_p: Ignorováno
-            quality_mode: Ignorováno (můžeme mapovat na NFE později)
-            seed: Seed pro reprodukovatelnost (pokud F5 podporuje)
-            enhancement_preset: Preset pro audio enhancement
-            enable_vad: Zapnout VAD
-            use_hifigan: Použít HiFi-GAN
-            enable_normalization: Normalizace
-            enable_denoiser: Denoiser
-            enable_compressor: Komprese
-            enable_deesser: De-esser
-            enable_eq: Equalizer
-            enable_trim: Trim ticha
-            enable_dialect_conversion: Převod na nářečí
-            dialect_code: Kód nářečí
-            dialect_intensity: Intenzita převodu
-            enable_whisper: Whisper efekt
-            whisper_intensity: Intenzita whisper efektu
-            target_headroom_db: Headroom v dB
-            hifigan_refinement_intensity: HiFi-GAN intenzita
-            hifigan_normalize_output: HiFi-GAN normalizace
-            hifigan_normalize_gain: HiFi-GAN gain
-            job_id: Job ID pro progress tracking
-            ref_text: Přepis reference audio (volitelné, pro lepší kvalitu)
-
-        Returns:
-            Cesta k vygenerovanému WAV souboru
+        Generuje řeč pomocí F5-TTS (API nebo CLI fallback)
         """
         # Ověření existence reference audio
         if not Path(speaker_wav).exists():
@@ -138,23 +254,42 @@ class F5TTSEngine:
             language,
             enable_dialect_conversion=enable_dialect_conversion,
             dialect_code=dialect_code,
-            dialect_intensity=dialect_intensity
+            dialect_intensity=dialect_intensity,
+            apply_voicing=False,  # Deaktivované - způsobuje "drmolení" v F5-TTS
+            apply_glottal_stop=False  # Deaktivované - model matí ráz/apostrof
         )
 
-        # Generování pomocí CLI
+        # Načíst model pokud ještě není (lazy load)
+        if not self.is_loaded:
+            await self.load_model()
+
+        # Generování
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            self._generate_sync_cli,
-            processed_text,
-            speaker_wav,
-            str(output_path),
-            ref_text,
-            job_id
-        )
+
+        # Pokud máme instanci TTS (API), použijeme ji
+        if hasattr(self, 'tts_instance') and self.tts_instance is not None:
+            await loop.run_in_executor(
+                None,
+                self._generate_sync_api,
+                processed_text,
+                speaker_wav,
+                str(output_path),
+                ref_text,
+                job_id
+            )
+        else:
+            # Jinak fallback na CLI
+            await loop.run_in_executor(
+                None,
+                self._generate_sync_cli,
+                processed_text,
+                speaker_wav,
+                str(output_path),
+                ref_text,
+                job_id
+            )
 
         # Post-processing (stejné jako XTTS)
-        # Použijeme stejnou logiku jako XTTS pro konzistenci
         await self._apply_post_processing(
             str(output_path),
             speed,
@@ -179,7 +314,7 @@ class F5TTSEngine:
 
         return str(output_path)
 
-    def _generate_sync_cli(
+    def _generate_sync_api(
         self,
         text: str,
         ref_audio: str,
@@ -187,7 +322,7 @@ class F5TTSEngine:
         ref_text: Optional[str],
         job_id: Optional[str]
     ):
-        """Synchronní generování přes F5-TTS CLI"""
+        """Synchronní generování přes F5-TTS API (v paměti)"""
         def _progress(pct: float, stage: str, msg: str):
             if not job_id:
                 return
@@ -198,115 +333,158 @@ class F5TTSEngine:
                 pass
 
         try:
-            _progress(15, "f5_tts", "Generuji řeč (F5-TTS)…")
+            _progress(15, "f5_tts", "Generuji řeč (F5-TTS Czech API)…")
 
-            # Příprava CLI příkazu (preferujeme explicitní output file, ať nemusíme hledat nejnovější WAV)
-            # Pozn.: CLI podporuje -o/--output_dir a -w/--output_file + --device + --nfe_step
+            # Detekce ref_text (přepis reference)
+            # Pokud není zadán, F5TTS API ho může zkusit odhadnout nebo vyžaduje
+            # Ale v uživatelském příkladu byl zadán.
+            reference_text = ref_text if ref_text else ""
+
+            # API volání
+            # tts.infer(ref_file, ref_text, gen_text, file_wave)
+            self.tts_instance.infer(
+                ref_file=ref_audio,
+                ref_text=reference_text,
+                gen_text=text,
+                file_wave=output_path
+            )
+
+            _progress(55, "f5_tts", "F5-TTS API inference dokončena")
+
+        except Exception as e:
+            print(f"[ERROR] API inference failed: {e}")
+            raise Exception(f"F5-TTS API inference selhala: {e}")
+
+    def _generate_sync_cli(
+        self,
+        text: str,
+        ref_audio: str,
+        output_path: str,
+        ref_text: Optional[str],
+        job_id: Optional[str]
+    ):
+        """Synchronní generování přes F5-TTS CLI (fallback)"""
+        def _progress(pct: float, stage: str, msg: str):
+            if not job_id:
+                return
+            try:
+                from backend.progress_manager import ProgressManager
+                ProgressManager.update(job_id, percent=pct, stage=stage, message=msg)
+            except Exception:
+                pass
+
+        try:
+            _progress(15, "f5_tts", "Generuji řeč (F5-TTS Czech CLI)…")
+
+            # Příprava CLI příkazu
             out_p = Path(output_path)
 
-            # Najít cestu k f5-tts_infer-cli exe (může být v PATH nebo v venv/Scripts)
             import sys
             cli_exe = shutil.which("f5-tts_infer-cli")
             if not cli_exe or not Path(cli_exe).exists():
-                # Zkus najít v venv/Scripts (kde se typicky instaluje)
                 venv_scripts = Path(sys.executable).parent / "f5-tts_infer-cli.exe"
                 if venv_scripts.exists():
                     cli_exe = str(venv_scripts)
                 else:
-                    raise FileNotFoundError(
-                        "f5-tts_infer-cli nebyl nalezen.\n\n"
-                        "Pro instalaci F5-TTS spusťte:\n"
-                        "  pip install f5-tts\n\n"
-                        "Nebo pro lokální vývoj (editable install):\n"
-                        "  git clone https://github.com/SWivid/F5-TTS.git\n"
-                        "  cd F5-TTS\n"
-                        "  pip install -e .\n\n"
-                        "Po instalaci restartujte backend server."
-                    )
+                    raise FileNotFoundError("f5-tts_infer-cli nebyl nalezen.")
 
-            cmd = [
-                cli_exe,
-                "-m", self.model_name,
-                "-r", ref_audio,
-                "-t", text,
-                "-o", str(out_p.parent),
-                "-w", out_p.name,
-                "--device", str(self.device),
-                "--nfe_step", str(F5_DEFAULT_NFE),
-            ]
+            # Zkontrolovat, zda máme finetunovaný český model
+            use_local_model = self.use_finetuned
+            ckpt_path = None
+            vocab_path = None
 
-            # Přidat ref_text pokud je zadán (zlepšuje kvalitu)
+            if use_local_model:
+                from backend.config import F5_CZECH_CKPT_NAME, F5_CZECH_VOCAB_NAME
+                ckpt_path = self.model_dir / F5_CZECH_CKPT_NAME
+                vocab_path = self.model_dir / F5_CZECH_VOCAB_NAME
+
+                if not ckpt_path.exists() or not vocab_path.exists():
+                    print(f"[INFO] Czech model from config not found, searching in {self.model_dir}")
+                    # ... (původní vyhledávací logika by tu mohla být, ale pro stručnost ji zachováme jen v CLI mode)
+                    possible_ckpt_names = ["model_last.pt", "model.pt"]
+                    possible_vocab_names = ["vocab.txt"]
+
+                    for name in possible_ckpt_names:
+                        if (self.model_dir / name).exists():
+                            ckpt_path = self.model_dir / name
+                            break
+                    for name in possible_vocab_names:
+                        if (self.model_dir / name).exists():
+                            vocab_path = self.model_dir / name
+                            break
+
+                if not ckpt_path or not ckpt_path.exists() or not vocab_path or not vocab_path.exists():
+                    use_local_model = False
+
+            # Sestavit CLI příkaz
+            if use_local_model and ckpt_path and vocab_path:
+                model_cfg_path = self.model_dir / "F5TTS_Czech.yaml"
+                if not model_cfg_path.exists():
+                    import importlib.util
+                    spec = importlib.util.find_spec("f5_tts")
+                    f5_base = Path(list(spec.submodule_search_locations)[0]).resolve()
+                    model_cfg_path = f5_base / "configs" / "F5TTS_v1_Base.yaml"
+
+                cmd = [
+                    cli_exe,
+                    "-m", "F5TTS_Czech" if (self.model_dir / "F5TTS_Czech.yaml").exists() else "F5TTS_v1_Base",
+                    "-r", ref_audio,
+                    "-t", text,
+                    "-o", str(out_p.parent),
+                    "-w", out_p.name,
+                    "--ckpt_file", str(ckpt_path),
+                    "--vocab_file", str(vocab_path),
+                    "--model_cfg", str(model_cfg_path),
+                    "--device", str(self.device),
+                    "--nfe_step", str(F5_CZECH_DEFAULT_NFE),
+                ]
+            else:
+                cmd = [
+                    cli_exe,
+                    "-m", self.model_name,
+                    "-r", ref_audio,
+                    "-t", text,
+                    "-o", str(out_p.parent),
+                    "-w", out_p.name,
+                    "--device", str(self.device),
+                    "--nfe_step", str(F5_DEFAULT_NFE),
+                ]
+
             if ref_text:
                 cmd.extend(["-s", ref_text])
 
-            # F5-TTS CLI vytvoří výstupní soubor (obvykle pojmenovaný podle modelu nebo timestamp)
-            # CLI nepodporuje explicitní --output, takže musíme najít nejnovější WAV soubor
-            # Zaznamenáme čas před spuštěním CLI
-            import time
-            before_time = time.time()
-
-            # Spustit CLI v OUTPUTS_DIR, aby výstup byl tam
             print(f"🔊 F5-TTS CLI: {' '.join(cmd)}")
             env = os.environ.copy()
-            # Fix pro Windows cp1252 -> UTF-8 (jinak spadne na diakritice při printu v CLI)
-            # Pokud je globálně nastavený PYTHONUTF8 na neplatnou hodnotu, Python spadne už při preinit.
-            # Proto nejdřív smažeme starou hodnotu, pak nastavíme správnou.
-            if "PYTHONUTF8" in env:
-                del env["PYTHONUTF8"]
             env["PYTHONUTF8"] = "1"
             env["PYTHONIOENCODING"] = "utf-8"
-            # Vypnout wandb console capture (častý zdroj UnicodeEncodeError)
+            # Fix pro PYTHONHASHSEED - musí být "random" nebo integer v rozsahu [0; 4294967295]
+            # Pokud je nastaveno na neplatnou hodnotu (prázdný string, neplatné číslo), Python spadne při preinit.
+            if "PYTHONHASHSEED" in env:
+                hashseed_val = env["PYTHONHASHSEED"].strip()
+                if hashseed_val == "":
+                    # Prázdný string je neplatný
+                    del env["PYTHONHASHSEED"]
+                elif hashseed_val.lower() != "random":
+                    # Zkusit parsovat jako integer
+                    try:
+                        hashseed_int = int(hashseed_val)
+                        if hashseed_int < 0 or hashseed_int > 4294967295:
+                            # Mimo povolený rozsah
+                            del env["PYTHONHASHSEED"]
+                    except ValueError:
+                        # Není to integer ani "random"
+                        del env["PYTHONHASHSEED"]
             env["WANDB_MODE"] = "disabled"
-            env["WANDB_SILENT"] = "true"
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=str(out_p.parent),
-                timeout=300  # 5 minut timeout
-                ,
-                env=env,
-            )
+
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(out_p.parent), timeout=300, env=env)
 
             if result.returncode != 0:
-                error_msg = result.stderr or result.stdout
+                raise Exception(f"F5-TTS CLI selhal: {result.stderr or result.stdout}")
 
-                # Detekce specifických chyb a poskytnutí lepších instrukcí
-                if "libtorchcodec" in error_msg or "FFmpeg" in error_msg or "torchcodec" in error_msg or "Could not load libtorchcodec" in error_msg:
-                    detailed_error = (
-                        "F5-TTS vyžaduje FFmpeg s podporou TorchCodec.\n\n"
-                        "ŘEŠENÍ:\n"
-                        "1. Nainstalujte FFmpeg full-shared verzi (s DLL soubory):\n"
-                        "   - Stáhněte z: https://www.gyan.dev/ffmpeg/builds/\n"
-                        "   - Vyberte 'ffmpeg-release-full-shared.7z'\n"
-                        "   - Rozbalte a přidejte 'bin' složku do PATH\n"
-                        "   - Nebo použijte conda: conda install -c conda-forge ffmpeg\n\n"
-                        "2. Ověřte kompatibilitu PyTorch s TorchCodec:\n"
-                        "   - Zkuste: pip install torch torchaudio --upgrade\n"
-                        "   - Nebo pro GPU: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121\n\n"
-                        "3. Po instalaci FFmpeg restartujte backend server.\n\n"
-                        f"Původní chyba:\n{error_msg[:500]}"
-                    )
-                    raise Exception(detailed_error)
-                else:
-                    raise Exception(f"F5-TTS CLI selhal: {error_msg}")
-
-            # Výstup má být přesně v output_path (nastavili jsme -o/-w)
             if not out_p.exists():
-                # fallback diagnostika: pokud výstup chybí, vypiš aspoň seznam wavů po spuštění
-                after_time = time.time()
-                wav_files = [
-                    f for f in out_p.parent.glob("*.wav")
-                    if f.stat().st_mtime >= before_time and f.stat().st_mtime <= after_time + 5
-                ]
-                raise Exception(
-                    "F5-TTS CLI nevytvořil očekávaný výstupní soubor.\n"
-                    f"Očekáváno: {out_p}\n"
-                    f"Nalezené nové WAVy: {[p.name for p in wav_files][:10]}"
-                )
-            print(f"✅ F5-TTS výstup: {out_p}")
+                raise Exception(f"F5-TTS CLI nevytvořil výstupní soubor: {out_p}")
 
-            _progress(55, "f5_tts", "F5-TTS inference dokončeno")
+            _progress(55, "f5_tts", "F5-TTS CLI inference dokončena")
 
         except FileNotFoundError:
             error_msg = (
