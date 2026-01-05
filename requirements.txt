@@ -61,6 +61,9 @@ pyAudioAnalysis>=0.3.14
 # Audio source separation (Demucs)
 demucs>=4.0.0
 
+# SpeechT5 voice cloning (volitelné)
+speechbrain>=1.0.0  # Pro extrakci speaker embeddings z reference audio pomocí ECAPA-TDNN
+
 # HiFi-GAN vocoder (volitelné)
 parallel-wavegan>=0.5.0  # Použijte pokud chcete HiFi-GAN
 # hifigan  # Alternativní implementace

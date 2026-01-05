@@ -119,12 +119,22 @@ F5_DEFAULT_NFE = int(os.getenv("F5_DEFAULT_NFE", "16"))  # Number of function ev
 F5_DEVICE = DEVICE  # Reuse stejný device jako XTTS
 F5_OUTPUT_SAMPLE_RATE = OUTPUT_SAMPLE_RATE  # Sladit s OUTPUT_SAMPLE_RATE
 
+# F5-TTS Czech model configuration (finetunovaný model)
+F5_CZECH_MODEL_DIR = MODELS_DIR / "f5-tts-czech"
+F5_CZECH_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+F5_CZECH_CKPT_NAME = os.getenv("F5_CZECH_CKPT_NAME", "model_last.pt")
+F5_CZECH_VOCAB_NAME = os.getenv("F5_CZECH_VOCAB_NAME", "vocab.txt")
+F5_CZECH_DEFAULT_NFE = int(os.getenv("F5_CZECH_DEFAULT_NFE", "24"))  # Number of function evaluations (kroky) - zvýšeno z 16 na 20 pro lepší kvalitu finetunovaných modelů
+USE_CZECH_FINETUNED_MODEL = os.getenv("USE_CZECH_FINETUNED_MODEL", "True").lower() == "true"
+
 # F5-TTS Slovak model configuration
 F5_SLOVAK_MODEL_NAME = os.getenv("F5_SLOVAK_MODEL_NAME", "petercheben/F5_TTS_Slovak")
 F5_SLOVAK_MODEL_DIR = MODELS_DIR / "f5-tts-slovak"
 F5_SLOVAK_MODEL_DIR.mkdir(parents=True, exist_ok=True)
 F5_SLOVAK_DEFAULT_NFE = int(os.getenv("F5_SLOVAK_DEFAULT_NFE", "16"))  # Number of function evaluations (kroky)
 ENABLE_SLOVAK_TEXT_PROCESSING = os.getenv("ENABLE_SLOVAK_TEXT_PROCESSING", "True").lower() == "true"
+
+
 
 ENABLE_EQ_CORRECTION = os.getenv("ENABLE_EQ_CORRECTION", "True").lower() == "true"
 ENABLE_ADVANCED_NOISE_REDUCTION = os.getenv("ENABLE_ADVANCED_NOISE_REDUCTION", "False").lower() == "true"
