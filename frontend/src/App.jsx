@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import VoiceSelector from './components/VoiceSelector'
 import TextInput from './components/TextInput'
 import AudioRecorder from './components/AudioRecorder'
@@ -15,7 +15,8 @@ import Sidebar from './components/Sidebar'
 import Alert from './components/Alert'
 import Button from './components/ui/Button'
 import Icon from './components/ui/Icons'
-import { getDemoVoices, getModelStatus } from './services/api'
+import SegmentedControl from './components/ui/SegmentedControl'
+import { getDemoVoices, getModelStatus, transcribeReferenceAudio } from './services/api'
 import { useTTSSettings } from './hooks/useTTSSettings'
 import { useVariantManager } from './hooks/useVariantManager'
 import { useTextVersions } from './hooks/useTextVersions'
@@ -39,6 +40,98 @@ function App() {
   const [modelStatus, setModelStatus] = useState(null)
   const [voiceQuality, setVoiceQuality] = useState(null)
   const [xttsHelpOpen, setXttsHelpOpen] = useState(false)
+  // Přepínač mezi XTTS a F5-TTS pro české slovo
+  const [ttsEngine, setTtsEngine] = useState(() => {
+    const saved = localStorage.getItem('czech_tts_engine')
+    return saved || 'xtts' // výchozí XTTS
+  })
+
+  // --- States for ref_text (F5-TTS) ---
+  const [refText, setRefText] = useState('')
+  const [refTextLoading, setRefTextLoading] = useState(false)
+  const [autoTranscribe, setAutoTranscribe] = useState(true)
+
+  // --- Context for refText persistence ---
+  const makeDemoRefKey = (voiceId, lang) => `f5tts_reftext:v1:${lang}:demo:${voiceId}`
+  const makeUploadRefKey = (filename, lang) => `f5tts_reftext:v1:${lang}:upload:${filename}`
+
+  const refTextStorageKey = useMemo(() => {
+    if (ttsEngine !== 'f5tts' || activeTab !== 'generate') return null
+    if (voiceType === 'upload') {
+      return uploadedVoiceFileName ? makeUploadRefKey(uploadedVoiceFileName, 'cs') : null
+    }
+    if (voiceType === 'demo' || voiceType === 'record' || voiceType === 'youtube') {
+      return typeof selectedVoice === 'string' && selectedVoice ? makeDemoRefKey(selectedVoice, 'cs') : null
+    }
+    return null
+  }, [ttsEngine, activeTab, voiceType, selectedVoice, uploadedVoiceFileName])
+
+  // Load refText from localStorage
+  useEffect(() => {
+    if (!refTextStorageKey) {
+      if (ttsEngine !== 'f5tts') setRefText('')
+      return
+    }
+    try {
+      const stored = localStorage.getItem(refTextStorageKey)
+      setRefText(stored || '')
+    } catch (e) {
+      setRefText('')
+    }
+  }, [refTextStorageKey, ttsEngine])
+
+  // Save refText to localStorage (debounce)
+  const refTextSaveTimeoutRef = useRef(null)
+  useEffect(() => {
+    if (!refTextStorageKey) return
+    if (refTextSaveTimeoutRef.current) {
+      clearTimeout(refTextSaveTimeoutRef.current)
+    }
+    refTextSaveTimeoutRef.current = setTimeout(() => {
+      try {
+        const v = (refText || '').toString()
+        if (v.trim() === '') {
+          localStorage.removeItem(refTextStorageKey)
+        } else {
+          localStorage.setItem(refTextStorageKey, v)
+        }
+      } catch (e) {
+        console.warn('Nelze uložit ref_text do localStorage:', e)
+      }
+    }, 250)
+    return () => {
+      if (refTextSaveTimeoutRef.current) {
+        clearTimeout(refTextSaveTimeoutRef.current)
+      }
+    }
+  }, [refText, refTextStorageKey])
+
+  const handleTranscribeRef = async (vFile = null, vDemo = null) => {
+    try {
+      setRefTextLoading(true)
+      const res = await transcribeReferenceAudio({
+        voiceFile: vFile || (voiceType === 'upload' ? uploadedVoice : null),
+        demoVoice: vDemo || (voiceType === 'demo' ? selectedVoice : null),
+        language: 'cs'
+      })
+      const txt = res.cleaned_text || res.text || ''
+      setRefText(txt)
+      if (refTextStorageKey) {
+        localStorage.setItem(refTextStorageKey, txt)
+      }
+    } catch (e) {
+      console.error('ASR přepis selhal:', e)
+      setError(e.message || 'Chyba při přepisu audia')
+    } finally {
+      setRefTextLoading(false)
+    }
+  }
+
+  // Uložit preferenci engine do localStorage při změně
+  useEffect(() => {
+    localStorage.setItem('czech_tts_engine', ttsEngine)
+  }, [ttsEngine])
+
 
   // Hooks - useVariantManager musí být před useTTSSettings, protože useTTSSettings potřebuje activeVariant
   const { activeVariant, handleVariantChange, setSaveCurrentVariantNow } = useVariantManager()
@@ -69,13 +162,19 @@ function App() {
     uploadedVoice,
     ttsSettings,
     qualitySettings,
-    startProgressTracking
+    startProgressTracking,
+    ttsEngine // předat výběr engine
   )
 
   // Wrapper pro handleGenerate s saveTextVersion
   const handleGenerate = () => {
-    handleGenerateBase(saveTextVersion)
+    handleGenerateBase(saveTextVersion, ttsEngine === 'f5tts' ? refText : null)
   }
+
+  // Uložit výběr engine do localStorage při změně
+  useEffect(() => {
+    localStorage.setItem('czech_tts_engine', ttsEngine)
+  }, [ttsEngine])
 
   const tabs = [
     { id: 'voicepreparation', label: 'připrava hlasů', icon: 'microphone' },
@@ -141,10 +240,9 @@ function App() {
     setVoiceType('upload')
     setVoiceQuality(null) // Reset quality for new upload
 
-    // Poznámka: uploadVoice API zatím nevoláme přímo zde,
-    // ale až v handleGenerate pokud je voiceType 'upload'.
-    // Pro okamžitou analýzu bychom museli volat uploadVoice dříve.
-    // removeBackground parametr bude předán v handleGenerate při volání uploadVoice API
+    if (autoTranscribe && activeTab === 'generate' && ttsEngine === 'f5tts') {
+      handleTranscribeRef(file)
+    }
   }
 
   const handleVoiceRecord = async (result) => {
@@ -163,9 +261,15 @@ function App() {
         if (result && result.filename) {
           const voiceId = result.filename.replace('.wav', '')
           setSelectedVoice(voiceId)
+
+          if (autoTranscribe && activeTab === 'generate' && ttsEngine === 'f5tts') {
+            handleTranscribeRef(null, voiceId)
+          }
         }
         // Přepnout na tab "české slovo" po úspěšném nahrání
-        setActiveTab('generate')
+        if (activeTab === 'voicepreparation') {
+          setActiveTab('generate')
+        }
       }, 500)
     } catch (err) {
       console.error('Chyba při načítání nahraného hlasu:', err)
@@ -188,8 +292,15 @@ function App() {
       setTimeout(() => {
         const filename = result.filename.replace('.wav', '')
         setSelectedVoice(filename)
+
+        if (autoTranscribe && activeTab === 'generate' && ttsEngine === 'f5tts') {
+          handleTranscribeRef(null, filename)
+        }
+
         // Přepnout na tab "české slovo" po úspěšném nahrání
-        setActiveTab('generate')
+        if (activeTab === 'voicepreparation') {
+          setActiveTab('generate')
+        }
       }, 500)
 
     } catch (err) {
@@ -251,8 +362,8 @@ function App() {
                 <div className="generate-layout">
                   <div className="generate-content">
                     <div className="section-header">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <h2>XTTS (české slovo)</h2>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                        <h2>{ttsEngine === 'f5tts' ? 'F5-TTS' : 'XTTS'} (české slovo)</h2>
                         <button
                           onClick={() => setXttsHelpOpen(true)}
                           className="help-button"
@@ -281,10 +392,55 @@ function App() {
                           <Icon name="info" size={20} />
                         </button>
                       </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.7)' }}>Engine:</span>
+                        <div style={{
+                          display: 'flex',
+                          gap: '4px',
+                          background: 'rgba(255, 255, 255, 0.1)',
+                          borderRadius: '6px',
+                          padding: '2px'
+                        }}>
+                          <button
+                            onClick={() => setTtsEngine('xtts')}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '4px',
+                              border: 'none',
+                              background: ttsEngine === 'xtts' ? 'rgba(100, 150, 255, 0.3)' : 'transparent',
+                              color: ttsEngine === 'xtts' ? '#fff' : 'rgba(255, 255, 255, 0.6)',
+                              cursor: 'pointer',
+                              fontWeight: ttsEngine === 'xtts' ? '600' : '400',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            XTTS
+                          </button>
+                          <button
+                            onClick={() => setTtsEngine('f5tts')}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '4px',
+                              border: 'none',
+                              background: ttsEngine === 'f5tts' ? 'rgba(100, 150, 255, 0.3)' : 'transparent',
+                              color: ttsEngine === 'f5tts' ? '#fff' : 'rgba(255, 255, 255, 0.6)',
+                              cursor: 'pointer',
+                              fontWeight: ttsEngine === 'f5tts' ? '600' : '400',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            F5-TTS
+                          </button>
+                        </div>
+                      </div>
                       <p className="section-hint">
-                        Generování řeči v češtině pomocí XTTS modelu. Podporuje různé hlasy a varianty generování.
+                        {ttsEngine === 'f5tts'
+                          ? 'Generování řeči v češtině pomocí finetunovaného F5-TTS modelu. Podporuje různé hlasy a varianty generování.'
+                          : 'Generování řeči v češtině pomocí XTTS modelu. Podporuje různé hlasy a varianty generování.'}
                       </p>
                     </div>
+
+
 
                     <VoiceSelector
                       demoVoices={demoVoices}
@@ -304,9 +460,53 @@ function App() {
                     />
 
                     <PromptsHistory
-                      modelType="xtts"
+                      modelType={ttsEngine === 'f5tts' ? 'f5tts' : 'xtts'}
                       onSelectPrompt={setText}
                     />
+
+                    {ttsEngine === 'f5tts' && (
+                      <div className="reftext-section" style={{ marginTop: '12px', marginBottom: '12px' }}>
+                        <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px' }}>
+                          Přepis referenčního audia (ref_text) – volitelné
+                        </label>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '8px' }}>
+                          <label style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '13px', opacity: 0.9 }}>
+                            <input
+                              type="checkbox"
+                              checked={autoTranscribe}
+                              onChange={(e) => setAutoTranscribe(e.target.checked)}
+                            />
+                            Auto přepis po nahrání
+                          </label>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={refTextLoading || (!selectedVoice && !uploadedVoiceFileName)}
+                            onClick={() => handleTranscribeRef()}
+                          >
+                            {refTextLoading ? 'Přepisuji…' : 'Přepsat referenci'}
+                          </Button>
+                        </div>
+                        <textarea
+                          value={refText}
+                          onChange={(e) => setRefText(e.target.value)}
+                          placeholder="Sem vlož přepis toho, co je namluveno v referenčním audiu. Když sedí s audiodatem, často to zlepší výslovnost."
+                          rows={3}
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            background: 'rgba(0,0,0,0.15)',
+                            color: 'inherit',
+                            resize: 'vertical'
+                          }}
+                        />
+                        <div style={{ opacity: 0.8, fontSize: '12px', marginTop: '6px' }}>
+                          Tip: nejvíc pomáhá u vlastních hlasů (upload/record/YouTube). Pokud ref_text nesedí k referenci, může kvalitu naopak zhoršit.
+                        </div>
+                      </div>
+                    )}
 
                     <div className="generate-section">
                       <Button

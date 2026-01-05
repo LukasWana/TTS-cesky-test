@@ -2,14 +2,17 @@
 TTS router - endpointy pro text-to-speech generování
 """
 import logging
+import uuid
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+import aiofiles
 
 from backend.api.dependencies import (
     tts_engine,
     f5_tts_engine,
     f5_tts_slovak_engine,
+
 )
 from backend.api.parsers.tts_params import TTSParamsParser
 from backend.api.resolvers.voice_resolver import resolve_voice_file, resolve_default_voice
@@ -28,7 +31,14 @@ from backend.config import (
     MAX_TEXT_LENGTH,
     AUDIO_ENHANCEMENT_PRESET,
     ENABLE_BATCH_PROCESSING,
+    UPLOADS_DIR,
+    DEMO_VOICES_CS_DIR,
+    DEMO_VOICES_SK_DIR,
+    TTS_SPEED,
+    ENABLE_AUDIO_ENHANCEMENT,
 )
+from backend.api.helpers import get_demo_voice_path
+from backend.audio_processor import AudioProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -1008,6 +1018,9 @@ async def generate_speech_f5_sk(
         if job_id:
             ProgressManager.fail(job_id, msg)
         raise HTTPException(status_code=500, detail=f"Chyba při generování F5-TTS Slovak: {msg}")
+
+
+
 
 
 @router.post("/generate-multi")

@@ -385,6 +385,8 @@ export async function generateF5TTSSlovak(text, voiceFile = null, demoVoice = nu
   return await response.json()
 }
 
+
+
 /**
  * Získá průběh generování TTS pro daný jobId (polling - pro zpětnou kompatibilitu)
  */

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { generateSpeech } from '../services/api'
+import { generateSpeech, generateF5TTS } from '../services/api'
 
 /**
  * Hook pro TTS generování
@@ -11,14 +11,15 @@ export const useTTSGeneration = (
   uploadedVoice,
   ttsSettings,
   qualitySettings,
-  startProgressTracking
+  startProgressTracking,
+  ttsEngine = 'xtts' // 'xtts' nebo 'f5tts'
 ) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [generatedAudio, setGeneratedAudio] = useState(null)
   const [generatedVariants, setGeneratedVariants] = useState([])
 
-  const handleGenerate = async (saveTextVersion) => {
+  const handleGenerate = async (saveTextVersion, directRefText = null) => {
     if (!text.trim()) {
       setError('Zadejte text k syntéze')
       return
@@ -86,7 +87,8 @@ export const useTTSGeneration = (
         whisperIntensity: qualitySettings.qualityMode === 'whisper' && qualitySettings.whisperIntensity !== undefined
           ? qualitySettings.whisperIntensity
           : undefined,
-        targetHeadroomDb: qualitySettings.targetHeadroomDb !== undefined ? qualitySettings.targetHeadroomDb : -15.0
+        targetHeadroomDb: qualitySettings.targetHeadroomDb !== undefined ? qualitySettings.targetHeadroomDb : -15.0,
+        refText: directRefText || ttsSettings.refText
       }
 
       // Vytvoř job_id pro progress tracking
@@ -99,7 +101,10 @@ export const useTTSGeneration = (
         startProgressTracking(jobId)
       }
 
-      const result = await generateSpeech(text, voiceFile, demoVoice, ttsParams, jobId)
+      // Volat správnou API funkci podle engine
+      const result = ttsEngine === 'f5tts'
+        ? await generateF5TTS(text, voiceFile, demoVoice, ttsParams, jobId)
+        : await generateSpeech(text, voiceFile, demoVoice, ttsParams, jobId)
 
       // Pokud je multi-pass, zobrazit varianty
       if (result.variants && result.variants.length > 0) {
