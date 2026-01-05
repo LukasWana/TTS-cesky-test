@@ -22,10 +22,10 @@ def check_vocab_size(vocab_path: Path) -> int:
     """Zkontroluje počet tokenů v vocab souboru"""
     if not vocab_path.exists():
         return -1
-    
+
     with open(vocab_path, "r", encoding="utf-8") as f:
         lines = [line.strip() for line in f.readlines() if line.strip()]
-    
+
     # Odstranit duplikáty, ale zachovat pořadí
     seen = set()
     unique_tokens = []
@@ -33,42 +33,42 @@ def check_vocab_size(vocab_path: Path) -> int:
         if token not in seen:
             seen.add(token)
             unique_tokens.append(token)
-    
+
     return len(unique_tokens)
 
 def check_checkpoint_vocab_size(ckpt_path: Path) -> int:
     """Zkontroluje vocab size v checkpointu"""
     if not ckpt_path.exists():
         return -1
-    
+
     try:
         checkpoint = torch.load(ckpt_path, map_location='cpu')
-        
+
         # Zkusit najít vocab size v různých možných klíčích
         vocab_size = None
-        
+
         # Zkusit ema_model_state_dict
         if 'ema_model_state_dict' in checkpoint:
             state_dict = checkpoint['ema_model_state_dict']
             embed_key = 'transformer.text_embed.text_embed.weight'
             if embed_key in state_dict:
                 vocab_size = state_dict[embed_key].shape[0]
-        
+
         # Zkusit model_state_dict
         if vocab_size is None and 'model_state_dict' in checkpoint:
             state_dict = checkpoint['model_state_dict']
             embed_key = 'transformer.text_embed.text_embed.weight'
             if embed_key in state_dict:
                 vocab_size = state_dict[embed_key].shape[0]
-        
+
         # Zkusit přímo v root
         if vocab_size is None:
             embed_key = 'transformer.text_embed.text_embed.weight'
             if embed_key in checkpoint:
                 vocab_size = checkpoint[embed_key].shape[0]
-        
+
         return vocab_size if vocab_size is not None else -1
-        
+
     except Exception as e:
         print(f"❌ Chyba při načítání checkpointu: {e}")
         return -1
@@ -78,7 +78,7 @@ def check_model_config(model_dir: Path) -> tuple[bool, Path]:
     local_config = model_dir / "F5TTS_Czech.yaml"
     if local_config.exists():
         return True, local_config
-    
+
     # Zkusit najít base config
     try:
         import importlib.util
@@ -93,7 +93,7 @@ def check_model_config(model_dir: Path) -> tuple[bool, Path]:
                 return False, base_config
     except Exception:
         pass
-    
+
     return False, None
 
 def main():
@@ -101,44 +101,44 @@ def main():
     print("DIAGNOSTIKA F5TTS ČESKÉHO FINETUNOVANÉHO MODELU")
     print("=" * 70)
     print()
-    
+
     model_dir = config.F5_CZECH_MODEL_DIR
     ckpt_name = config.F5_CZECH_CKPT_NAME
     vocab_name = config.F5_CZECH_VOCAB_NAME
-    
+
     ckpt_path = model_dir / ckpt_name
     vocab_path = model_dir / vocab_name
-    
+
     print(f"📁 Model directory: {model_dir}")
     print(f"📄 Checkpoint: {ckpt_name}")
     print(f"📄 Vocab: {vocab_name}")
     print()
-    
+
     # Kontrola 1: Existence souborů
     print("1️⃣ KONTROLA EXISTENCE SOUBORŮ")
     print("-" * 70)
-    
+
     ckpt_exists = ckpt_path.exists()
     vocab_exists = vocab_path.exists()
-    
+
     print(f"Checkpoint: {'✅ Existuje' if ckpt_exists else '❌ Nenalezen'} ({ckpt_path})")
     print(f"Vocab: {'✅ Existuje' if vocab_exists else '❌ Nenalezen'} ({vocab_path})")
     print()
-    
+
     if not ckpt_exists or not vocab_exists:
         print("⚠️  Některé soubory chybí. Zkontrolujte konfiguraci.")
         return
-    
+
     # Kontrola 2: Vocab size kompatibilita
     print("2️⃣ KONTROLA KOMPATIBILITY VOCAB SIZE")
     print("-" * 70)
-    
+
     vocab_size = check_vocab_size(vocab_path)
     ckpt_vocab_size = check_checkpoint_vocab_size(ckpt_path)
-    
+
     print(f"Vocab soubor: {vocab_size} tokenů")
     print(f"Checkpoint: {ckpt_vocab_size} tokenů")
-    
+
     if vocab_size == -1:
         print("❌ Nepodařilo se načíst vocab soubor")
     elif ckpt_vocab_size == -1:
@@ -170,13 +170,13 @@ def main():
             print(f"   → Musíte odebrat {vocab_size - ckpt_vocab_size} tokenů z vocab souboru")
             print(f"   → Nebo použít patch_checkpoint_vocab_to_103.py pro úpravu checkpointu")
     print()
-    
+
     # Kontrola 3: Model config
     print("3️⃣ KONTROLA MODEL CONFIG")
     print("-" * 70)
-    
+
     has_local_config, config_path = check_model_config(model_dir)
-    
+
     if has_local_config:
         print(f"✅ Lokální model config nalezen: {config_path}")
         print("   → Model bude používat vlastní konfiguraci")
@@ -190,14 +190,14 @@ def main():
     else:
         print("❌ Model config nenalezen ani lokálně, ani v balíčku f5_tts")
     print()
-    
+
     # Kontrola 4: NFE nastavení
     print("4️⃣ KONTROLA NFE NASTAVENÍ")
     print("-" * 70)
-    
+
     nfe = config.F5_CZECH_DEFAULT_NFE
     print(f"Aktuální NFE: {nfe}")
-    
+
     if nfe < 16:
         print("⚠️  NFE je příliš nízké (< 16) - může způsobit horší kvalitu")
         print("   → Doporučeno: 16-32")
@@ -206,18 +206,18 @@ def main():
         print("   → Doporučeno: 16-32")
     else:
         print(f"✅ NFE je v rozumném rozsahu")
-    
+
     print()
     print("🔧 DOPORUČENÍ PRO NFE:")
     print("   → Pro finetunované modely zkuste: 20-24")
     print("   → Nastavte pomocí: export F5_CZECH_DEFAULT_NFE=20")
     print()
-    
+
     # Shrnutí
     print("=" * 70)
     print("SHRNUTÍ")
     print("=" * 70)
-    
+
     issues = []
     # Kontrola kompatibility - akceptujeme i variantu s padding tokenem
     if vocab_size > 0 and ckpt_vocab_size > 0:
@@ -227,7 +227,7 @@ def main():
         issues.append("Chybí lokální model config")
     if nfe < 16 or nfe > 32:
         issues.append("NFE mimo doporučený rozsah")
-    
+
     if issues:
         print("❌ Nalezeny problémy:")
         for issue in issues:

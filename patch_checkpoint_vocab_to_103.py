@@ -45,25 +45,25 @@ print(f"Current vocab size in checkpoint: {current_size}")
 target_size = 103
 if current_size < target_size:
     print(f"🔧 Rozšiřuji vocab z {current_size} na {target_size} (přidávám padding token)")
-    
+
     # Přidat 1 embedding pro padding token
     # Inicializovat malými náhodnými hodnotami (bude finetunováno)
     extra_embed = torch.randn(1, current_embed.shape[1]) * 0.02
     new_embed = torch.cat([current_embed, extra_embed], dim=0)
     state_dict[embed_key] = new_embed
-    
+
     # Aktualizovat oba state_dict pokud existují
     if 'ema_model_state_dict' in checkpoint:
         checkpoint['ema_model_state_dict'] = state_dict
     if 'model_state_dict' in checkpoint:
         checkpoint['model_state_dict'] = state_dict
-    
+
     # Vytvořit zálohu
     backup_path = ckpt_path.with_suffix('.pt.backup')
     import shutil
     shutil.copy2(ckpt_path, backup_path)
     print(f"✅ Záloha vytvořena: {backup_path}")
-    
+
     # Uložit upravený checkpoint
     torch.save(checkpoint, ckpt_path)
     print(f"✅ Checkpoint upraven a uložen: {ckpt_path}")
