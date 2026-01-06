@@ -179,6 +179,24 @@ class TTSParamsParser:
         return parse_optional_float_param(target_headroom_db, -128.0, 0.0, "target_headroom_db")
 
     @staticmethod
+    def parse_f5_params(
+        nfe_step: Optional[str] = None,
+        cfg_strength: Optional[str] = None,
+        sway_sampling_coef: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Parsuje specifické parametry pro F5-TTS"""
+        # nfe_step je Optional[int] - pokud není zadán, engine použije svůj default
+        nfe_step_value = None
+        if nfe_step is not None:
+            nfe_step_value = parse_int_param(nfe_step, 16, 1, "NFE Step")
+
+        return {
+            "nfe_step": nfe_step_value,
+            "cfg_strength": parse_float_param(cfg_strength, 2.0, 0.0, 10.0, "CFG Strength"),
+            "sway_sampling_coef": parse_float_param(sway_sampling_coef, -1.0, -1.0, 1.0, "Sway Sampling Coef"),
+        }
+
+    @staticmethod
     def parse_multi_pass_params(
         multi_pass: Optional[str] = None,
         multi_pass_count: Optional[int] = None,
@@ -234,6 +252,12 @@ class TTSParamsParser:
             multi_pass_count=kwargs.get("multi_pass_count"),
         )
 
+        f5_params = TTSParamsParser.parse_f5_params(
+            nfe_step=kwargs.get("nfe_step"),
+            cfg_strength=kwargs.get("cfg_strength"),
+            sway_sampling_coef=kwargs.get("sway_sampling_coef"),
+        )
+
         return {
             **basic,
             **enhancement,
@@ -241,6 +265,7 @@ class TTSParamsParser:
             **dialect,
             **whisper,
             **multi_pass,
+            **f5_params,
             "target_headroom_db": TTSParamsParser.parse_headroom_param(kwargs.get("target_headroom_db")),
             "quality_mode": kwargs.get("quality_mode"),
             "enhancement_preset": kwargs.get("enhancement_preset"),
