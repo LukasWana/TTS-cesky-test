@@ -53,6 +53,7 @@ frontend/.vite/
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
