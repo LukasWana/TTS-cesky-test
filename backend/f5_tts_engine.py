@@ -2,6 +2,7 @@
 F5-TTS Engine wrapper
 Používá CLI f5-tts_infer-cli pro inference (v1 implementace)
 """
+
 import uuid
 import asyncio
 import subprocess
@@ -22,7 +23,8 @@ from backend.config import (
     F5_OUTPUT_SAMPLE_RATE,
     F5_CZECH_MODEL_DIR,
     F5_CZECH_DEFAULT_NFE,
-    USE_CZECH_FINETUNED_MODEL
+    F5_CZECH_CONFIG_NAME,
+    USE_CZECH_FINETUNED_MODEL,
 )
 
 
@@ -35,7 +37,9 @@ class F5TTSEngine:
         self.model_name = F5_MODEL_NAME
         self.model_dir = F5_CZECH_MODEL_DIR
         self.use_finetuned = USE_CZECH_FINETUNED_MODEL
-        print(f"[INIT] F5TTSEngine initialized. Use finetuned Czech model: {self.use_finetuned}")
+        print(
+            f"[INIT] F5TTSEngine initialized. Use finetuned Czech model: {self.use_finetuned}"
+        )
 
     def _validate_model(self, ckpt_path: Path, vocab_path: Path) -> bool:
         """
@@ -47,7 +51,9 @@ class F5TTSEngine:
 
             # 1. Check vocab file size
             with open(vocab_path, "r", encoding="utf-8") as f:
-                vocab_lines = [l.strip('\n').strip('\r') for l in f.readlines() if l.strip()]
+                vocab_lines = [
+                    l.strip("\n").strip("\r") for l in f.readlines() if l.strip()
+                ]
 
             vocab_file_size = len(vocab_lines)
             print(f"[VALIDATION] Vocab file has {vocab_file_size} lines")
@@ -55,17 +61,21 @@ class F5TTSEngine:
             # 2. Check checkpoint embedding size
             print(f"[VALIDATION] Loading checkpoint header: {ckpt_path}")
             # Load only map_location to avoid full load if possible, or just load
-            checkpoint = torch.load(ckpt_path, map_location='cpu')
+            checkpoint = torch.load(ckpt_path, map_location="cpu")
 
             # Identify state_dict
             if isinstance(checkpoint, dict):
-                state_dict = checkpoint.get("ema_model_state_dict", checkpoint.get("model_state_dict"))
+                state_dict = checkpoint.get(
+                    "ema_model_state_dict", checkpoint.get("model_state_dict")
+                )
                 if state_dict is None:
                     # Checkpoint might be the state_dict itself or contain it under other keys
                     if any(k.startswith("transformer.") for k in checkpoint.keys()):
                         state_dict = checkpoint
                     else:
-                        print(f"[VALIDATION] ⚠️  Checkpoint structure unknown, searching for state_dict...")
+                        print(
+                            f"[VALIDATION] ⚠️  Checkpoint structure unknown, searching for state_dict..."
+                        )
                         # Fallback: find first key that looks like a state_dict
                         state_dict = checkpoint
             else:
@@ -73,9 +83,15 @@ class F5TTSEngine:
 
             embed_key = "transformer.text_embed.text_embed.weight"
             if not isinstance(state_dict, dict) or embed_key not in state_dict:
-                print(f"[VALIDATION] ⚠️  Embedding key {embed_key} not found in checkpoint.")
-                print(f"[VALIDATION] Available keys (first 5): {list(state_dict.keys())[:5] if isinstance(state_dict, dict) else 'Not a dict'}")
-                print(f"[VALIDATION] Podporujeme i tak - necháme F5TTS knihovnu, ať si s tím poradí.")
+                print(
+                    f"[VALIDATION] ⚠️  Embedding key {embed_key} not found in checkpoint."
+                )
+                print(
+                    f"[VALIDATION] Available keys (first 5): {list(state_dict.keys())[:5] if isinstance(state_dict, dict) else 'Not a dict'}"
+                )
+                print(
+                    f"[VALIDATION] Podporujeme i tak - necháme F5TTS knihovnu, ať si s tím poradí."
+                )
                 return True
 
             ckpt_vocab_size = state_dict[embed_key].shape[0]
@@ -83,18 +99,26 @@ class F5TTSEngine:
 
             # 3. Compare - checkpoint vocab size by měl odpovídat vocab file size
             if ckpt_vocab_size == vocab_file_size:
-                print(f"[VALIDATION] ✅ Kompatibilní - checkpoint a vocab mají stejnou velikost ({vocab_file_size})")
+                print(
+                    f"[VALIDATION] ✅ Kompatibilní - checkpoint a vocab mají stejnou velikost ({vocab_file_size})"
+                )
                 return True
             elif ckpt_vocab_size == vocab_file_size + 1:
-                print(f"[VALIDATION] ✅ Kompatibilní - checkpoint má o 1 token více (padding token): {ckpt_vocab_size} = {vocab_file_size} + 1")
+                print(
+                    f"[VALIDATION] ✅ Kompatibilní - checkpoint má o 1 token více (padding token): {ckpt_vocab_size} = {vocab_file_size} + 1"
+                )
                 return True
             elif ckpt_vocab_size + 1 == vocab_file_size:
                 print(f"[VALIDATION] ⚠️  Vocab soubor má o 1 token více než checkpoint")
                 print(f"[VALIDATION] ✅ Kompatibilní (vocab obsahuje padding token)")
                 return True
             else:
-                print(f"[VALIDATION] ❌ MISMATCH: Checkpoint ({ckpt_vocab_size}) != Vocab file ({vocab_file_size})")
-                print(f"[VALIDATION] Hint: Check if vocab.txt has correct number of lines or if checkpoint needs patching.")
+                print(
+                    f"[VALIDATION] ❌ MISMATCH: Checkpoint ({ckpt_vocab_size}) != Vocab file ({vocab_file_size})"
+                )
+                print(
+                    f"[VALIDATION] Hint: Check if vocab.txt has correct number of lines or if checkpoint needs patching."
+                )
                 return False
 
             print(f"[VALIDATION] ✅ Model and vocabulary are compatible.")
@@ -131,28 +155,28 @@ class F5TTSEngine:
             return -1
 
         try:
-            checkpoint = torch.load(ckpt_path, map_location='cpu')
+            checkpoint = torch.load(ckpt_path, map_location="cpu")
 
             # Zkusit najít vocab size v různých možných klíčích
             vocab_size = None
 
             # Zkusit ema_model_state_dict
-            if 'ema_model_state_dict' in checkpoint:
-                state_dict = checkpoint['ema_model_state_dict']
-                embed_key = 'transformer.text_embed.text_embed.weight'
+            if "ema_model_state_dict" in checkpoint:
+                state_dict = checkpoint["ema_model_state_dict"]
+                embed_key = "transformer.text_embed.text_embed.weight"
                 if embed_key in state_dict:
                     vocab_size = state_dict[embed_key].shape[0]
 
             # Zkusit model_state_dict
-            if vocab_size is None and 'model_state_dict' in checkpoint:
-                state_dict = checkpoint['model_state_dict']
-                embed_key = 'transformer.text_embed.text_embed.weight'
+            if vocab_size is None and "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+                embed_key = "transformer.text_embed.text_embed.weight"
                 if embed_key in state_dict:
                     vocab_size = state_dict[embed_key].shape[0]
 
             # Zkusit přímo v root
             if vocab_size is None:
-                embed_key = 'transformer.text_embed.text_embed.weight'
+                embed_key = "transformer.text_embed.text_embed.weight"
                 if embed_key in checkpoint:
                     vocab_size = checkpoint[embed_key].shape[0]
 
@@ -182,17 +206,31 @@ class F5TTSEngine:
 
                 # Validace kompatibility
                 if not self._validate_model(ckpt_path, vocab_path):
-                    print("[WARN] Model validation failed. Falling back to CLI mode for safety.")
+                    print(
+                        "[WARN] Model validation failed. Falling back to CLI mode for safety."
+                    )
                     self.tts_instance = None
                 else:
+                    # Hledat český config soubor
+                    model_cfg_path = self.model_dir / F5_CZECH_CONFIG_NAME
+                    if not model_cfg_path.exists():
+                        print(
+                            f"[INFO] Czech config not found, using base config for API mode"
+                        )
+                        model_cfg_path = None  # F5TTS API použije default
+
                     self.tts_instance = F5TTS(
                         ckpt_file=str(ckpt_path),
                         vocab_file=str(vocab_path),
-                        device=self.device
+                        device=self.device,
                     )
                     print("[OK] F5-TTS Czech model loaded successfully via API.")
+                    if model_cfg_path and model_cfg_path.exists():
+                        print(f"[INFO] Using Czech config: {model_cfg_path}")
             else:
-                print("[INFO] No specific Czech model found for API loading, will use CLI mode if needed.")
+                print(
+                    "[INFO] No specific Czech model found for API loading, will use CLI mode if needed."
+                )
                 self.tts_instance = None
 
         except Exception as e:
@@ -207,11 +245,9 @@ class F5TTSEngine:
         speaker_wav: str,
         language: str = "cs",
         speed: float = 1.0,
-        temperature: float = 0.7,
-        length_penalty: float = 1.0,
-        repetition_penalty: float = 2.0,
-        top_k: int = 50,
-        top_p: float = 0.85,
+        nfe_step: Optional[int] = None,
+        cfg_strength: float = 2.0,
+        sway_sampling_coef: float = -1.0,
         quality_mode: Optional[str] = None,
         seed: Optional[int] = None,
         enhancement_preset: Optional[str] = None,
@@ -233,11 +269,17 @@ class F5TTSEngine:
         hifigan_normalize_output: Optional[bool] = None,
         hifigan_normalize_gain: Optional[float] = None,
         job_id: Optional[str] = None,
-        ref_text: Optional[str] = None,  # Volitelně: přepis reference audio pro lepší kvalitu
+        ref_text: Optional[str] = None,
         enable_enhancement: Optional[bool] = None,
+        # Slovak model s fonetickou adaptací
+        use_slovak_model: bool = False,
     ) -> str:
         """
         Generuje řeč pomocí F5-TTS (API nebo CLI fallback)
+
+        Args:
+            use_slovak_model: Pokud True, použije Slovak model s fonetickou adaptací
+                              pro generování českého textu
         """
         # Ověření existence reference audio
         if not Path(speaker_wav).exists():
@@ -247,18 +289,49 @@ class F5TTSEngine:
         output_filename = f"{uuid.uuid4()}.wav"
         output_path = OUTPUTS_DIR / output_filename
 
-        # Předzpracování textu (český preprocessing)
-        from backend.cs_pipeline import preprocess_czech_text
-        processed_text = preprocess_czech_text(
+        # Předzpracování textu (český preprocessing pro F5-TTS)
+        from backend.cs_f5_pipeline import preprocess_czech_f5_text
+
+        processed_text = preprocess_czech_f5_text(
             text,
             language,
             enable_dialect_conversion=enable_dialect_conversion,
             dialect_code=dialect_code,
             dialect_intensity=dialect_intensity,
-            apply_voicing=False,  # Deaktivované - způsobuje "drmolení" v F5-TTS
-            apply_glottal_stop=False  # Deaktivované - model matí ráz/apostrof
+            use_slovak_model=use_slovak_model,  # Aktivace fonetické adaptace
         )
 
+        # Slovak model: Použít Slovak F5-TTS místo Czech
+        if use_slovak_model:
+            return await self._generate_with_slovak_model(
+                processed_text,
+                speaker_wav,
+                str(output_path),
+                speed,
+                nfe_step,
+                cfg_strength,
+                sway_sampling_coef,
+                seed,
+                job_id,
+                enhancement_preset,
+                enable_vad,
+                use_hifigan,
+                enable_normalization,
+                enable_denoiser,
+                enable_compressor,
+                enable_deesser,
+                enable_eq,
+                enable_trim,
+                enable_whisper,
+                whisper_intensity,
+                target_headroom_db,
+                hifigan_refinement_intensity,
+                hifigan_normalize_output,
+                hifigan_normalize_gain,
+                enable_enhancement,
+            )
+
+        # Czech model (původní logika)
         # Načíst model pokud ještě není (lazy load)
         if not self.is_loaded:
             await self.load_model()
@@ -267,7 +340,7 @@ class F5TTSEngine:
         loop = asyncio.get_event_loop()
 
         # Pokud máme instanci TTS (API), použijeme ji
-        if hasattr(self, 'tts_instance') and self.tts_instance is not None:
+        if hasattr(self, "tts_instance") and self.tts_instance is not None:
             await loop.run_in_executor(
                 None,
                 self._generate_sync_api,
@@ -275,7 +348,11 @@ class F5TTSEngine:
                 speaker_wav,
                 str(output_path),
                 ref_text,
-                job_id
+                job_id,
+                nfe_step,
+                cfg_strength,
+                sway_sampling_coef,
+                seed,
             )
         else:
             # Jinak fallback na CLI
@@ -286,7 +363,11 @@ class F5TTSEngine:
                 speaker_wav,
                 str(output_path),
                 ref_text,
-                job_id
+                job_id,
+                nfe_step,
+                cfg_strength,
+                sway_sampling_coef,
+                seed,
             )
 
         # Post-processing (stejné jako XTTS)
@@ -309,7 +390,7 @@ class F5TTSEngine:
             hifigan_normalize_output,
             hifigan_normalize_gain,
             job_id,
-            enable_enhancement
+            enable_enhancement,
         )
 
         return str(output_path)
@@ -320,14 +401,20 @@ class F5TTSEngine:
         ref_audio: str,
         output_path: str,
         ref_text: Optional[str],
-        job_id: Optional[str]
+        job_id: Optional[str],
+        nfe_step: Optional[int] = None,
+        cfg_strength: float = 2.0,
+        sway_sampling_coef: float = -1.0,
+        seed: Optional[int] = None,
     ):
         """Synchronní generování přes F5-TTS API (v paměti)"""
+
         def _progress(pct: float, stage: str, msg: str):
             if not job_id:
                 return
             try:
                 from backend.progress_manager import ProgressManager
+
                 ProgressManager.update(job_id, percent=pct, stage=stage, message=msg)
             except Exception:
                 pass
@@ -336,18 +423,48 @@ class F5TTSEngine:
             _progress(15, "f5_tts", "Generuji řeč (F5-TTS Czech API)…")
 
             # Detekce ref_text (přepis reference)
-            # Pokud není zadán, F5TTS API ho může zkusit odhadnout nebo vyžaduje
-            # Ale v uživatelském příkladu byl zadán.
             reference_text = ref_text if ref_text else ""
 
-            # API volání
-            # tts.infer(ref_file, ref_text, gen_text, file_wave)
-            self.tts_instance.infer(
-                ref_file=ref_audio,
-                ref_text=reference_text,
-                gen_text=text,
-                file_wave=output_path
-            )
+            # API volání - tts.infer(...)
+            # Různé verze F5-TTS API mají různé parametry.
+            # Zkusíme nejprve kompletní sadu (často s názvy bez 'gen_' prefixu)
+            from backend.config import F5_CZECH_DEFAULT_NFE
+
+            try:
+                # Zkusíme modernější/bohatší signaturu
+                infer_kwargs = {
+                    "ref_file": ref_audio,
+                    "ref_text": reference_text,
+                    "gen_text": text,
+                    "file_wave": output_path,
+                }
+
+                # Dynamicky určíme NFE default pokud není zadán
+                actual_nfe = nfe_step if nfe_step else F5_CZECH_DEFAULT_NFE
+
+                # Přidáme diffusion parametry - F5-TTS API je může podporovat jako kwargs
+                # (pokud ne, zachytíme TypeError níže)
+                self.tts_instance.infer(
+                    **infer_kwargs,
+                    nfe_step=actual_nfe,
+                    cfg_strength=cfg_strength,
+                    sway_sampling_coef=sway_sampling_coef,
+                    seed=seed,
+                )
+            except TypeError as e:
+                # Pokud dostaneme chybu o nečekaném argumentu, zkusíme osekanou verzi
+                if "unexpected keyword argument" in str(e):
+                    print(
+                        f"[INFO] F5TTS.infer doesn't support some advanced parameters, falling back to basic call: {e}"
+                    )
+                    self.tts_instance.infer(
+                        ref_file=ref_audio,
+                        ref_text=reference_text,
+                        gen_text=text,
+                        file_wave=output_path,
+                    )
+                else:
+                    raise e
 
             _progress(55, "f5_tts", "F5-TTS API inference dokončena")
 
@@ -361,14 +478,20 @@ class F5TTSEngine:
         ref_audio: str,
         output_path: str,
         ref_text: Optional[str],
-        job_id: Optional[str]
+        job_id: Optional[str],
+        nfe_step: Optional[int] = None,
+        cfg_strength: float = 2.0,
+        sway_sampling_coef: float = -1.0,
+        seed: Optional[int] = None,
     ):
         """Synchronní generování přes F5-TTS CLI (fallback)"""
+
         def _progress(pct: float, stage: str, msg: str):
             if not job_id:
                 return
             try:
                 from backend.progress_manager import ProgressManager
+
                 ProgressManager.update(job_id, percent=pct, stage=stage, message=msg)
             except Exception:
                 pass
@@ -380,6 +503,7 @@ class F5TTSEngine:
             out_p = Path(output_path)
 
             import sys
+
             cli_exe = shutil.which("f5-tts_infer-cli")
             if not cli_exe or not Path(cli_exe).exists():
                 venv_scripts = Path(sys.executable).parent / "f5-tts_infer-cli.exe"
@@ -395,11 +519,14 @@ class F5TTSEngine:
 
             if use_local_model:
                 from backend.config import F5_CZECH_CKPT_NAME, F5_CZECH_VOCAB_NAME
+
                 ckpt_path = self.model_dir / F5_CZECH_CKPT_NAME
                 vocab_path = self.model_dir / F5_CZECH_VOCAB_NAME
 
                 if not ckpt_path.exists() or not vocab_path.exists():
-                    print(f"[INFO] Czech model from config not found, searching in {self.model_dir}")
+                    print(
+                        f"[INFO] Czech model from config not found, searching in {self.model_dir}"
+                    )
                     # ... (původní vyhledávací logika by tu mohla být, ale pro stručnost ji zachováme jen v CLI mode)
                     possible_ckpt_names = ["model_last.pt", "model.pt"]
                     possible_vocab_names = ["vocab.txt"]
@@ -413,42 +540,84 @@ class F5TTSEngine:
                             vocab_path = self.model_dir / name
                             break
 
-                if not ckpt_path or not ckpt_path.exists() or not vocab_path or not vocab_path.exists():
+                if (
+                    not ckpt_path
+                    or not ckpt_path.exists()
+                    or not vocab_path
+                    or not vocab_path.exists()
+                ):
                     use_local_model = False
 
             # Sestavit CLI příkaz
             if use_local_model and ckpt_path and vocab_path:
-                model_cfg_path = self.model_dir / "F5TTS_Czech.yaml"
+                # Hledat config soubor - preferovat český config, pak fallback na base
+                model_cfg_path = self.model_dir / F5_CZECH_CONFIG_NAME
                 if not model_cfg_path.exists():
+                    # Fallback na base config z balíčku f5_tts
                     import importlib.util
+
                     spec = importlib.util.find_spec("f5_tts")
                     f5_base = Path(list(spec.submodule_search_locations)[0]).resolve()
                     model_cfg_path = f5_base / "configs" / "F5TTS_v1_Base.yaml"
+                    print(f"[INFO] Using base config: {model_cfg_path}")
+                else:
+                    print(f"[INFO] Using Czech-specific config: {model_cfg_path}")
 
+                actual_nfe = nfe_step if nfe_step else F5_CZECH_DEFAULT_NFE
                 cmd = [
                     cli_exe,
-                    "-m", "F5TTS_Czech" if (self.model_dir / "F5TTS_Czech.yaml").exists() else "F5TTS_v1_Base",
-                    "-r", ref_audio,
-                    "-t", text,
-                    "-o", str(out_p.parent),
-                    "-w", out_p.name,
-                    "--ckpt_file", str(ckpt_path),
-                    "--vocab_file", str(vocab_path),
-                    "--model_cfg", str(model_cfg_path),
-                    "--device", str(self.device),
-                    "--nfe_step", str(F5_CZECH_DEFAULT_NFE),
+                    "-m",
+                    "F5TTS_v1_Base",  # Force base model name for consistency with Slovak engine
+                    "-r",
+                    ref_audio,
+                    "-t",
+                    text,
+                    "-o",
+                    str(out_p.parent),
+                    "-w",
+                    out_p.name,
+                    "--ckpt_file",
+                    str(ckpt_path),
+                    "--vocab_file",
+                    str(vocab_path),
+                    "--model_cfg",
+                    str(model_cfg_path),
+                    "--device",
+                    str(self.device),
+                    "--nfe_step",
+                    str(actual_nfe),
+                    "--cfg_strength",
+                    str(cfg_strength),
+                    "--sway_sampling_coef",
+                    str(sway_sampling_coef),
                 ]
+                if seed is not None:
+                    cmd.extend(["--seed", str(seed)])
             else:
+                actual_nfe = nfe_step if nfe_step else F5_DEFAULT_NFE
                 cmd = [
                     cli_exe,
-                    "-m", self.model_name,
-                    "-r", ref_audio,
-                    "-t", text,
-                    "-o", str(out_p.parent),
-                    "-w", out_p.name,
-                    "--device", str(self.device),
-                    "--nfe_step", str(F5_DEFAULT_NFE),
+                    "-m",
+                    self.model_name,
+                    "-r",
+                    ref_audio,
+                    "-t",
+                    text,
+                    "-o",
+                    str(out_p.parent),
+                    "-w",
+                    out_p.name,
+                    "--device",
+                    str(self.device),
+                    "--nfe_step",
+                    str(actual_nfe),
+                    "--cfg_strength",
+                    str(cfg_strength),
+                    "--sway_sampling_coef",
+                    str(sway_sampling_coef),
                 ]
+                if seed is not None:
+                    cmd.extend(["--seed", str(seed)])
 
             if ref_text:
                 cmd.extend(["-s", ref_text])
@@ -476,7 +645,14 @@ class F5TTSEngine:
                         del env["PYTHONHASHSEED"]
             env["WANDB_MODE"] = "disabled"
 
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(out_p.parent), timeout=300, env=env)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=str(out_p.parent),
+                timeout=300,
+                env=env,
+            )
 
             if result.returncode != 0:
                 raise Exception(f"F5-TTS CLI selhal: {result.stderr or result.stdout}")
@@ -501,12 +677,19 @@ class F5TTSEngine:
         except Exception as e:
             error_str = str(e)
             # Pokud už je to naše vlastní chybová zpráva, jen ji přepošleme
-            if "F5-TTS vyžaduje FFmpeg" in error_str or "f5-tts_infer-cli nebyl nalezen" in error_str:
+            if (
+                "F5-TTS vyžaduje FFmpeg" in error_str
+                or "f5-tts_infer-cli nebyl nalezen" in error_str
+            ):
                 raise
             # Jinak přidáme kontext
             print(f"F5-TTS generování selhalo: {e}")
             # Zkontroluj, jestli to není FFmpeg/torchcodec problém
-            if "libtorchcodec" in error_str or "FFmpeg" in error_str or "torchcodec" in error_str:
+            if (
+                "libtorchcodec" in error_str
+                or "FFmpeg" in error_str
+                or "torchcodec" in error_str
+            ):
                 detailed_error = (
                     "F5-TTS vyžaduje FFmpeg s podporou TorchCodec.\n\n"
                     "ŘEŠENÍ:\n"
@@ -523,6 +706,235 @@ class F5TTSEngine:
                 )
                 raise Exception(detailed_error)
             raise
+
+    async def _generate_with_slovak_model(
+        self,
+        text: str,
+        speaker_wav: str,
+        output_path: str,
+        speed: float,
+        nfe_step: Optional[int],
+        cfg_strength: float,
+        sway_sampling_coef: float,
+        seed: Optional[int],
+        job_id: Optional[str],
+        enhancement_preset: Optional[str],
+        enable_vad: Optional[bool],
+        use_hifigan: bool,
+        enable_normalization: bool,
+        enable_denoiser: bool,
+        enable_compressor: bool,
+        enable_deesser: bool,
+        enable_eq: bool,
+        enable_trim: bool,
+        enable_whisper: bool,
+        whisper_intensity: float,
+        target_headroom_db: Optional[float],
+        hifigan_refinement_intensity: Optional[float],
+        hifigan_normalize_output: Optional[bool],
+        hifigan_normalize_gain: Optional[float],
+        enable_enhancement: Optional[bool],
+    ) -> str:
+        """
+        Generuje řeč pomocí Slovak F5-TTS modelu s fonetickou adaptací.
+
+        Text je již předzpracován (české znaky nahrazeny slovenskými ekvivalenty).
+        Slovak model pak generuje zvuk, který zní česky.
+        """
+        import subprocess
+        import shutil
+        import tempfile
+
+        def _progress(pct: float, stage: str, msg: str):
+            if not job_id:
+                return
+            try:
+                from backend.progress_manager import ProgressManager
+
+                ProgressManager.update(job_id, percent=pct, stage=stage, message=msg)
+            except Exception:
+                pass
+
+        try:
+            _progress(15, "f5_slovak", "Generuji řeč (F5-TTS Slovak model)…")
+
+            out_p = Path(output_path)
+
+            import sys
+
+            # Najít CLI executable
+            cli_exe = shutil.which("f5-tts_infer-cli")
+            if not cli_exe or not Path(cli_exe).exists():
+                venv_scripts = Path(sys.executable).parent / "f5-tts_infer-cli.exe"
+                if venv_scripts.exists():
+                    cli_exe = str(venv_scripts)
+                else:
+                    raise FileNotFoundError("f5-tts_infer-cli nebyl nalezen.")
+
+            # Slovak model - použijeme lokální checkpoint a vocab
+            from backend.config import (
+                F5_SLOVAK_DEFAULT_NFE,
+                F5_SLOVAK_MODEL_DIR,
+            )
+
+            actual_nfe = nfe_step if nfe_step else F5_SLOVAK_DEFAULT_NFE
+
+            # Cesty k Slovak modelu
+            slovak_ckpt = F5_SLOVAK_MODEL_DIR / "model_30000.safetensors"
+            slovak_vocab = F5_SLOVAK_MODEL_DIR / "model_30000.txt"
+
+            if not slovak_ckpt.exists():
+                raise FileNotFoundError(
+                    f"Slovak checkpoint not found: {slovak_ckpt}\n"
+                    "Please install the Slovak model first."
+                )
+            if not slovak_vocab.exists():
+                raise FileNotFoundError(
+                    f"Slovak vocab not found: {slovak_vocab}\n"
+                    "Please install the Slovak model first."
+                )
+
+            # Najít base config z F5-TTS balíčku
+            import importlib.util
+
+            spec = importlib.util.find_spec("f5_tts")
+            if not spec or not spec.submodule_search_locations:
+                raise RuntimeError(
+                    "Nelze najít balíček f5_tts. Je f5-tts nainstalován?"
+                )
+            f5_base = Path(list(spec.submodule_search_locations)[0]).resolve()
+            model_cfg_path = f5_base / "configs" / "F5TTS_v1_Base.yaml"
+            if not model_cfg_path.exists():
+                model_cfg_path = f5_base / "configs" / "F5TTS_Base.yaml"
+            if not model_cfg_path.exists():
+                raise FileNotFoundError(
+                    f"Base config not found in f5_tts: {model_cfg_path}"
+                )
+
+            # Vytvoříme dočasný working directory
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_out = Path(temp_dir) / "output.wav"
+
+                # CLI příkaz s explicitními cestami (stejně jako Slovak engine)
+                cmd = [
+                    cli_exe,
+                    "-m",
+                    "F5TTS_v1_Base",  # Base model name
+                    "-r",
+                    speaker_wav,
+                    "-t",
+                    text,
+                    "-o",
+                    str(temp_dir),
+                    "-w",
+                    "output.wav",
+                    "--ckpt_file",
+                    str(slovak_ckpt),
+                    "--vocab_file",
+                    str(slovak_vocab),
+                    "--model_cfg",
+                    str(model_cfg_path),
+                    "--device",
+                    str(self.device),
+                    "--nfe_step",
+                    str(actual_nfe),
+                    "--cfg_strength",
+                    str(cfg_strength),
+                    "--sway_sampling_coef",
+                    str(sway_sampling_coef),
+                ]
+
+                if seed is not None:
+                    cmd.extend(["--seed", str(seed)])
+
+                print(f"🔊 F5-TTS Slovak CLI: {' '.join(cmd)}")
+                env = os.environ.copy()
+                env["PYTHONUTF8"] = "1"
+                env["PYTHONIOENCODING"] = "utf-8"
+                # Fix pro PYTHONHASHSEED
+                if "PYTHONHASHSEED" in env:
+                    hashseed_val = env["PYTHONHASHSEED"].strip()
+                    if hashseed_val == "":
+                        del env["PYTHONHASHSEED"]
+                    elif hashseed_val.lower() != "random":
+                        try:
+                            hashseed_int = int(hashseed_val)
+                            if hashseed_int < 0 or hashseed_int > 4294967295:
+                                del env["PYTHONHASHSEED"]
+                        except ValueError:
+                            del env["PYTHONHASHSEED"]
+                env["WANDB_MODE"] = "disabled"
+                # HuggingFace cache
+                env["HF_HOME"] = str(Path.home() / ".cache" / "huggingface")
+
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,  # 10 minut timeout pro stahování modelu
+                    env=env,
+                )
+
+                if result.returncode != 0:
+                    print(f"STDERR: {result.stderr}")
+                    print(f"STDOUT: {result.stdout}")
+                    raise Exception(
+                        f"F5-TTS Slovak CLI selhal: {result.stderr or result.stdout}"
+                    )
+
+                # Zkontrolovat výstup
+                if not temp_out.exists():
+                    # Zkusit najít výstupní soubor jinde
+                    import glob
+
+                    possible_outputs = glob.glob(str(Path(temp_dir) / "*.wav"))
+                    if not possible_outputs:
+                        raise Exception(
+                            f"F5-TTS Slovak CLI nevytvořil výstupní soubor v {temp_dir}"
+                        )
+                    temp_out = Path(possible_outputs[0])
+
+                # Kopírovat výstup do cílového umístění
+                import shutil
+
+                shutil.copy(str(temp_out), str(out_p))
+                print(f"[OK] Slovak model output copied to {out_p}")
+
+        except FileNotFoundError as e:
+            error_msg = (
+                "f5-tts_infer-cli nebyl nalezen pro Slovak model.\n\n"
+                "Pro instalaci F5-TTS spusťte:\n"
+                "  pip install f5-tts\n\n"
+                "Po instalaci restartujte backend server."
+            )
+            raise Exception(error_msg)
+        except Exception as e:
+            raise Exception(f"F5-TTS Slovak generování selhalo: {e}")
+
+        # Post-processing (stejný jako pro Czech model)
+        await self._apply_post_processing(
+            output_path,
+            speed,
+            enhancement_preset,
+            enable_vad,
+            use_hifigan,
+            enable_normalization,
+            enable_denoiser,
+            enable_compressor,
+            enable_deesser,
+            enable_eq,
+            enable_trim,
+            enable_whisper,
+            whisper_intensity,
+            target_headroom_db,
+            hifigan_refinement_intensity,
+            hifigan_normalize_output,
+            hifigan_normalize_gain,
+            job_id,
+            enable_enhancement,
+        )
+
+        return output_path
 
     async def _apply_post_processing(
         self,
@@ -544,7 +956,7 @@ class F5TTSEngine:
         hifigan_normalize_output: Optional[bool],
         hifigan_normalize_gain: Optional[float],
         job_id: Optional[str],
-        enable_enhancement: Optional[bool] = None
+        enable_enhancement: Optional[bool] = None,
     ):
         """
         Aplikuje stejný post-processing jako XTTS pro konzistenci
@@ -558,7 +970,7 @@ class F5TTSEngine:
             AUDIO_ENHANCEMENT_PRESET,
             OUTPUT_SAMPLE_RATE,
             OUTPUT_HEADROOM_DB,
-            ENABLE_VAD
+            ENABLE_VAD,
         )
         import librosa
         import soundfile as sf
@@ -572,6 +984,7 @@ class F5TTSEngine:
                 return
             try:
                 from backend.progress_manager import ProgressManager
+
                 ProgressManager.update(job_id, percent=pct, stage=stage, message=msg)
             except Exception:
                 pass
@@ -584,8 +997,14 @@ class F5TTSEngine:
 
             # Upsampling na cílovou sample rate (pokud je jiná)
             if sr != OUTPUT_SAMPLE_RATE:
-                _progress(62, "upsample", f"Převzorkování z {sr} Hz na {OUTPUT_SAMPLE_RATE} Hz…")
-                audio = librosa.resample(audio, orig_sr=sr, target_sr=OUTPUT_SAMPLE_RATE)
+                _progress(
+                    62,
+                    "upsample",
+                    f"Převzorkování z {sr} Hz na {OUTPUT_SAMPLE_RATE} Hz…",
+                )
+                audio = librosa.resample(
+                    audio, orig_sr=sr, target_sr=OUTPUT_SAMPLE_RATE
+                )
                 sr = OUTPUT_SAMPLE_RATE
 
             # Trim ticha (VAD nebo librosa)
@@ -593,8 +1012,11 @@ class F5TTSEngine:
                 try:
                     if enable_vad and ENABLE_VAD:
                         from backend.vad_processor import get_vad_processor
+
                         vad_processor = get_vad_processor()
-                        audio = vad_processor.trim_silence_vad(audio, sample_rate=sr, padding_ms=50.0)
+                        audio = vad_processor.trim_silence_vad(
+                            audio, sample_rate=sr, padding_ms=50.0
+                        )
                     else:
                         audio, _ = librosa.effects.trim(audio, top_db=30)
                 except Exception as e:
@@ -605,9 +1027,16 @@ class F5TTSEngine:
             _progress(65, "post", "Upsampling dokončen")
 
             # Audio enhancement (globálně + per-request)
-            if ENABLE_AUDIO_ENHANCEMENT and (enable_enhancement is None or enable_enhancement):
+            if ENABLE_AUDIO_ENHANCEMENT and (
+                enable_enhancement is None or enable_enhancement
+            ):
                 try:
-                    preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
+                    preset_to_use = (
+                        enhancement_preset
+                        if enhancement_preset
+                        else AUDIO_ENHANCEMENT_PRESET
+                    )
+
                     def enhance_progress(percent: float, stage: str, message: str):
                         mapped_percent = 68.0 + (percent / 100.0) * 20.0
                         _progress(mapped_percent, "enhance", message)
@@ -625,7 +1054,7 @@ class F5TTSEngine:
                         whisper_intensity=whisper_intensity,
                         enable_vad=enable_vad,
                         target_headroom_db=target_headroom_db,
-                        progress_callback=enhance_progress
+                        progress_callback=enhance_progress,
                     )
                 except Exception as e:
                     print(f"Warning: Audio enhancement failed: {e}")
@@ -647,7 +1076,7 @@ class F5TTSEngine:
                             win_length=mel_params["win_length"],
                             n_mels=mel_params["n_mels"],
                             fmin=mel_params["fmin"],
-                            fmax=mel_params["fmax"]
+                            fmax=mel_params["fmax"],
                         )
                         mel_log = np.log10(np.maximum(mel, 1e-5))
                         refined_audio = vocoder.vocode(
@@ -656,7 +1085,7 @@ class F5TTSEngine:
                             original_audio=original_audio,
                             refinement_intensity=hifigan_refinement_intensity,
                             normalize_output=hifigan_normalize_output,
-                            normalize_gain=hifigan_normalize_gain
+                            normalize_gain=hifigan_normalize_gain,
                         )
                         if refined_audio is not None:
                             sf.write(output_path, refined_audio, sr)
@@ -674,14 +1103,23 @@ class F5TTSEngine:
                         cmd = [
                             "ffmpeg",
                             "-hide_banner",
-                            "-loglevel", "error",
+                            "-loglevel",
+                            "error",
                             "-y",
-                            "-i", str(output_path),
-                            "-filter:a", f"atempo={speed_float}",
-                            "-ar", str(OUTPUT_SAMPLE_RATE),
+                            "-i",
+                            str(output_path),
+                            "-filter:a",
+                            f"atempo={speed_float}",
+                            "-ar",
+                            str(OUTPUT_SAMPLE_RATE),
                             tmp_path,
                         ]
-                        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+                        subprocess.run(
+                            cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            check=True,
+                        )
                         os.replace(tmp_path, str(output_path))
                         print("✅ Rychlost změněna (FFmpeg atempo)")
                 except Exception as e:
@@ -692,9 +1130,17 @@ class F5TTSEngine:
             try:
                 _progress(97, "final", "Finální úpravy (headroom)…")
                 audio, sr = librosa.load(output_path, sr=None)
-                final_headroom_db = target_headroom_db if target_headroom_db is not None else OUTPUT_HEADROOM_DB
+                final_headroom_db = (
+                    target_headroom_db
+                    if target_headroom_db is not None
+                    else OUTPUT_HEADROOM_DB
+                )
                 if final_headroom_db is not None:
-                    peak = float(np.max(np.abs(audio))) if audio is not None and len(audio) else 0.0
+                    peak = (
+                        float(np.max(np.abs(audio)))
+                        if audio is not None and len(audio)
+                        else 0.0
+                    )
                     if peak > 0:
                         if float(final_headroom_db) < 0:
                             target_peak = 10 ** (float(final_headroom_db) / 20.0)
@@ -706,7 +1152,9 @@ class F5TTSEngine:
                     if not np.isfinite(audio).all():
                         audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
                     sf.write(output_path, audio, sr)
-                    print(f"🔉 Finální headroom ceiling: {final_headroom_db} dB (aplikováno jen pokud peak přesáhl cíl)")
+                    print(
+                        f"🔉 Finální headroom ceiling: {final_headroom_db} dB (aplikováno jen pokud peak přesáhl cíl)"
+                    )
             except Exception as e:
                 print(f"⚠️ Finální headroom selhal: {e}")
 
@@ -714,4 +1162,3 @@ class F5TTSEngine:
 
         except Exception as e:
             print(f"⚠️ Post-processing selhal: {e}")
-

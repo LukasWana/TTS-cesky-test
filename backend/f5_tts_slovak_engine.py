@@ -62,11 +62,9 @@ class F5TTSSlovakEngine:
         speaker_wav: str,
         language: str = "sk",
         speed: float = 1.0,
-        temperature: float = 0.7,
-        length_penalty: float = 1.0,
-        repetition_penalty: float = 2.0,
-        top_k: int = 50,
-        top_p: float = 0.85,
+        nfe_step: Optional[int] = None,
+        cfg_strength: float = 2.0,
+        sway_sampling_coef: float = -1.0,
         quality_mode: Optional[str] = None,
         seed: Optional[int] = None,
         enhancement_preset: Optional[str] = None,
@@ -99,12 +97,10 @@ class F5TTSSlovakEngine:
             speaker_wav: Cesta k referenčnímu audio souboru
             language: Jazyk (pouze "sk" aktivuje slovenské zpracování)
             speed: Rychlost řeči (aplikuje se jako post-processing)
-            temperature: Ignorováno (F5-TTS má jiné parametry)
-            length_penalty: Ignorováno
-            repetition_penalty: Ignorováno
-            top_k: Ignorováno
-            top_p: Ignorováno
-            quality_mode: Ignorováno (můžeme mapovat na NFE později)
+            nfe_step: Počet kroků pro odebrání šumu (diffusion)
+            cfg_strength: Síla navádění (Classifier-Free Guidance)
+            sway_sampling_coef: Koeficient vzorkování (dynamika)
+            quality_mode: Mapuje se na nfe_step pokud není zadáno
             seed: Seed pro reprodukovatelnost (pokud F5 podporuje)
             enhancement_preset: Preset pro audio enhancement
             enable_vad: Zapnout VAD
@@ -157,6 +153,9 @@ class F5TTSSlovakEngine:
             speaker_wav,
             str(output_path),
             ref_text,
+            nfe_step,
+            cfg_strength,
+            sway_sampling_coef,
             job_id
         )
 
@@ -192,6 +191,9 @@ class F5TTSSlovakEngine:
         ref_audio: str,
         output_path: str,
         ref_text: Optional[str],
+        nfe_step: Optional[int],
+        cfg_strength: float,
+        sway_sampling_coef: float,
         job_id: Optional[str]
     ):
         """Synchronní generování přes F5-TTS CLI"""
@@ -271,8 +273,16 @@ class F5TTSSlovakEngine:
                 "--vocab_file", str(vocab_path),
                 "--model_cfg", str(model_cfg_path),
                 "--device", str(self.device),
-                "--nfe_step", str(F5_SLOVAK_DEFAULT_NFE),
             ]
+
+            # Určení NFE kroků
+            actual_nfe = nfe_step
+            if actual_nfe is None:
+                actual_nfe = F5_SLOVAK_DEFAULT_NFE
+
+            cmd.extend(["--nfe_step", str(actual_nfe)])
+            cmd.extend(["--cfg_strength", str(cfg_strength)])
+            cmd.extend(["--sway_sampling_coef", str(sway_sampling_coef)])
 
             # Přidat ref_text pokud je zadán (zlepšuje kvalitu)
             if ref_text:
