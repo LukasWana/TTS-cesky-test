@@ -9,6 +9,7 @@ import History from './components/History'
 import MusicGen from './components/MusicGen'
 import Bark from './components/Bark'
 import F5TTS from './components/F5TTS'
+import F5TTSCzech from './components/F5TTSCzech'
 import AudioEditor from './components/AudioEditor'
 import VoicePreparation from './components/VoicePreparation'
 import Sidebar from './components/Sidebar'
@@ -177,8 +178,9 @@ function App() {
   }, [ttsEngine])
 
   const tabs = [
-    { id: 'voicepreparation', label: 'připrava hlasů', icon: 'microphone' },
+    { id: 'voicepreparation', label: 'příprava hlasů', icon: 'microphone' },
     { id: 'generate', label: 'české slovo', icon: 'speaker' },
+    { id: 'f5tts-cs', label: 'F5-TTS (Czech)', icon: 'speaker' },
     { id: 'f5tts', label: 'slovenské slovo', icon: 'speaker' },
     { id: 'musicgen', label: 'hudba', icon: 'music' },
     { id: 'bark', label: 'FX & English', icon: 'speaker' },
@@ -306,6 +308,70 @@ function App() {
     } catch (err) {
       console.error('Chyba při importu z YouTube:', err)
       setError('Chyba při načítání staženého hlasu')
+    }
+  }
+
+  // Copy/Paste settings functionality
+  const handleCopySettings = () => {
+    try {
+      console.log('🔵🔵🔵 COPY FUNKCE BYLA ZAVOLÁNA! 🔵🔵🔵')
+      console.log('Aktuální profil:', activeVariant)
+      console.log('Aktuální TTS nastavení:', ttsSettings)
+      console.log('Aktuální Quality nastavení:', qualitySettings)
+
+      const settingsToCopy = {
+        ttsSettings: { ...ttsSettings },
+        qualitySettings: { ...qualitySettings },
+        timestamp: Date.now(),
+        sourceVariant: activeVariant
+      }
+
+      sessionStorage.setItem('tts_copied_settings_xtts', JSON.stringify(settingsToCopy))
+      console.log('✅ ÚSPĚŠNĚ ULOŽENO DO SESSIONSTORAGE!')
+      console.log('📋 Nastavení zkopírována z varianty:', activeVariant)
+
+      // Ověření
+      const verify = sessionStorage.getItem('tts_copied_settings_xtts')
+      console.log('🔍 Ověření - data v sessionStorage:', verify ? 'ANO ✓' : 'NE ✗')
+
+    } catch (err) {
+      console.error('❌ CHYBA při kopírování nastavení:', err)
+      alert('CHYBA při kopírování: ' + err.message)
+    }
+  }
+
+  const handlePasteSettings = () => {
+    try {
+      console.log('🟢🟢🟢 PASTE FUNKCE BYLA ZAVOLÁNA! 🟢🟢🟢')
+      console.log('Cílový profil:', activeVariant)
+
+      const copiedData = sessionStorage.getItem('tts_copied_settings_xtts')
+      console.log('📦 Data ze sessionStorage:', copiedData ? 'NALEZENA ✓' : 'NENALEZENA ✗')
+
+      if (!copiedData) {
+        console.warn('⚠️  ŽÁDNÁ ZKOPÍROVANÁ NASTAVENÍ!')
+        console.log('💡 TIP: Nejdřív musíte kliknout na "Kopírovat"')
+        return false
+      }
+
+      const parsed = JSON.parse(copiedData)
+      console.log('📥 Vkládám nastavení:', parsed.sourceVariant, '→', activeVariant)
+      console.log('📥 TTS Settings:', parsed.ttsSettings)
+      console.log('📥 Quality Settings:', parsed.qualitySettings)
+
+      // Nastavit state - tímto se aktivuje useEffect pro uložení (automaticky přes debounce)
+      console.log('🔄 Aktualizuji React state...')
+      setTtsSettings({ ...parsed.ttsSettings })
+      setQualitySettings({ ...parsed.qualitySettings })
+
+      console.log('✅ ÚSPĚŠNĚ APLIKOVÁNO!')
+      console.log('💾 Nastavení se automaticky uloží do localStorage přes debounce mechanismus')
+
+      return true
+    } catch (err) {
+      console.error('❌ CHYBA při vkládání nastavení:', err)
+      alert('CHYBA při vkládání: ' + err.message)
+      return false
     }
   }
 
@@ -585,6 +651,8 @@ function App() {
                       onQualityChange={setQualitySettings}
                       activeVariant={activeVariant}
                       onVariantChange={handleVariantChange}
+                      onCopySettings={handleCopySettings}
+                      onPasteSettings={handlePasteSettings}
                     />
                   </div>
                 </div>
@@ -612,6 +680,16 @@ function App() {
                 <MusicGen
                   prompt={text}
                   setPrompt={setText}
+                  versions={textVersions}
+                  onSaveVersion={() => saveTextVersion(text)}
+                  onDeleteVersion={deleteTextVersion}
+                />
+              )}
+
+              {activeTab === 'f5tts-cs' && (
+                <F5TTSCzech
+                  text={text}
+                  setText={setText}
                   versions={textVersions}
                   onSaveVersion={() => saveTextVersion(text)}
                   onDeleteVersion={deleteTextVersion}
