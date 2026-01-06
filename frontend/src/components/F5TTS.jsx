@@ -253,6 +253,55 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
     setActiveVariant(nextVariant)
   }
 
+  // Copy/Paste settings functionality
+  const handleCopySettings = () => {
+    try {
+      const settingsToCopy = {
+        ttsSettings: { ...ttsSettings },
+        qualitySettings: { ...qualitySettings },
+        timestamp: Date.now(),
+        sourceVariant: activeVariant
+      }
+      sessionStorage.setItem('tts_copied_settings_sk', JSON.stringify(settingsToCopy))
+      console.log('📋 Nastavení zkopírována z varianty:', activeVariant, settingsToCopy)
+    } catch (err) {
+      console.error('Chyba při kopírování nastavení:', err)
+    }
+  }
+
+  const handlePasteSettings = () => {
+    try {
+      const copiedData = sessionStorage.getItem('tts_copied_settings_sk')
+      if (!copiedData) {
+        console.warn('⚠️  Žádná zkopírovaná nastavení nenalezena')
+        return false
+      }
+
+      const parsed = JSON.parse(copiedData)
+      console.log('📥 Vkládám nastavení:', parsed.sourceVariant, '→', activeVariant)
+
+      // Nastavit state - tímto se aktivuje useEffect pro uložení
+      setTtsSettings({ ...parsed.ttsSettings })
+      setQualitySettings({ ...parsed.qualitySettings })
+
+      // Uložit do localStorage okamžitě pro aktuální variantu
+      const voiceId = typeof selectedVoice === 'string' ? selectedVoice : (selectedVoice?.id || selectedVoice?.name)
+      if (voiceId) {
+        const settings = {
+          ttsSettings: { ...parsed.ttsSettings },
+          qualitySettings: { ...parsed.qualitySettings }
+        }
+        saveVariantSettings(voiceId, activeVariant, settings)
+        console.log('✅ Vložená nastavení uložena do varianty:', activeVariant)
+      }
+
+      return true
+    } catch (err) {
+      console.error('❌ Chyba při vkládání nastavení:', err)
+      return false
+    }
+  }
+
   // Uložení nastavení aktuální varianty do localStorage (vázané na hlas)
   // Ukládá se s debounce při změně nastavení, ale ne při načítání nebo změně varianty
   useEffect(() => {
@@ -336,7 +385,16 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
           : defaultTts.topP,
         seed: saved.ttsSettings.seed !== undefined && saved.ttsSettings.seed !== null
           ? (typeof saved.ttsSettings.seed === 'number' ? saved.ttsSettings.seed : null)
-          : defaultTts.seed
+          : defaultTts.seed,
+        nfeStep: typeof saved.ttsSettings.nfeStep === 'number' && !isNaN(saved.ttsSettings.nfeStep)
+          ? saved.ttsSettings.nfeStep
+          : defaultTts.nfeStep || 32,
+        cfgStrength: typeof saved.ttsSettings.cfgStrength === 'number' && !isNaN(saved.ttsSettings.cfgStrength)
+          ? saved.ttsSettings.cfgStrength
+          : defaultTts.cfgStrength || 2.0,
+        swaySamplingCoef: typeof saved.ttsSettings.swaySamplingCoef === 'number' && !isNaN(saved.ttsSettings.swaySamplingCoef)
+          ? saved.ttsSettings.swaySamplingCoef
+          : defaultTts.swaySamplingCoef || -1.0
       }
 
       // Validace a načtení quality nastavení s fallback na slot-specifické výchozí hodnoty
@@ -587,12 +645,10 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
       const ttsParams = {
         // TTS parametry
         speed: ttsSettings.speed,
-        temperature: ttsSettings.temperature,
-        lengthPenalty: ttsSettings.lengthPenalty,
-        repetitionPenalty: ttsSettings.repetitionPenalty,
-        topK: ttsSettings.topK,
-        topP: ttsSettings.topP,
         seed: ttsSettings.seed,
+        nfeStep: ttsSettings.nfeStep,
+        cfgStrength: ttsSettings.cfgStrength,
+        swaySamplingCoef: ttsSettings.swaySamplingCoef,
         // Quality parametry
         qualityMode: qualitySettings.qualityMode,
         enhancementPreset: qualitySettings.enhancementPreset,
@@ -656,7 +712,7 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
 
   return (
     <>
-    <div className="generate-layout">
+      <div className="generate-layout">
         <div className="generate-content">
           <div className="section-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -809,7 +865,7 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
 
         <div className="settings-panel">
           <TTSSettings
-            engine="f5-slovak"
+            engine="f5"
             settings={ttsSettings}
             onChange={setTtsSettings}
             onReset={() => {
@@ -843,6 +899,8 @@ function F5TTS({ text: textProp, setText: setTextProp, versions, onSaveVersion, 
             onQualityChange={setQualitySettings}
             activeVariant={activeVariant}
             onVariantChange={handleVariantChange}
+            onCopySettings={handleCopySettings}
+            onPasteSettings={handlePasteSettings}
           />
         </div>
       </div>

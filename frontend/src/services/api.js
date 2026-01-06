@@ -260,6 +260,10 @@ export async function generateF5TTS(text, voiceFile = null, demoVoice = null, tt
   if (ttsParams.targetHeadroomDb !== undefined && ttsParams.targetHeadroomDb !== null) {
     formData.append('target_headroom_db', ttsParams.targetHeadroomDb.toString())
   }
+  // Slovak model mode - fonetická adaptace pro českou výslovnost
+  if (ttsParams.useSlovakModel !== undefined && ttsParams.useSlovakModel !== null) {
+    formData.append('use_slovak_model', ttsParams.useSlovakModel.toString())
+  }
 
   const response = await fetch(`${API_BASE_URL}/api/tts/generate-f5`, {
     method: 'POST',
