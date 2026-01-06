@@ -129,21 +129,18 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
               <div style={{ fontSize: '11px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Slot nastavení (Profil)
               </div>
+              {(onCopySettings || onPasteSettings) && (
               <div style={{ display: 'flex', gap: '6px' }}>
                 {/* Copy Settings Button */}
+                {onCopySettings && (
                 <button
                   onClick={() => {
                     console.log('🔵 KLIK NA KOPÍROVAT - tlačítko funguje!')
-                    if (onCopySettings) {
-                      console.log('🔵 Volám onCopySettings...')
-                      onCopySettings()
-                      setCopyNotification('copied')
-                      setTimeout(() => setCopyNotification(null), 3000)
-                      console.log('🔵 Notifikace nastavena na: copied')
-                    } else {
-                      console.error('❌ onCopySettings není definováno!')
-                      alert('CHYBA: Funkce kopírování není připojena!')
-                    }
+                    console.log('🔵 Volám onCopySettings...')
+                    onCopySettings()
+                    setCopyNotification('copied')
+                    setTimeout(() => setCopyNotification(null), 3000)
+                    console.log('🔵 Notifikace nastavena na: copied')
                   }}
                   title="Kopírovat nastavení z tohoto profilu"
                   style={{
@@ -172,26 +169,23 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                   <span style={{ fontSize: '11px' }}>📋</span>
                   <span>Kopírovat</span>
                 </button>
+                )}
 
                 {/* Paste Settings Button */}
+                {onPasteSettings && (
                 <button
                   onClick={() => {
                     console.log('🟢 KLIK NA VLOŽIT - tlačítko funguje!')
-                    if (onPasteSettings) {
-                      console.log('🟢 Volám onPasteSettings...')
-                      const success = onPasteSettings()
-                      console.log('🟢 Výsledek vložení:', success)
-                      if (success) {
-                        setCopyNotification('pasted')
-                        setTimeout(() => setCopyNotification(null), 3000)
-                        console.log('🟢 Notifikace nastavena na: pasted')
-                      } else {
-                        console.warn('⚠️ Vložení vrátilo false - možná nejsou data')
-                        alert('VAROVÁNÍ: Nejsou žádná zkopírovaná data!\n\nNejdřív klikněte na "Kopírovat".')
-                      }
+                    console.log('🟢 Volám onPasteSettings...')
+                    const success = onPasteSettings()
+                    console.log('🟢 Výsledek vložení:', success)
+                    if (success) {
+                      setCopyNotification('pasted')
+                      setTimeout(() => setCopyNotification(null), 3000)
+                      console.log('🟢 Notifikace nastavena na: pasted')
                     } else {
-                      console.error('❌ onPasteSettings není definováno!')
-                      alert('CHYBA: Funkce vkládání není připojena!')
+                      console.warn('⚠️ Vložení vrátilo false - možná nejsou data')
+                      alert('VAROVÁNÍ: Nejsou žádná zkopírovaná data!\n\nNejdřív klikněte na "Kopírovat".')
                     }
                   }}
                   title="Vložit nastavení do tohoto profilu"
@@ -221,7 +215,9 @@ function TTSSettings({ settings, onChange, onReset, qualitySettings, onQualityCh
                   <span style={{ fontSize: '11px' }}>📥</span>
                   <span>Vložit</span>
                 </button>
+                )}
               </div>
+              )}
             </div>
 
             {/* Notification banner */}
