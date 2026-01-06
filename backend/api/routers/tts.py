@@ -1,6 +1,7 @@
 """
 TTS router - endpointy pro text-to-speech generování
 """
+
 import logging
 import uuid
 from pathlib import Path
@@ -12,10 +13,12 @@ from backend.api.dependencies import (
     tts_engine,
     f5_tts_engine,
     f5_tts_slovak_engine,
-
 )
 from backend.api.parsers.tts_params import TTSParamsParser
-from backend.api.resolvers.voice_resolver import resolve_voice_file, resolve_default_voice
+from backend.api.resolvers.voice_resolver import (
+    resolve_voice_file,
+    resolve_default_voice,
+)
 from backend.api.middleware.quality_gate import check_reference_quality
 from backend.api.handlers.multi_lang_handler import (
     has_multi_lang_annotations,
@@ -99,11 +102,21 @@ async def generate_speech(
 
         if not tts_engine.is_loaded:
             if job_id:
-                ProgressManager.update(job_id, percent=5, stage="load", message="Načítám XTTS model do VRAM…")
+                ProgressManager.update(
+                    job_id,
+                    percent=5,
+                    stage="load",
+                    message="Načítám XTTS model do VRAM…",
+                )
             await tts_engine.load_model()
         else:
             if job_id:
-                ProgressManager.update(job_id, percent=10, stage="load", message="Model je připraven, začínám syntézu…")
+                ProgressManager.update(
+                    job_id,
+                    percent=10,
+                    stage="load",
+                    message="Model je připraven, začínám syntézu…",
+                )
 
         # Parsování parametrů pomocí TTSParamsParser
         params = TTSParamsParser.parse_all_params(
@@ -171,7 +184,9 @@ async def generate_speech(
 
         # Kontrola multi-lang anotací
         if has_multi_lang_annotations(text):
-            logger.info(f"Detekovány multi-lang/speaker anotace v textu, používám multi-lang generování (multi_pass={use_multi_pass})")
+            logger.info(
+                f"Detekovány multi-lang/speaker anotace v textu, používám multi-lang generování (multi_pass={use_multi_pass})"
+            )
 
             # Resolvování default speaker WAV - použijeme resolve_voice_file pro kompatibilitu
             speaker_wav_temp, _ = await resolve_voice_file(
@@ -195,7 +210,11 @@ async def generate_speech(
                 variants = []
                 for i in range(multi_pass_count_value):
                     if job_id:
-                        ProgressManager.update(job_id, percent=2 + (90 * i / multi_pass_count_value), message=f"Generuji variantu {i+1}/{multi_pass_count_value} (multi-lang)…")
+                        ProgressManager.update(
+                            job_id,
+                            percent=2 + (90 * i / multi_pass_count_value),
+                            message=f"Generuji variantu {i + 1}/{multi_pass_count_value} (multi-lang)…",
+                        )
 
                     v_seed = (seed or 42) + i
                     output_path = await tts_engine.generate_multi_lang_speaker(
@@ -210,7 +229,8 @@ async def generate_speech(
                         top_k=tts_top_k,
                         top_p=tts_top_p,
                         quality_mode=params.get("quality_mode"),
-                        enhancement_preset=params.get("enhancement_preset") or (quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET),
+                        enhancement_preset=params.get("enhancement_preset")
+                        or (quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET),
                         seed=v_seed,
                         enable_vad=enable_vad_flag,
                         enable_batch=use_batch_flag,
@@ -231,16 +251,18 @@ async def generate_speech(
                         hifigan_refinement_intensity=hifigan_refinement_intensity_value,
                         hifigan_normalize_output=hifigan_normalize_output_value,
                         hifigan_normalize_gain=hifigan_normalize_gain_value,
-                        job_id=job_id
+                        job_id=job_id,
                     )
                     filename = Path(output_path).name
-                    variants.append({
-                        "audio_url": f"/api/audio/{filename}",
-                        "filename": filename,
-                        "seed": v_seed,
-                        "temperature": tts_temperature + (0.05 * (i % 3 - 1)),
-                        "index": i + 1
-                    })
+                    variants.append(
+                        {
+                            "audio_url": f"/api/audio/{filename}",
+                            "filename": filename,
+                            "seed": v_seed,
+                            "temperature": tts_temperature + (0.05 * (i % 3 - 1)),
+                            "index": i + 1,
+                        }
+                    )
 
                 if job_id:
                     ProgressManager.done(job_id)
@@ -249,7 +271,7 @@ async def generate_speech(
                     "variants": variants,
                     "success": True,
                     "multi_pass": True,
-                    "multi_lang": True
+                    "multi_lang": True,
                 }
 
             output_path = await tts_engine.generate_multi_lang_speaker(
@@ -264,7 +286,8 @@ async def generate_speech(
                 top_k=tts_top_k,
                 top_p=tts_top_p,
                 quality_mode=params.get("quality_mode"),
-                enhancement_preset=params.get("enhancement_preset") or (quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET),
+                enhancement_preset=params.get("enhancement_preset")
+                or (quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET),
                 seed=params.get("seed"),
                 enable_vad=enable_vad_flag,
                 enable_batch=use_batch_flag,
@@ -285,7 +308,7 @@ async def generate_speech(
                 hifigan_refinement_intensity=hifigan_refinement_intensity_value,
                 hifigan_normalize_output=hifigan_normalize_output_value,
                 hifigan_normalize_gain=hifigan_normalize_gain_value,
-                job_id=job_id
+                job_id=job_id,
             )
 
             filename = Path(output_path).name
@@ -305,17 +328,25 @@ async def generate_speech(
         # Batch processing rozhodnutí podle délky textu
         text_length = len(text)
         if text_length > MAX_TEXT_LENGTH:
-            logger.warning(f"Text je delší než {MAX_TEXT_LENGTH} znaků ({text_length} znaků), automaticky zapínám batch processing")
+            logger.warning(
+                f"Text je delší než {MAX_TEXT_LENGTH} znaků ({text_length} znaků), automaticky zapínám batch processing"
+            )
             if use_batch_flag is None or use_batch_flag is True:
                 use_batch = True
             else:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Text je příliš dlouhý ({text_length} znaků, max {MAX_TEXT_LENGTH}). Pro delší texty zapněte batch processing (enable_batch=true)."
+                    detail=f"Text je příliš dlouhý ({text_length} znaků, max {MAX_TEXT_LENGTH}). Pro delší texty zapněte batch processing (enable_batch=true).",
                 )
         elif text_length > 2000:
-            logger.info(f"Text je dlouhý ({text_length} znaků), doporučuji zapnout batch processing pro lepší kvalitu")
-            use_batch = use_batch_flag if use_batch_flag is not None else ENABLE_BATCH_PROCESSING
+            logger.info(
+                f"Text je dlouhý ({text_length} znaků), doporučuji zapnout batch processing pro lepší kvalitu"
+            )
+            use_batch = (
+                use_batch_flag
+                if use_batch_flag is not None
+                else ENABLE_BATCH_PROCESSING
+            )
         else:
             use_batch = use_batch_flag if use_batch_flag is not None else False
 
@@ -334,11 +365,17 @@ async def generate_speech(
         )
 
         tts_quality_mode = params.get("quality_mode")
-        enhancement_preset_value = params.get("enhancement_preset") or (quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET)
+        enhancement_preset_value = params.get("enhancement_preset") or (
+            quality_mode if quality_mode else AUDIO_ENHANCEMENT_PRESET
+        )
 
         if job_id:
-            ProgressManager.update(job_id, percent=1, stage="tts", message="Generuji řeč…")
-        logger.info(f"UI headroom: target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
+            ProgressManager.update(
+                job_id, percent=1, stage="tts", message="Generuji řeč…"
+            )
+        logger.info(
+            f"UI headroom: target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}"
+        )
         result = await tts_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
@@ -373,7 +410,7 @@ async def generate_speech(
             hifigan_refinement_intensity=hifigan_refinement_intensity_value,
             hifigan_normalize_output=hifigan_normalize_output_value,
             hifigan_normalize_gain=hifigan_normalize_gain_value,
-            job_id=job_id
+            job_id=job_id,
         )
 
         if isinstance(result, list):
@@ -401,7 +438,7 @@ async def generate_speech(
                 "length_penalty": tts_length_penalty,
                 "repetition_penalty": tts_repetition_penalty,
                 "top_k": tts_top_k,
-                "top_p": tts_top_p
+                "top_p": tts_top_p,
             }
 
             # Uložit do historie WAV souborů (pro audio editor)
@@ -411,17 +448,19 @@ async def generate_speech(
                 text=text,
                 voice_type=voice_type,
                 voice_name=voice_name,
-                tts_params=tts_params_dict
+                tts_params=tts_params_dict,
             )
 
             # Uložit prompt do samostatné historie promptů (XTTS)
-            XTTSPromptsHistoryManager.add_entry(
-                prompt=text,
-                tts_params=tts_params_dict
-            )
+            XTTSPromptsHistoryManager.add_entry(prompt=text, tts_params=tts_params_dict)
 
             if job_id:
-                ProgressManager.update(job_id, percent=99, stage="final", message="Ukládám do historie a odesílám…")
+                ProgressManager.update(
+                    job_id,
+                    percent=99,
+                    stage="final",
+                    message="Ukládám do historie a odesílám…",
+                )
                 ProgressManager.done(job_id)
             return {
                 "audio_url": audio_url,
@@ -462,6 +501,7 @@ async def generate_speech_f5(
     seed: int = Form(None),
     enable_vad: str = Form(None),
     use_hifigan: str = Form(None),
+    use_slovak_model: str = Form(None),  # Slovak model s fonetickou adaptací
     enable_normalization: str = Form(None),
     enable_denoiser: str = Form(None),
     enable_compressor: str = Form(None),
@@ -479,6 +519,9 @@ async def generate_speech_f5(
     target_headroom_db: str = Form(None),
     auto_enhance_voice: str = Form(None),
     allow_poor_voice: str = Form(None),
+    nfe_step: str = Form(None),
+    cfg_strength: str = Form(None),
+    sway_sampling_coef: str = Form(None),
 ):
     """Generuje řeč z textu pomocí F5-TTS"""
     try:
@@ -493,69 +536,53 @@ async def generate_speech_f5(
 
         if not f5_tts_engine.is_loaded:
             if job_id:
-                ProgressManager.update(job_id, percent=5, stage="load", message="Kontroluji F5-TTS CLI…")
+                ProgressManager.update(
+                    job_id, percent=5, stage="load", message="Kontroluji F5-TTS CLI…"
+                )
             await f5_tts_engine.load_model()
         else:
             if job_id:
-                ProgressManager.update(job_id, percent=10, stage="load", message="F5-TTS je připraven, začínám syntézu…")
+                ProgressManager.update(
+                    job_id,
+                    percent=10,
+                    stage="load",
+                    message="F5-TTS je připraven, začínám syntézu…",
+                )
 
-        if speed is not None:
-            try:
-                tts_speed = float(speed) if isinstance(speed, str) else float(speed)
-            except (ValueError, TypeError):
-                tts_speed = TTS_SPEED
-        else:
-            tts_speed = TTS_SPEED
-
-        enable_enh_flag = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
-        enhancement_preset_value = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
-
-        enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
-        use_hifigan_flag = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
-        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else None
-        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else None
-        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else None
-        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else None
-        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else None
-        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else None
-
-        use_dialect = (enable_dialect_conversion.lower() == "true") if isinstance(enable_dialect_conversion, str) else False
-        dialect_code_value = dialect_code if dialect_code and dialect_code != "standardni" else None
-        try:
-            dialect_intensity_value = float(dialect_intensity) if dialect_intensity else 1.0
-        except (ValueError, TypeError):
-            dialect_intensity_value = 1.0
-
-        try:
-            hifigan_refinement_intensity_value = float(hifigan_refinement_intensity) if hifigan_refinement_intensity else None
-            if hifigan_refinement_intensity_value is not None and not (0.0 <= hifigan_refinement_intensity_value <= 1.0):
-                raise HTTPException(status_code=400, detail="hifigan_refinement_intensity musí být mezi 0.0 a 1.0")
-        except (ValueError, TypeError):
-            hifigan_refinement_intensity_value = None
-
-        hifigan_normalize_output_value = (hifigan_normalize_output.lower() == "true") if isinstance(hifigan_normalize_output, str) else None
-
-        try:
-            hifigan_normalize_gain_value = float(hifigan_normalize_gain) if hifigan_normalize_gain else None
-            if hifigan_normalize_gain_value is not None and not (0.0 <= hifigan_normalize_gain_value <= 1.0):
-                raise HTTPException(status_code=400, detail="hifigan_normalize_gain musí být mezi 0.0 a 1.0")
-        except (ValueError, TypeError):
-            hifigan_normalize_gain_value = None
-
-        enable_whisper_value = (enable_whisper.lower() == "true") if isinstance(enable_whisper, str) else None
-        try:
-            whisper_intensity_value = float(whisper_intensity) if whisper_intensity else None
-            if whisper_intensity_value is not None and not (0.0 <= whisper_intensity_value <= 1.0):
-                raise HTTPException(status_code=400, detail="whisper_intensity musí být mezi 0.0 a 1.0")
-        except (ValueError, TypeError):
-            whisper_intensity_value = None
-
-        try:
-            target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
-            if target_headroom_db_value is not None and not (-128.0 <= target_headroom_db_value <= 0.0):
-                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -128.0 a 0.0 dB")
-        except (ValueError, TypeError):
-            target_headroom_db_value = None
+        # Parsování parametrů pomocí TTSParamsParser
+        params = TTSParamsParser.parse_all_params(
+            speed=speed,
+            temperature=temperature,
+            length_penalty=length_penalty,
+            repetition_penalty=repetition_penalty,
+            top_k=top_k,
+            top_p=top_p,
+            seed=seed,
+            enable_enhancement=enable_enhancement,
+            enable_vad=enable_vad,
+            enable_batch=None,  # F5-TTS nemá batch zatím tak jako XTTS
+            use_hifigan=use_hifigan,
+            enable_normalization=enable_normalization,
+            enable_denoiser=enable_denoiser,
+            enable_compressor=enable_compressor,
+            enable_deesser=enable_deesser,
+            enable_eq=enable_eq,
+            enable_trim=enable_trim,
+            enable_dialect_conversion=enable_dialect_conversion,
+            dialect_code=dialect_code,
+            dialect_intensity=dialect_intensity,
+            hifigan_refinement_intensity=hifigan_refinement_intensity,
+            hifigan_normalize_output=hifigan_normalize_output,
+            hifigan_normalize_gain=hifigan_normalize_gain,
+            enable_whisper=enable_whisper,
+            whisper_intensity=whisper_intensity,
+            target_headroom_db=target_headroom_db,
+            nfe_step=nfe_step,
+            cfg_strength=cfg_strength,
+            sway_sampling_coef=sway_sampling_coef,
+            quality_mode=quality_mode,
+            enhancement_preset=enhancement_preset,
+        )
 
         speaker_wav = None
         reference_quality = None
@@ -565,7 +592,7 @@ async def generate_speech_f5(
             temp_filename = f"{uuid.uuid4()}{file_ext}"
             temp_path = UPLOADS_DIR / temp_filename
 
-            async with aiofiles.open(temp_path, 'wb') as f:
+            async with aiofiles.open(temp_path, "wb") as f:
                 content = await voice_file.read()
                 await f.write(content)
 
@@ -583,14 +610,13 @@ async def generate_speech_f5(
                 else:
                     raise HTTPException(
                         status_code=404,
-                        detail=f"Demo hlas '{demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici."
+                        detail=f"Demo hlas '{demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici.",
                     )
             else:
                 speaker_wav = demo_path
         else:
             raise HTTPException(
-                status_code=400,
-                detail="Musí být zadán buď voice_file nebo demo_voice"
+                status_code=400, detail="Musí být zadán buď voice_file nebo demo_voice"
             )
 
         try:
@@ -599,27 +625,48 @@ async def generate_speech_f5(
                 ENABLE_REFERENCE_AUTO_ENHANCE,
                 REFERENCE_ALLOW_POOR_BY_DEFAULT,
             )
-            reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav) if speaker_wav else None
 
-            if ENABLE_REFERENCE_QUALITY_GATE and reference_quality and reference_quality.get("score") == "poor":
-                request_auto = (auto_enhance_voice.lower() == "true") if isinstance(auto_enhance_voice, str) else None
-                request_allow = (allow_poor_voice.lower() == "true") if isinstance(allow_poor_voice, str) else None
+            reference_quality = (
+                AudioProcessor.analyze_audio_quality(speaker_wav)
+                if speaker_wav
+                else None
+            )
 
-                do_auto = request_auto if request_auto is not None else ENABLE_REFERENCE_AUTO_ENHANCE
+            if (
+                ENABLE_REFERENCE_QUALITY_GATE
+                and reference_quality
+                and reference_quality.get("score") == "poor"
+            ):
+                request_auto = (
+                    (auto_enhance_voice.lower() == "true")
+                    if isinstance(auto_enhance_voice, str)
+                    else None
+                )
+                request_allow = (
+                    (allow_poor_voice.lower() == "true")
+                    if isinstance(allow_poor_voice, str)
+                    else None
+                )
+
+                do_auto = (
+                    request_auto
+                    if request_auto is not None
+                    else ENABLE_REFERENCE_AUTO_ENHANCE
+                )
 
                 is_demo_voice = False
                 try:
                     speaker_resolved = Path(speaker_wav).resolve()
-                    is_demo_voice = (
-                        speaker_resolved.is_relative_to(DEMO_VOICES_CS_DIR.resolve())
-                        or speaker_resolved.is_relative_to(DEMO_VOICES_SK_DIR.resolve())
-                    )
+                    is_demo_voice = speaker_resolved.is_relative_to(
+                        DEMO_VOICES_CS_DIR.resolve()
+                    ) or speaker_resolved.is_relative_to(DEMO_VOICES_SK_DIR.resolve())
                 except Exception:
                     try:
                         speaker_resolved_str = str(Path(speaker_wav).resolve())
-                        is_demo_voice = (
-                            speaker_resolved_str.startswith(str(DEMO_VOICES_CS_DIR.resolve()))
-                            or speaker_resolved_str.startswith(str(DEMO_VOICES_SK_DIR.resolve()))
+                        is_demo_voice = speaker_resolved_str.startswith(
+                            str(DEMO_VOICES_CS_DIR.resolve())
+                        ) or speaker_resolved_str.startswith(
+                            str(DEMO_VOICES_SK_DIR.resolve())
                         )
                     except Exception:
                         is_demo_voice = False
@@ -627,16 +674,30 @@ async def generate_speech_f5(
                 if request_allow is None and is_demo_voice:
                     do_allow = True
                 else:
-                    do_allow = request_allow if request_allow is not None else REFERENCE_ALLOW_POOR_BY_DEFAULT
+                    do_allow = (
+                        request_allow
+                        if request_allow is not None
+                        else REFERENCE_ALLOW_POOR_BY_DEFAULT
+                    )
 
                 if do_auto:
-                    enhanced_path = UPLOADS_DIR / f"enhanced_{uuid.uuid4().hex[:10]}.wav"
-                    ok, enh_err = AudioProcessor.enhance_voice_sample(speaker_wav, str(enhanced_path))
+                    enhanced_path = (
+                        UPLOADS_DIR / f"enhanced_{uuid.uuid4().hex[:10]}.wav"
+                    )
+                    ok, enh_err = AudioProcessor.enhance_voice_sample(
+                        speaker_wav, str(enhanced_path)
+                    )
                     if ok:
                         speaker_wav = str(enhanced_path)
-                        reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav)
+                        reference_quality = AudioProcessor.analyze_audio_quality(
+                            speaker_wav
+                        )
 
-                if reference_quality and reference_quality.get("score") == "poor" and not do_allow:
+                if (
+                    reference_quality
+                    and reference_quality.get("score") == "poor"
+                    and not do_allow
+                ):
                     raise HTTPException(
                         status_code=400,
                         detail={
@@ -649,46 +710,52 @@ async def generate_speech_f5(
         except Exception as e:
             logger.warning(f"Quality gate selhal (ignorováno): {e}")
 
-        if not (0.5 <= tts_speed <= 2.0):
-            raise HTTPException(status_code=400, detail="Speed musí být mezi 0.5 a 2.0")
-
         if job_id:
-            ProgressManager.update(job_id, percent=1, stage="f5_tts", message="Generuji řeč (F5-TTS)…")
+            ProgressManager.update(
+                job_id, percent=1, stage="f5_tts", message="Generuji řeč (F5-TTS)…"
+            )
 
-        logger.info(f"UI headroom (F5): target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
+        # Logování parametrů pro debug
+        logger.info(f"🔊 UI parameters (F5 Czech): {params}")
+
+        # Generování přes F5-TTS engine
         output_path = await f5_tts_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
             language="cs",
-            speed=tts_speed,
-            temperature=0.7,
-            length_penalty=1.0,
-            repetition_penalty=2.0,
-            top_k=50,
-            top_p=0.85,
-            quality_mode=quality_mode,
-            seed=seed,
-            enhancement_preset=enhancement_preset_value,
-            enable_vad=enable_vad_flag,
-            use_hifigan=use_hifigan_flag,
-            enable_normalization=enable_norm,
-            enable_denoiser=enable_den,
-            enable_compressor=enable_comp,
-            enable_deesser=enable_deess,
-            enable_eq=enable_eq_flag,
-            enable_trim=enable_trim_flag,
-            enable_dialect_conversion=use_dialect,
-            dialect_code=dialect_code_value,
-            dialect_intensity=dialect_intensity_value,
-            enable_whisper=enable_whisper_value,
-            whisper_intensity=whisper_intensity_value,
-            target_headroom_db=target_headroom_db_value,
-            hifigan_refinement_intensity=hifigan_refinement_intensity_value,
-            hifigan_normalize_output=hifigan_normalize_output_value,
-            hifigan_normalize_gain=hifigan_normalize_gain_value,
-            enable_enhancement=enable_enh_flag,
+            speed=params["speed"],
+            nfe_step=params["nfe_step"],
+            cfg_strength=params["cfg_strength"],
+            sway_sampling_coef=params["sway_sampling_coef"],
+            quality_mode=params["quality_mode"],
+            seed=params["seed"],
+            enhancement_preset=params["enhancement_preset"]
+            or quality_mode
+            or AUDIO_ENHANCEMENT_PRESET,
+            enable_vad=params["enable_vad"],
+            use_hifigan=params["use_hifigan"],
+            enable_normalization=params["enable_normalization"],
+            enable_denoiser=params["enable_denoiser"],
+            enable_compressor=params["enable_compressor"],
+            enable_deesser=params["enable_deesser"],
+            enable_eq=params["enable_eq"],
+            enable_trim=params["enable_trim"],
+            enable_dialect_conversion=params["enable_dialect_conversion"],
+            dialect_code=params["dialect_code"],
+            dialect_intensity=params["dialect_intensity"],
+            enable_whisper=params["enable_whisper"],
+            whisper_intensity=params["whisper_intensity"],
+            target_headroom_db=params["target_headroom_db"],
+            hifigan_refinement_intensity=params["hifigan_refinement_intensity"],
+            hifigan_normalize_output=params["hifigan_normalize_output"],
+            hifigan_normalize_gain=params["hifigan_normalize_gain"],
+            enable_enhancement=params["enable_enhancement"],
             job_id=job_id,
-            ref_text=ref_text
+            ref_text=ref_text,
+            # Slovak model mode - fonetická adaptace pro českou výslovnost
+            use_slovak_model=use_slovak_model.lower() == "true"
+            if isinstance(use_slovak_model, str)
+            else False,
         )
 
         filename = Path(output_path).name
@@ -701,10 +768,7 @@ async def generate_speech_f5(
         elif voice_file:
             voice_name = voice_file.filename
 
-        tts_params_dict = {
-            "speed": tts_speed,
-            "engine": "f5-tts"
-        }
+        tts_params_dict = {"speed": params["speed"], "engine": "f5-tts"}
 
         # Uložit do historie WAV souborů (pro audio editor)
         history_entry = HistoryManager.add_entry(
@@ -713,17 +777,19 @@ async def generate_speech_f5(
             text=text,
             voice_type=voice_type,
             voice_name=voice_name,
-            tts_params=tts_params_dict
+            tts_params=tts_params_dict,
         )
 
         # Uložit prompt do samostatné historie promptů (F5-TTS)
-        F5TTSPromptsHistoryManager.add_entry(
-            prompt=text,
-            tts_params=tts_params_dict
-        )
+        F5TTSPromptsHistoryManager.add_entry(prompt=text, tts_params=tts_params_dict)
 
         if job_id:
-            ProgressManager.update(job_id, percent=99, stage="final", message="Ukládám do historie a odesílám…")
+            ProgressManager.update(
+                job_id,
+                percent=99,
+                stage="final",
+                message="Ukládám do historie a odesílám…",
+            )
             ProgressManager.done(job_id)
 
         return {
@@ -743,7 +809,9 @@ async def generate_speech_f5(
         msg = str(e)
         if job_id:
             ProgressManager.fail(job_id, msg)
-        raise HTTPException(status_code=500, detail=f"Chyba při generování F5-TTS: {msg}")
+        raise HTTPException(
+            status_code=500, detail=f"Chyba při generování F5-TTS: {msg}"
+        )
 
 
 @router.post("/generate-f5-sk")
@@ -782,8 +850,11 @@ async def generate_speech_f5_sk(
     target_headroom_db: str = Form(None),
     auto_enhance_voice: str = Form(None),
     allow_poor_voice: str = Form(None),
+    nfe_step: str = Form(None),
+    cfg_strength: str = Form(None),
+    sway_sampling_coef: str = Form(None),
 ):
-    """Generuje řeč z textu pomocí F5-TTS slovenského modelu"""
+    """Generuje slovenskou řeč pomocí F5-TTS"""
     try:
         if job_id:
             ProgressManager.start(
@@ -796,66 +867,56 @@ async def generate_speech_f5_sk(
 
         if not f5_tts_slovak_engine.is_loaded:
             if job_id:
-                ProgressManager.update(job_id, percent=5, stage="load", message="Kontroluji F5-TTS Slovak CLI…")
+                ProgressManager.update(
+                    job_id,
+                    percent=5,
+                    stage="load",
+                    message="Kontroluji F5-TTS Slovak CLI…",
+                )
             await f5_tts_slovak_engine.load_model()
         else:
             if job_id:
-                ProgressManager.update(job_id, percent=10, stage="load", message="F5-TTS Slovak je připraven, začínám syntézu…")
+                ProgressManager.update(
+                    job_id,
+                    percent=10,
+                    stage="load",
+                    message="F5-TTS Slovak je připraven, začínám syntézu…",
+                )
 
-        if speed is not None:
-            try:
-                tts_speed = float(speed) if isinstance(speed, str) else float(speed)
-            except (ValueError, TypeError):
-                tts_speed = TTS_SPEED
-        else:
-            tts_speed = TTS_SPEED
-
-        enable_enh_flag = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
-        enhancement_preset_value = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
-
-        enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
-        use_hifigan_flag = (use_hifigan.lower() == "true") if isinstance(use_hifigan, str) else False
-        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else None
-        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else None
-        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else None
-        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else None
-        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else None
-        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else None
-
-        use_dialect = False
-        dialect_code_value = None
-        dialect_intensity_value = 1.0
-
-        try:
-            hifigan_refinement_intensity_value = float(hifigan_refinement_intensity) if hifigan_refinement_intensity else None
-            if hifigan_refinement_intensity_value is not None and not (0.0 <= hifigan_refinement_intensity_value <= 1.0):
-                raise HTTPException(status_code=400, detail="hifigan_refinement_intensity musí být mezi 0.0 a 1.0")
-        except (ValueError, TypeError):
-            hifigan_refinement_intensity_value = None
-
-        hifigan_normalize_output_value = (hifigan_normalize_output.lower() == "true") if isinstance(hifigan_normalize_output, str) else None
-
-        try:
-            hifigan_normalize_gain_value = float(hifigan_normalize_gain) if hifigan_normalize_gain else None
-            if hifigan_normalize_gain_value is not None and not (0.0 <= hifigan_normalize_gain_value <= 1.0):
-                raise HTTPException(status_code=400, detail="hifigan_normalize_gain musí být mezi 0.0 a 1.0")
-        except (ValueError, TypeError):
-            hifigan_normalize_gain_value = None
-
-        enable_whisper_value = (enable_whisper.lower() == "true") if isinstance(enable_whisper, str) else None
-        try:
-            whisper_intensity_value = float(whisper_intensity) if whisper_intensity else None
-            if whisper_intensity_value is not None and not (0.0 <= whisper_intensity_value <= 1.0):
-                raise HTTPException(status_code=400, detail="whisper_intensity musí být mezi 0.0 a 1.0")
-        except (ValueError, TypeError):
-            whisper_intensity_value = None
-
-        try:
-            target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
-            if target_headroom_db_value is not None and not (-128.0 <= target_headroom_db_value <= 0.0):
-                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -128.0 a 0.0 dB")
-        except (ValueError, TypeError):
-            target_headroom_db_value = None
+        # Parsování parametrů pomocí TTSParamsParser
+        params = TTSParamsParser.parse_all_params(
+            speed=speed,
+            temperature=temperature,
+            length_penalty=length_penalty,
+            repetition_penalty=repetition_penalty,
+            top_k=top_k,
+            top_p=top_p,
+            seed=seed,
+            enable_enhancement=enable_enhancement,
+            enable_vad=enable_vad,
+            enable_batch=None,
+            use_hifigan=use_hifigan,
+            enable_normalization=enable_normalization,
+            enable_denoiser=enable_denoiser,
+            enable_compressor=enable_compressor,
+            enable_deesser=enable_deesser,
+            enable_eq=enable_eq,
+            enable_trim=enable_trim,
+            enable_dialect_conversion=enable_dialect_conversion,
+            dialect_code=dialect_code,
+            dialect_intensity=dialect_intensity,
+            hifigan_refinement_intensity=hifigan_refinement_intensity,
+            hifigan_normalize_output=hifigan_normalize_output,
+            hifigan_normalize_gain=hifigan_normalize_gain,
+            enable_whisper=enable_whisper,
+            whisper_intensity=whisper_intensity,
+            target_headroom_db=target_headroom_db,
+            nfe_step=nfe_step,
+            cfg_strength=cfg_strength,
+            sway_sampling_coef=sway_sampling_coef,
+            quality_mode=quality_mode,
+            enhancement_preset=enhancement_preset,
+        )
 
         speaker_wav = None
         reference_quality = None
@@ -865,7 +926,7 @@ async def generate_speech_f5_sk(
             temp_filename = f"{uuid.uuid4()}{file_ext}"
             temp_path = UPLOADS_DIR / temp_filename
 
-            async with aiofiles.open(temp_path, 'wb') as f:
+            async with aiofiles.open(temp_path, "wb") as f:
                 content = await voice_file.read()
                 await f.write(content)
 
@@ -883,14 +944,13 @@ async def generate_speech_f5_sk(
                 else:
                     raise HTTPException(
                         status_code=404,
-                        detail=f"Demo hlas '{demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici."
+                        detail="Žádné slovenské demo hlasy nejsou k dispozici.",
                     )
             else:
                 speaker_wav = demo_path
         else:
             raise HTTPException(
-                status_code=400,
-                detail="Musí být zadán buď voice_file nebo demo_voice"
+                status_code=400, detail="Musí být zadán buď voice_file nebo demo_voice"
             )
 
         try:
@@ -899,101 +959,108 @@ async def generate_speech_f5_sk(
                 ENABLE_REFERENCE_AUTO_ENHANCE,
                 REFERENCE_ALLOW_POOR_BY_DEFAULT,
             )
-            auto_enhance_flag = (auto_enhance_voice.lower() == "true") if isinstance(auto_enhance_voice, str) else ENABLE_REFERENCE_AUTO_ENHANCE
-            allow_poor_flag = (allow_poor_voice.lower() == "true") if isinstance(allow_poor_voice, str) else REFERENCE_ALLOW_POOR_BY_DEFAULT
+
+            auto_enhance_flag = (
+                (auto_enhance_voice.lower() == "true")
+                if isinstance(auto_enhance_voice, str)
+                else ENABLE_REFERENCE_AUTO_ENHANCE
+            )
+            allow_poor_flag = (
+                (allow_poor_voice.lower() == "true")
+                if isinstance(allow_poor_voice, str)
+                else REFERENCE_ALLOW_POOR_BY_DEFAULT
+            )
 
             if ENABLE_REFERENCE_QUALITY_GATE:
                 reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav)
                 if reference_quality["score"] == "poor" and not allow_poor_flag:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Kvalita referenčního audia je příliš nízká (SNR: {reference_quality['snr']:.1f} dB). "
-                               f"Použijte allow_poor_voice=true pro povolení."
+                        detail=f"Kvalita referenčního audia je příliš nízká. Použijte allow_poor_voice=true.",
                     )
                 if auto_enhance_flag and reference_quality["score"] != "good":
-                    enhanced_path = UPLOADS_DIR / f"enhanced_{uuid.uuid4().hex[:10]}.wav"
-                    ok, enh_err = AudioProcessor.enhance_voice_sample(speaker_wav, str(enhanced_path))
+                    enhanced_path = (
+                        UPLOADS_DIR / f"enhanced_{uuid.uuid4().hex[:10]}.wav"
+                    )
+                    ok, enh_err = AudioProcessor.enhance_voice_sample(
+                        speaker_wav, str(enhanced_path)
+                    )
                     if ok:
                         speaker_wav = str(enhanced_path)
-                        reference_quality = AudioProcessor.analyze_audio_quality(speaker_wav)
-                        logger.info("Referenční audio bylo automaticky vylepšeno")
-                    else:
-                        logger.warning(f"Auto-enhance referenčního hlasu selhal: {enh_err}")
+                        reference_quality = AudioProcessor.analyze_audio_quality(
+                            speaker_wav
+                        )
+
         except Exception as e:
             logger.warning(f"Quality gate selhal: {e}")
 
-        if not (0.5 <= tts_speed <= 2.0):
-            raise HTTPException(status_code=400, detail="Speed musí být mezi 0.5 a 2.0")
-
         if job_id:
-            ProgressManager.update(job_id, percent=1, stage="f5_tts_slovak", message="Generujem reč (F5-TTS Slovak)…")
+            ProgressManager.update(
+                job_id,
+                percent=1,
+                stage="f5_tts",
+                message="Generuji slovenskou řeč (F5-TTS)…",
+            )
 
-        logger.info(f"UI headroom (F5-SK): target_headroom_db={target_headroom_db_value} dB, enable_enhancement={enable_enh_flag}, enable_normalization={enable_norm}")
+        logger.info(f"🔊 UI parameters (F5 Slovak): {params}")
+
+        # Generování přes F5-TTS engine
         output_path = await f5_tts_slovak_engine.generate(
             text=text,
             speaker_wav=speaker_wav,
             language="sk",
-            speed=tts_speed,
-            temperature=0.7,
-            length_penalty=1.0,
-            repetition_penalty=2.0,
-            top_k=50,
-            top_p=0.85,
-            quality_mode=quality_mode,
-            seed=seed,
-            enhancement_preset=enhancement_preset_value,
-            enable_vad=enable_vad_flag,
-            use_hifigan=use_hifigan_flag,
-            enable_normalization=enable_norm,
-            enable_denoiser=enable_den,
-            enable_compressor=enable_comp,
-            enable_deesser=enable_deess,
-            enable_eq=enable_eq_flag,
-            enable_trim=enable_trim_flag,
-            enable_dialect_conversion=use_dialect,
-            dialect_code=dialect_code_value,
-            dialect_intensity=dialect_intensity_value,
-            enable_whisper=enable_whisper_value,
-            whisper_intensity=whisper_intensity_value,
-            target_headroom_db=target_headroom_db_value,
-            hifigan_refinement_intensity=hifigan_refinement_intensity_value,
-            hifigan_normalize_output=hifigan_normalize_output_value,
-            hifigan_normalize_gain=hifigan_normalize_gain_value,
-            enable_enhancement=enable_enh_flag,
+            speed=params["speed"],
+            nfe_step=params["nfe_step"],
+            cfg_strength=params["cfg_strength"],
+            sway_sampling_coef=params["sway_sampling_coef"],
+            quality_mode=params["quality_mode"],
+            seed=params["seed"],
+            enhancement_preset=params["enhancement_preset"]
+            or quality_mode
+            or AUDIO_ENHANCEMENT_PRESET,
+            enable_vad=params["enable_vad"],
+            use_hifigan=params["use_hifigan"],
+            enable_normalization=params["enable_normalization"],
+            enable_denoiser=params["enable_denoiser"],
+            enable_compressor=params["enable_compressor"],
+            enable_deesser=params["enable_deesser"],
+            enable_eq=params["enable_eq"],
+            enable_trim=params["enable_trim"],
+            enable_dialect_conversion=params["enable_dialect_conversion"],
+            dialect_code=params["dialect_code"],
+            dialect_intensity=params["dialect_intensity"],
+            enable_whisper=params["enable_whisper"],
+            whisper_intensity=params["whisper_intensity"],
+            target_headroom_db=params["target_headroom_db"],
+            hifigan_refinement_intensity=params["hifigan_refinement_intensity"],
+            hifigan_normalize_output=params["hifigan_normalize_output"],
+            hifigan_normalize_gain=params["hifigan_normalize_gain"],
+            enable_enhancement=params["enable_enhancement"],
             job_id=job_id,
-            ref_text=ref_text
+            ref_text=ref_text,
         )
 
         filename = Path(output_path).name
         audio_url = f"/api/audio/{filename}"
 
         voice_type = "upload" if voice_file else "demo"
-        voice_name = None
-        if demo_voice:
-            voice_name = demo_voice
-        elif voice_file:
-            voice_name = voice_file.filename
+        voice_name = (
+            demo_voice if demo_voice else (voice_file.filename if voice_file else None)
+        )
 
-        tts_params_dict = {
-            "speed": tts_speed,
-            "engine": "f5-tts-slovak"
-        }
+        tts_params_dict = {"speed": params["speed"], "engine": "f5-tts-slovak"}
 
-        # Uložit do historie WAV souborů (pro audio editor)
+        # Uložit do historie
         history_entry = HistoryManager.add_entry(
             audio_url=audio_url,
             filename=filename,
             text=text,
             voice_type=voice_type,
             voice_name=voice_name,
-            tts_params=tts_params_dict
+            tts_params=tts_params_dict,
         )
 
-        # Uložit prompt do samostatné historie promptů (F5-TTS-SK)
-        F5TTSSKPromptsHistoryManager.add_entry(
-            prompt=text,
-            tts_params=tts_params_dict
-        )
+        F5TTSSKPromptsHistoryManager.add_entry(prompt=text, tts_params=tts_params_dict)
 
         if job_id:
             ProgressManager.update(job_id, percent=100, stage="done", message="Hotovo!")
@@ -1006,7 +1073,8 @@ async def generate_speech_f5_sk(
             "voice_type": voice_type,
             "voice_name": voice_name,
             "engine": "f5-tts-slovak",
-            "reference_quality": reference_quality
+            "history_id": history_entry["id"],
+            "reference_quality": reference_quality,
         }
 
     except HTTPException:
@@ -1017,10 +1085,9 @@ async def generate_speech_f5_sk(
         msg = str(e)
         if job_id:
             ProgressManager.fail(job_id, msg)
-        raise HTTPException(status_code=500, detail=f"Chyba při generování F5-TTS Slovak: {msg}")
-
-
-
+        raise HTTPException(
+            status_code=500, detail=f"Chyba při generování F5-TTS Slovak: {msg}"
+        )
 
 
 @router.post("/generate-multi")
@@ -1063,11 +1130,21 @@ async def generate_speech_multi(
 
         if not tts_engine.is_loaded:
             if job_id:
-                ProgressManager.update(job_id, percent=5, stage="load", message="Načítám XTTS model do VRAM…")
+                ProgressManager.update(
+                    job_id,
+                    percent=5,
+                    stage="load",
+                    message="Načítám XTTS model do VRAM…",
+                )
             await tts_engine.load_model()
         else:
             if job_id:
-                ProgressManager.update(job_id, percent=10, stage="load", message="Model je připraven, začínám syntézu…")
+                ProgressManager.update(
+                    job_id,
+                    percent=10,
+                    stage="load",
+                    message="Model je připraven, začínám syntézu…",
+                )
 
         if not text or len(text.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text je prázdný")
@@ -1079,7 +1156,7 @@ async def generate_speech_multi(
             temp_filename = f"{uuid.uuid4()}{file_ext}"
             temp_path = UPLOADS_DIR / temp_filename
 
-            async with aiofiles.open(temp_path, 'wb') as f:
+            async with aiofiles.open(temp_path, "wb") as f:
                 content = await default_voice_file.read()
                 await f.write(content)
 
@@ -1093,28 +1170,36 @@ async def generate_speech_multi(
             if demo_path:
                 default_speaker_wav = demo_path
             else:
-                available_voices = list(_get_demo_voices_dir(default_language).glob("*.wav"))
+                available_voices = list(
+                    _get_demo_voices_dir(default_language).glob("*.wav")
+                )
                 if available_voices:
                     default_speaker_wav = str(available_voices[0])
-                    logger.warning(f"Demo voice '{default_demo_voice}' not found, using: {default_speaker_wav}")
+                    logger.warning(
+                        f"Demo voice '{default_demo_voice}' not found, using: {default_speaker_wav}"
+                    )
                 else:
                     raise HTTPException(
                         status_code=404,
-                        detail=f"Demo hlas '{default_demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici."
+                        detail=f"Demo hlas '{default_demo_voice}' neexistuje a žádné demo hlasy nejsou k dispozici.",
                     )
         else:
-            available_voices = list(_get_demo_voices_dir(default_language).glob("*.wav"))
+            available_voices = list(
+                _get_demo_voices_dir(default_language).glob("*.wav")
+            )
             if available_voices:
                 default_speaker_wav = str(available_voices[0])
-                logger.info(f"Žádný výchozí hlas zadán, používám: {default_speaker_wav}")
+                logger.info(
+                    f"Žádný výchozí hlas zadán, používám: {default_speaker_wav}"
+                )
             else:
                 raise HTTPException(
                     status_code=400,
-                    detail="Musí být zadán buď default_voice_file nebo default_demo_voice, nebo musí existovat demo hlasy"
+                    detail="Musí být zadán buď default_voice_file nebo default_demo_voice, nebo musí existovat demo hlasy",
                 )
 
         speaker_map = {}
-        multi_lang_pattern = re.compile(r'\[(\w+)(?::([^\]]+))?\]')
+        multi_lang_pattern = re.compile(r"\[(\w+)(?::([^\]]+))?\]")
         speaker_ids_from_text = set()
         for match in multi_lang_pattern.finditer(text):
             speaker_id = match.group(2)
@@ -1137,13 +1222,19 @@ async def generate_speech_multi(
                     if Path(voice_ref).exists():
                         speaker_map[speaker_id] = voice_ref
                     else:
-                        demo_path = get_demo_voice_path(voice_ref, lang=default_language)
+                        demo_path = get_demo_voice_path(
+                            voice_ref, lang=default_language
+                        )
                         if demo_path:
                             speaker_map[speaker_id] = demo_path
                         else:
-                            logger.warning(f"Speaker '{speaker_id}': voice '{voice_ref}' neexistuje, použije se výchozí hlas")
+                            logger.warning(
+                                f"Speaker '{speaker_id}': voice '{voice_ref}' neexistuje, použije se výchozí hlas"
+                            )
             except json.JSONDecodeError as e:
-                raise HTTPException(status_code=400, detail=f"Neplatný speaker_mapping JSON: {str(e)}")
+                raise HTTPException(
+                    status_code=400, detail=f"Neplatný speaker_mapping JSON: {str(e)}"
+                )
 
         if speed is not None:
             try:
@@ -1154,24 +1245,63 @@ async def generate_speech_multi(
             tts_speed = TTS_SPEED
 
         tts_temperature = temperature if temperature is not None else TTS_TEMPERATURE
-        tts_length_penalty = length_penalty if length_penalty is not None else TTS_LENGTH_PENALTY
-        tts_repetition_penalty = repetition_penalty if repetition_penalty is not None else TTS_REPETITION_PENALTY
+        tts_length_penalty = (
+            length_penalty if length_penalty is not None else TTS_LENGTH_PENALTY
+        )
+        tts_repetition_penalty = (
+            repetition_penalty
+            if repetition_penalty is not None
+            else TTS_REPETITION_PENALTY
+        )
         tts_top_k = top_k if top_k is not None else TTS_TOP_K
         tts_top_p = top_p if top_p is not None else TTS_TOP_P
 
-        enable_enh = (enable_enhancement.lower() == "true") if isinstance(enable_enhancement, str) else ENABLE_AUDIO_ENHANCEMENT
-        enable_vad_flag = (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
-        enable_norm = (enable_normalization.lower() == "true") if isinstance(enable_normalization, str) else None
-        enable_den = (enable_denoiser.lower() == "true") if isinstance(enable_denoiser, str) else None
-        enable_comp = (enable_compressor.lower() == "true") if isinstance(enable_compressor, str) else None
-        enable_deess = (enable_deesser.lower() == "true") if isinstance(enable_deesser, str) else None
-        enable_eq_flag = (enable_eq.lower() == "true") if isinstance(enable_eq, str) else None
-        enable_trim_flag = (enable_trim.lower() == "true") if isinstance(enable_trim, str) else None
+        enable_enh = (
+            (enable_enhancement.lower() == "true")
+            if isinstance(enable_enhancement, str)
+            else ENABLE_AUDIO_ENHANCEMENT
+        )
+        enable_vad_flag = (
+            (enable_vad.lower() == "true") if isinstance(enable_vad, str) else None
+        )
+        enable_norm = (
+            (enable_normalization.lower() == "true")
+            if isinstance(enable_normalization, str)
+            else None
+        )
+        enable_den = (
+            (enable_denoiser.lower() == "true")
+            if isinstance(enable_denoiser, str)
+            else None
+        )
+        enable_comp = (
+            (enable_compressor.lower() == "true")
+            if isinstance(enable_compressor, str)
+            else None
+        )
+        enable_deess = (
+            (enable_deesser.lower() == "true")
+            if isinstance(enable_deesser, str)
+            else None
+        )
+        enable_eq_flag = (
+            (enable_eq.lower() == "true") if isinstance(enable_eq, str) else None
+        )
+        enable_trim_flag = (
+            (enable_trim.lower() == "true") if isinstance(enable_trim, str) else None
+        )
 
         try:
-            target_headroom_db_value = float(target_headroom_db) if target_headroom_db else None
-            if target_headroom_db_value is not None and not (-128.0 <= target_headroom_db_value <= 0.0):
-                raise HTTPException(status_code=400, detail="target_headroom_db musí být mezi -128.0 a 0.0 dB")
+            target_headroom_db_value = (
+                float(target_headroom_db) if target_headroom_db else None
+            )
+            if target_headroom_db_value is not None and not (
+                -128.0 <= target_headroom_db_value <= 0.0
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="target_headroom_db musí být mezi -128.0 a 0.0 dB",
+                )
         except (ValueError, TypeError):
             target_headroom_db_value = None
 
@@ -1198,7 +1328,7 @@ async def generate_speech_multi(
             enable_eq=enable_eq_flag,
             enable_trim=enable_trim_flag,
             target_headroom_db=target_headroom_db_value,
-            job_id=job_id
+            job_id=job_id,
         )
 
         filename = Path(output_path).name
@@ -1223,4 +1353,3 @@ async def generate_speech_multi(
         if job_id:
             ProgressManager.fail(job_id, msg)
         raise HTTPException(status_code=500, detail=f"Chyba při generování: {msg}")
-
