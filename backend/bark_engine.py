@@ -19,7 +19,7 @@ import numpy as np
 import torch
 import soundfile as sf
 
-from backend.config import OUTPUTS_DIR, DEVICE
+from backend.config import OUTPUTS_DIR, DEVICE, OUTPUT_HEADROOM_DB
 from backend.progress_manager import ProgressManager
 
 
@@ -152,6 +152,8 @@ class BarkEngine:
         seed: Optional[int] = None,
         duration_s: Optional[float] = None,
         job_id: Optional[str] = None,
+        target_headroom_db: Optional[float] = None,
+        history_prompt: Optional[str] = None,
     ) -> str:
         """
         Generuje audio z textu pomocí Bark modelu.
@@ -162,6 +164,7 @@ class BarkEngine:
             temperature: Teplota pro generování (vyšší = kreativnější)
             seed: Seed pro reprodukovatelnost
             duration_s: Požadovaná délka v sekundách (None = použít výchozí ~14s, pokud je delší, segment se zacyklí)
+            history_prompt: Cesta k referenčnímu WAV souboru pro klonování hlasu (None = výchozí hlas)
 
         Returns:
             Cesta k vygenerovanému WAV souboru
@@ -187,10 +190,64 @@ class BarkEngine:
 
         print(f"[Bark] Start generování: text='{text[:50]}...', model={model_size}, device={self._device}")
 
+        # Příprava history_prompt (klonování hlasu)
+        history_prompt_value = None
+        if history_prompt and Path(history_prompt).exists():
+            try:
+                # Bark očekává buď cestu k .npz souboru, nebo numpy array s audio daty
+                # Načteme WAV soubor a převedeme na numpy array
+                audio_data, sample_rate = sf.read(str(history_prompt))
+
+                # Zajistíme, že je to 1D array (mono)
+                if audio_data.ndim > 1:
+                    audio_data = np.mean(audio_data, axis=1)  # Převod stereo na mono
+
+                # Normalizace do rozsahu [-1, 1] pokud ještě není
+                if audio_data.dtype != np.float32:
+                    if audio_data.dtype == np.int16:
+                        audio_data = audio_data.astype(np.float32) / 32768.0
+                    elif audio_data.dtype == np.int32:
+                        audio_data = audio_data.astype(np.float32) / 2147483648.0
+                    else:
+                        audio_data = audio_data.astype(np.float32)
+
+                # Clip na rozsah [-1, 1]
+                audio_data = np.clip(audio_data, -1.0, 1.0)
+
+                # Resample na Bark sample rate (24kHz) pokud je potřeba
+                if sample_rate != SAMPLE_RATE:
+                    try:
+                        from scipy import signal
+                        num_samples = int(len(audio_data) * SAMPLE_RATE / sample_rate)
+                        audio_data = signal.resample(audio_data, num_samples)
+                        print(f"[Bark] Resamplováno z {sample_rate}Hz na {SAMPLE_RATE}Hz")
+                    except ImportError:
+                        # scipy není dostupný, použijeme jednoduchý resampling pomocí numpy
+                        # (lineární interpolace pomocí numpy)
+                        try:
+                            old_length = len(audio_data)
+                            new_length = int(old_length * SAMPLE_RATE / sample_rate)
+                            old_indices = np.arange(old_length)
+                            new_indices = np.linspace(0, old_length - 1, new_length)
+                            audio_data = np.interp(new_indices, old_indices, audio_data)
+                            print(f"[Bark] Resamplováno z {sample_rate}Hz na {SAMPLE_RATE}Hz (numpy interpolace)")
+                        except Exception as e:
+                            print(f"[Bark] ⚠️ Nelze resamplovat z {sample_rate}Hz na {SAMPLE_RATE}Hz: {e}, použije se původní sample rate")
+
+                history_prompt_value = audio_data
+                print(f"[Bark] Načten referenční hlas z {history_prompt} (délka: {len(audio_data)/SAMPLE_RATE:.2f}s, SR: {SAMPLE_RATE}Hz)")
+            except Exception as e:
+                import traceback
+                print(f"[Bark] ⚠️ Chyba při načítání history_prompt: {e}")
+                print(f"[Bark] Traceback: {traceback.format_exc()}")
+                history_prompt_value = None
+        elif history_prompt:
+            print(f"[Bark] ⚠️ History prompt soubor neexistuje: {history_prompt}, použije se výchozí hlas")
+
         # Generování audia
         audio_array = generate_audio(
             text,
-            history_prompt=None,  # Můžete přidat podporu pro history prompt
+            history_prompt=history_prompt_value,  # None = výchozí hlas, cesta = klonování hlasu
             text_temp=temperature,
             waveform_temp=temperature,
             output_full=False,  # Vrací pouze audio array
@@ -242,6 +299,26 @@ class BarkEngine:
                 # Kratší než generované - oříznout
                 audio_array = audio_array[:target_samples]
                 print(f"[Bark] Audio oříznuto z {current_samples/SAMPLE_RATE:.1f}s na {target_samples/SAMPLE_RATE:.1f}s")
+
+        # Aplikovat headroom (pokud je zadán)
+        if target_headroom_db is not None:
+            try:
+                final_headroom_db = target_headroom_db
+                if final_headroom_db is not None:
+                    peak = float(np.max(np.abs(audio_array))) if audio_array is not None and len(audio_array) else 0.0
+                    if peak > 0:
+                        if float(final_headroom_db) < 0:
+                            target_peak = 10 ** (float(final_headroom_db) / 20.0)
+                        else:
+                            target_peak = 0.999
+                        # Headroom jako "ceiling": pouze ztlumit, nikdy nezesilovat
+                        if peak > target_peak:
+                            audio_array = audio_array * (target_peak / peak)
+                    if not np.isfinite(audio_array).all():
+                        audio_array = np.nan_to_num(audio_array, nan=0.0, posinf=0.0, neginf=0.0)
+                    print(f"[Bark] Headroom ceiling: {final_headroom_db} dB (aplikováno jen pokud peak přesáhl cíl)")
+            except Exception as e:
+                print(f"[Bark] ⚠️ Headroom selhal: {e}")
 
         OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
         filename = f"bark_{uuid.uuid4().hex[:10]}.wav"

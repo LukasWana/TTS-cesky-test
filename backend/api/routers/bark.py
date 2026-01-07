@@ -4,9 +4,10 @@ Bark router - endpointy pro Bark generování
 import logging
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Form, HTTPException
+from fastapi import APIRouter, Form, File, HTTPException, UploadFile
 
 from backend.api.dependencies import bark_engine
+from backend.api.resolvers.voice_resolver import resolve_voice_file
 from backend.progress_manager import ProgressManager
 from backend.bark_history_manager import BarkHistoryManager
 
@@ -25,6 +26,9 @@ async def generate_bark(
     temperature: float = Form(0.7),
     seed: int = Form(None),
     duration: float = Form(None),
+    target_headroom_db: str = Form(None),
+    voice_file: UploadFile = File(None),
+    demo_voice: str = Form(None),
 ):
     """
     Generuje audio pomocí Bark modelu (řeč, hudba, zvuky).
@@ -51,6 +55,41 @@ async def generate_bark(
             if duration_s < 1.0 or duration_s > 120.0:
                 raise HTTPException(status_code=400, detail="Délka musí být mezi 1 a 120 sekundami")
 
+        # Parsování target_headroom_db
+        target_headroom_db_value = None
+        if target_headroom_db is not None and target_headroom_db.strip():
+            try:
+                target_headroom_db_value = float(target_headroom_db)
+                if not (-128.0 <= target_headroom_db_value <= 0.0):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="target_headroom_db musí být mezi -128.0 a 0.0 dB",
+                    )
+            except ValueError:
+                target_headroom_db_value = None
+
+        # Resolvování voice souboru pro history_prompt (klonování hlasu)
+        history_prompt_path = None
+        if voice_file or demo_voice:
+            try:
+                # Použijeme resolve_voice_file helper (podporuje upload i demo)
+                # Pro Bark použijeme "en" jako default jazyk (Bark je primárně anglický)
+                speaker_wav, _ = await resolve_voice_file(
+                    voice_file=voice_file,
+                    demo_voice=demo_voice,
+                    lang="en",  # Bark je primárně anglický model
+                )
+                if speaker_wav and Path(speaker_wav).exists():
+                    history_prompt_path = speaker_wav
+                    logger.info(f"[Bark] Používám referenční hlas: {history_prompt_path}")
+            except HTTPException:
+                # Pokud není hlas zadán nebo neexistuje, použije se výchozí (None)
+                logger.info("[Bark] Žádný referenční hlas, použije se výchozí hlas modelu")
+                history_prompt_path = None
+            except Exception as e:
+                logger.warning(f"[Bark] Chyba při resolvování hlasu: {e}, použije se výchozí hlas")
+                history_prompt_path = None
+
         out_path = await anyio.to_thread.run_sync(
             lambda: bark_engine.generate(
                 text=text,
@@ -61,6 +100,8 @@ async def generate_bark(
                 seed=int(seed) if seed else None,
                 duration_s=duration_s,
                 job_id=job_id,
+                target_headroom_db=target_headroom_db_value,
+                history_prompt=history_prompt_path,
             )
         )
 

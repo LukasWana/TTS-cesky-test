@@ -806,6 +806,15 @@ export async function generateBark(text, params = {}, jobId = null) {
   if (params.temperature !== undefined && params.temperature !== null) formData.append('temperature', String(params.temperature))
   if (params.seed !== undefined && params.seed !== null && params.seed !== '') formData.append('seed', String(params.seed))
   if (params.duration !== undefined && params.duration !== null) formData.append('duration', String(params.duration))
+  if (params.targetHeadroomDb !== undefined && params.targetHeadroomDb !== null) formData.append('target_headroom_db', String(params.targetHeadroomDb))
+
+  // Voice file pro klonování hlasu
+  if (params.voiceFile) {
+    formData.append('voice_file', params.voiceFile)
+  }
+  if (params.demoVoice) {
+    formData.append('demo_voice', params.demoVoice)
+  }
 
   const response = await fetch(`${API_BASE_URL}/api/bark/generate`, {
     method: 'POST',

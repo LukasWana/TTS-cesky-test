@@ -7,7 +7,7 @@ import Section from './ui/Section'
 import SliderRow from './ui/SliderRow'
 import SelectRow from './ui/SelectRow'
 import Icon from './ui/Icons'
-import { generateBark, getBarkProgress, subscribeToBarkProgress } from '../services/api'
+import { generateBark, getBarkProgress, subscribeToBarkProgress, getDemoVoices } from '../services/api'
 import HelpSidebar from './HelpSidebar'
 import { BarkHelpContent } from './HelpContent'
 
@@ -50,8 +50,17 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVe
   const [modelSize, setModelSize] = useState('small') // small|large
   const [mode, setMode] = useState('auto') // auto|full|mixed|small
   const [offloadCpu, setOffloadCpu] = useState(false)
+  const [targetHeadroomDb, setTargetHeadroomDb] = useState(-18.0) // Výchozí headroom
   const [presetCategory, setPresetCategory] = useState('meditation')
   const [preset, setPreset] = useState('med_calm')
+
+  // Voice management pro klonování hlasu
+  const [selectedVoice, setSelectedVoice] = useState(null)
+  const [voiceType, setVoiceType] = useState('demo') // 'demo' | 'upload'
+  const [demoVoices, setDemoVoices] = useState([])
+  const [uploadedVoice, setUploadedVoice] = useState(null)
+  const [uploadedVoiceFileName, setUploadedVoiceFileName] = useState(null)
+  const language = 'en' // Bark je primárně anglický model
 
   // Stavy pro rozbalení sekcí
   const [mainExpanded, setMainExpanded] = useState(true)
@@ -66,6 +75,32 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVe
   const progressEventSourceRef = useRef(null)
   const progressPollIntervalRef = useRef(null)
   const progressStoppedRef = useRef(false)
+
+  // Načtení demo hlasů při mount
+  useEffect(() => {
+    loadDemoVoices()
+  }, [])
+
+  const loadDemoVoices = async () => {
+    try {
+      const data = await getDemoVoices(language)
+      const voices = data.voices || data || []
+      setDemoVoices(voices)
+      // Nastav první dostupný hlas, pokud není žádný vybrán
+      if (voices.length > 0 && !selectedVoice) {
+        setSelectedVoice(voices[0].id || voices[0].name)
+      }
+    } catch (err) {
+      console.error('Chyba při načítání demo hlasů:', err)
+    }
+  }
+
+  const handleVoiceUpload = async (file) => {
+    setUploadedVoice(file)
+    setUploadedVoiceFileName(file.name)
+    setVoiceType('upload')
+    setSelectedVoice(null)
+  }
 
   useEffect(() => {
     return () => {
@@ -161,6 +196,10 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVe
     progressEventSourceRef.current = eventSource
 
     try {
+      // Příprava voice parametrů
+      const voiceFile = voiceType === 'upload' ? uploadedVoice : null
+      const demoVoice = (voiceType === 'demo' && selectedVoice) ? selectedVoice : null
+
       const result = await generateBark(
         prompt,
         {
@@ -169,7 +208,10 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVe
           offloadCpu,
           temperature,
           seed: seed === '' ? null : Number(seed),
-          duration: duration
+          duration: duration,
+          targetHeadroomDb: targetHeadroomDb,
+          voiceFile: voiceFile,
+          demoVoice: demoVoice
         },
         jobId
       )
@@ -404,6 +446,94 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVe
 
       <div className="bark-grid">
         <div className="bark-controls">
+          {/* Výběr hlasu pro klonování */}
+          <Section
+            title="🎤 Výběr hlasu (volitelné)"
+            isExpanded={true}
+            onToggle={() => {}}
+          >
+            <div className="settings-grid">
+              <div>
+                <label className="bark-label">Typ hlasu</label>
+                <select
+                  className="bark-input"
+                  value={voiceType}
+                  onChange={(e) => {
+                    setVoiceType(e.target.value)
+                    if (e.target.value === 'demo') {
+                      setUploadedVoice(null)
+                      setUploadedVoiceFileName(null)
+                      if (demoVoices.length > 0 && !selectedVoice) {
+                        setSelectedVoice(demoVoices[0].id || demoVoices[0].name)
+                      }
+                    } else {
+                      setSelectedVoice(null)
+                    }
+                  }}
+                >
+                  <option value="demo">Demo hlas</option>
+                  <option value="upload">Nahrát vlastní hlas</option>
+                </select>
+              </div>
+
+              {voiceType === 'demo' && (
+                <div>
+                  <label className="bark-label">Demo hlas</label>
+                  {demoVoices.length > 0 ? (
+                    <select
+                      className="bark-input"
+                      value={selectedVoice || ''}
+                      onChange={(e) => setSelectedVoice(e.target.value)}
+                    >
+                      {demoVoices.map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.display_name || voice.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p style={{ opacity: 0.7, fontSize: '0.85rem' }}>
+                      Žádné demo hlasy nejsou k dispozici
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {voiceType === 'upload' && (
+                <div>
+                  <label className="bark-label">Nahrát vlastní hlas</label>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        handleVoiceUpload(file)
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      background: 'rgba(0,0,0,0.15)',
+                      color: 'inherit'
+                    }}
+                  />
+                  {uploadedVoiceFileName && (
+                    <p style={{ opacity: 0.7, fontSize: '0.85rem', marginTop: '4px' }}>
+                      ✓ {uploadedVoiceFileName}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div style={{ opacity: 0.7, fontSize: '0.85rem' }}>
+                <strong>Tip:</strong> Referenční audio (10-30s) pro klonování hlasu. Pokud není zadáno, použije se výchozí hlas modelu.
+              </div>
+            </div>
+          </Section>
+
           <Section
             title="🪄 Presety"
             isExpanded={presetsExpanded}
@@ -580,6 +710,18 @@ function Bark({ prompt: promptProp, setPrompt: setPromptProp, versions, onSaveVe
                 step={1}
                 formatValue={(v) => `${v}s`}
                 tooltip="Délka výsledného audio (1-120s). Delší než ~14s se zacyklí."
+              />
+
+              <SliderRow
+                label="Hlasitost (headroom)"
+                icon="🔉"
+                value={targetHeadroomDb}
+                onChange={setTargetHeadroomDb}
+                min={-24.0}
+                max={0.0}
+                step={0.5}
+                formatValue={(v) => `${v.toFixed(1)} dB`}
+                tooltip="Nižší hodnota = tišší výstup. -18 dB = výchozí, -6 dB = hlasitější, 0 dB = maximum."
               />
             </div>
           </Section>
