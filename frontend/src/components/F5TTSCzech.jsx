@@ -92,7 +92,15 @@ function F5TTSCzech({ text: textProp, setText: setTextProp, versions, onSaveVers
   const [helpOpen, setHelpOpen] = useState(false)
 
   // Slovak model mode - použije Slovak TTS s fonetickou adaptací pro českou výslovnost
-  const [useSlovakModel, setUseSlovakModel] = useState(false)
+  // Načíst z localStorage, výchozí: false
+  const [useSlovakModel, setUseSlovakModel] = useState(() => {
+    try {
+      const saved = localStorage.getItem('f5tts_cs_use_slovak_model')
+      return saved === 'true'
+    } catch (e) {
+      return false
+    }
+  })
 
   // --- Persist ref_text per konkrétní hlas (aby po reloadu nezmizel) ---
   const persistRefText = (storageKey, value) => {
@@ -770,7 +778,7 @@ function F5TTSCzech({ text: textProp, setText: setTextProp, versions, onSaveVers
               </button>
             </div>
             <p className="section-hint">
-              {useSlovakModel 
+              {useSlovakModel
                 ? 'Slovenský TTS model s fonetickou adaptací pro českou výslovnost.'
                 : 'Pokročilý TTS engine s flow matching. Nastavený pro češtinu.'}
             </p>
@@ -784,18 +792,18 @@ function F5TTSCzech({ text: textProp, setText: setTextProp, versions, onSaveVers
             padding: '16px',
             marginBottom: '16px'
           }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
               gap: '12px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label 
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
                     gap: '10px',
                     cursor: 'pointer'
                   }}
@@ -811,7 +819,16 @@ function F5TTSCzech({ text: textProp, setText: setTextProp, versions, onSaveVers
                     <input
                       type="checkbox"
                       checked={useSlovakModel}
-                      onChange={(e) => setUseSlovakModel(e.target.checked)}
+                      onChange={(e) => {
+                        const newValue = e.target.checked
+                        setUseSlovakModel(newValue)
+                        // Uložit do localStorage
+                        try {
+                          localStorage.setItem('f5tts_cs_use_slovak_model', newValue.toString())
+                        } catch (err) {
+                          console.warn('Nelze uložit useSlovakModel do localStorage:', err)
+                        }
+                      }}
                       style={{ opacity: 0, width: 0, height: 0 }}
                     />
                     <div style={{
@@ -825,22 +842,22 @@ function F5TTSCzech({ text: textProp, setText: setTextProp, versions, onSaveVers
                       transition: 'left 0.3s'
                     }} />
                   </div>
-                  <span style={{ 
+                  <span style={{
                     fontWeight: 600,
                     color: useSlovakModel ? '#81c784' : 'inherit'
                   }}>
-                    {useSlovakModel ? '✓ Slovak model aktivní' : 'Slovak model pro CZ výslovnost'}
+                    {useSlovakModel ? '✓ Slovak model + CZ fonetika' : 'Slovak model + CZ fonetika'}
                   </span>
                 </label>
               </div>
-              <div style={{ 
-                fontSize: '12px', 
+              <div style={{
+                fontSize: '12px',
                 opacity: 0.7,
-                maxWidth: '300px'
+                maxWidth: '400px'
               }}>
-                {useSlovakModel 
-                  ? 'Text je foneticky adaptován: "kůň" → "kôň", "jel" → "išiel"'
-                  : 'Použije slovenský TTS model s úpravou českého textu pro lepší výslovnost'}
+                {useSlovakModel
+                  ? '✓ Text je foneticky adaptován: "kůň"→"kúň", "město"→"mjesto", "děti"→"ďeti", "řeka"→"reka"'
+                  : 'Hack: Použije slovenský F5-TTS model s automatickou fonetickou adaptací českého textu. Lepší výslovnost než český model.'}
               </div>
             </div>
           </div>

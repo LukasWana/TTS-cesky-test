@@ -180,7 +180,6 @@ function App() {
   const tabs = [
     { id: 'voicepreparation', label: 'příprava hlasů', icon: 'microphone' },
     { id: 'generate', label: 'české slovo', icon: 'speaker' },
-    { id: 'f5tts-cs', label: 'F5-TTS (Czech)', icon: 'speaker' },
     { id: 'f5tts', label: 'slovenské slovo', icon: 'speaker' },
     { id: 'musicgen', label: 'hudba', icon: 'music' },
     { id: 'bark', label: 'FX & English', icon: 'speaker' },
@@ -686,7 +685,8 @@ function App() {
                 />
               )}
 
-              {activeTab === 'f5tts-cs' && (
+              {/* F5-TTS (Czech) záložka je skrytá - funkčnost je integrována do "české slovo" */}
+              {false && activeTab === 'f5tts-cs' && (
                 <F5TTSCzech
                   text={text}
                   setText={setText}

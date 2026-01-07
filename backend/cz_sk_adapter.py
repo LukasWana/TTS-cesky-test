@@ -6,6 +6,8 @@ Kritická konverze pro srozumitelnost českého textu se slovenským modelem
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 import re
+import sys
+import io
 
 
 @dataclass
@@ -28,7 +30,23 @@ class CzechToSlovakAdapter:
     - Nejčastější CZ→SK rozdíly (~100 slov)
     """
 
-    def __init__(self):
+    def __init__(self, r_replacement: str = "r", u_replacement: str = "ú"):
+        """
+        Inicializuje adapter s konfigurovatelnými parametry.
+
+        Args:
+            r_replacement: Varianta nahrazení "ř" - "r" (výchozí, doporučené), "ř" (pokud model zná)
+            u_replacement: Varianta nahrazení "ů" - "ú" (výchozí, doporučené), "ô" (alternativa)
+        """
+        # Uložit konfigurační parametry
+        self.r_replacement = r_replacement
+        self.u_replacement = u_replacement
+
+        # Whitelist znaků, které zní stejně v obou jazycích
+        self.WHITELIST_CHARS = set("áéíóúýbcdfghjklmnpqrstvwxzďťň")
+        # Poznámka: "ch" je speciální případ, řešíme ho zvlášť
+        # Whitelist se používá pro rychlé přeskočení slov, která nepotřebují konverzi
+
         # Kritická konverze: "ů" → "ô"
         # Slovak model nezná "ů", takže ho nahradíme "ô" (nejbližší zvuk)
         self.U_TO_O_CONVERSIONS = {
@@ -559,6 +577,8 @@ class CzechToSlovakAdapter:
             "nerozumím": "nerozumiem",
             "jistě": "iste",
             "samozřejmě": "samozrejme",
+            "příliš": "príliš",
+            "přílišný": "prílišný",
             "možná": "možno",
             "určitě": "určite",
             "fajn": "fajn",
@@ -644,9 +664,79 @@ class CzechToSlovakAdapter:
             re.IGNORECASE,
         )
 
+    def _apply_phonetic_rules(self, text: str) -> str:
+        """
+        Aplikuje fonetická pravidla před slovníkovým lookup.
+
+        Priorita pravidel:
+        1. "ů" → "ú" (globální, kritické - model nezná "ů")
+        2. "ř" → "r" (výchozí, doporučené) nebo "ř" → "ř" (pokud model zná)
+        3. "mě" → "mje" (zachytí výslovnost [mňe] pomocí "j")
+        4. "ně" → "ňe" (měkké ň zachytí výslovnost [ňe])
+        5. "tě" → "ťe" (měkké ť zachytí výslovnost [ťe])
+        6. "dě" → "ďe" (měkké ď zachytí výslovnost [ďe])
+
+        Args:
+            text: Vstupní text
+
+        Returns:
+            Text s aplikovanými fonetickými pravidly
+        """
+        # 1. ů → ú (globální, kritické - model nezná "ů")
+        # "ú" je standardní slovenské dlouhé u, podobné českému "ů"
+        text = re.sub(r"ů", self.u_replacement, text)
+
+        # 2. ř → fonetická reprezentace (konfigurovatelná)
+        # Výchozí: "ř" → "r" (doporučené, model lépe zná "r")
+        # Alternativa: "ř" → "ř" pokud model zná "ř" a zní dobře
+        if self.r_replacement != "ř":
+            text = re.sub(r"ř", self.r_replacement, text)
+        # else: nechat "ř" beze změny (pokud model zná tento znak)
+
+        # 3. mě → mje (zachytí výslovnost [mňe] pomocí "j")
+        # "mje" lépe zachytí českou výslovnost [mňe] než prosté "me"
+        # "j" zachytí palatalizaci před "e" lépe než "mňe" (dvě měkké souhlásky za sebou)
+        text = re.sub(r"\b([Mm]ě)", lambda m: "Mje" if m.group(1)[0].isupper() else "mje", text)
+        text = re.sub(r"([bcčdďfghjklmnňpqrsštťvwxzž])([Mm]ě)", lambda m: m.group(1) + ("Mje" if m.group(2)[0].isupper() else "mje"), text)
+
+        # 4. ně → ňe (měkké ň zachytí výslovnost [ňe])
+        text = re.sub(r"\b([Nn]ě)", lambda m: "Ňe" if m.group(1)[0].isupper() else "ňe", text)
+        text = re.sub(r"([bcčdďfghjklmnňpqrsštťvwxzž])([Nn]ě)", lambda m: m.group(1) + ("Ňe" if m.group(2)[0].isupper() else "ňe"), text)
+
+        # 5. tě → ťe (měkké ť zachytí výslovnost [ťe])
+        text = re.sub(r"\b([Tt]ě)", lambda m: "Ťe" if m.group(1)[0].isupper() else "ťe", text)
+        text = re.sub(r"([bcčdďfghjklmnňpqrsštťvwxzž])([Tt]ě)", lambda m: m.group(1) + ("Ťe" if m.group(2)[0].isupper() else "ťe"), text)
+
+        # 6. dě → ďe (měkké ď zachytí výslovnost [ďe])
+        text = re.sub(r"\b([Dd]ě)", lambda m: "Ďe" if m.group(1)[0].isupper() else "ďe", text)
+        text = re.sub(r"([bcčdďfghjklmnňpqrsštťvwxzž])([Dd]ě)", lambda m: m.group(1) + ("Ďe" if m.group(2)[0].isupper() else "ďe"), text)
+
+        return text
+
+    def _is_whitelist_word(self, word: str) -> bool:
+        """
+        Zkontroluje, jestli slovo obsahuje pouze whitelist znaky.
+        Pokud ano, může být přeskočeno v konverzi (volitelná optimalizace).
+
+        Args:
+            word: Slovo k ověření
+
+        Returns:
+            True pokud slovo obsahuje pouze whitelist znaky
+        """
+        word_lower = word.lower()
+        # Odebrat "ch" jako speciální případ (je to jeden znak v češtině)
+        word_lower = word_lower.replace("ch", "")
+        return all(c in self.WHITELIST_CHARS for c in word_lower)
+
     def convert(self, text: str) -> ConversionResult:
         """
         Konvertuje český text pro slovenský F5-TTS model.
+
+        Pořadí zpracování:
+        1. Regex pravidla (_apply_phonetic_rules)
+        2. Slovníkový lookup (stávající logika)
+        3. Výpočet confidence a statistik
 
         Args:
             text: Vstupní český text
@@ -656,6 +746,10 @@ class CzechToSlovakAdapter:
         """
         applied = []
 
+        # 1. FÁZE: Regex pravidla (před slovníkem)
+        text = self._apply_phonetic_rules(text)
+
+        # 2. FÁZE: Slovníkový lookup (stávající logika)
         def replace_match(match):
             original = match.group(0)
             lower = original.lower()
@@ -732,16 +826,52 @@ def convert_czech_for_slovak_model(text: str) -> str:
 
 
 if __name__ == "__main__":
-    # Test na pangramu
+    # Nastavit UTF-8 encoding pro výstup (Windows konzole)
+    if sys.platform == "win32":
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+    # Testovací příklady z plánu
     adapter = CzechToSlovakAdapter()
 
-    test_text = "Příliš žlutoučký kůň úpěl dábelské ódy."
-    result = adapter.convert(test_text)
+    test_cases = [
+        "Příliš žlutoučký kůň úpěl dábelské ódy.",
+        "Příliš - žlutoučký",
+        "Řeka teče kolem města.",
+        "Děti si hrály na hřišti.",
+    ]
 
-    print(f"Původní: {result.original}")
-    print(f"Konvertovaný: {result.converted}")
-    print(f"Změn: {result.changes_count}")
-    print(f"Důvěra: {result.confidence:.2f}")
-    print(f"\nAplikované konverze:")
-    for conv in result.applied_conversions:
-        print(f"  {conv['original']} → {conv['converted']} ({conv['type']})")
+    print("=" * 70)
+    print("CZ-SK FONETICKA ADAPTACE - TESTOVANI")
+    print("=" * 70)
+    print()
+
+    for test_text in test_cases:
+        result = adapter.convert(test_text)
+        print(f"Vstup:  {result.original}")
+        print(f"Výstup: {result.converted}")
+        print(f"Změn: {result.changes_count}, Důvěra: {result.confidence:.2f}")
+        if result.applied_conversions:
+            print("Aplikované konverze:")
+            for conv in result.applied_conversions[:5]:  # Prvních 5
+                print(f"  {conv['original']} → {conv['converted']} ({conv['type']})")
+        print()
+
+    # Test s různými konfiguracemi
+    print("=" * 70)
+    print("TESTOVANI S RUZNYMI KONFIGURACEMI")
+    print("=" * 70)
+    print()
+
+    test_text = "Řeka teče kolem města."
+    print(f"Testovaci text: {test_text}")
+    print()
+
+    # Výchozí konfigurace (ř → ř, ů → ú)
+    adapter_default = CzechToSlovakAdapter(r_replacement="ř", u_replacement="ú")
+    result_default = adapter_default.convert(test_text)
+    print(f"Vychozi (r->r, u->u): {result_default.converted}")
+
+    # Alternativní konfigurace (ř → r, ů → ô)
+    adapter_alt = CzechToSlovakAdapter(r_replacement="r", u_replacement="ô")
+    result_alt = adapter_alt.convert(test_text)
+    print(f"Alternativni (r->r, u->o): {result_alt.converted}")
