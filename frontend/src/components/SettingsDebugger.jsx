@@ -22,7 +22,7 @@ export function SettingsDebugger() {
       const keys = []
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
-        if (key && (key.includes('f5tts_cs_voice') || key.includes('f5tts_voice'))) {
+        if (key && key.includes('f5tts_voice')) {
           keys.push({
             key,
             data: JSON.parse(localStorage.getItem(key) || '{}')

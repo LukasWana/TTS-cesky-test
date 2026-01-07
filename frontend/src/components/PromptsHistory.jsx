@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import {
   getXTTSPromptsHistory,
-  getF5TTSPromptsHistory,
   getF5TTSSKPromptsHistory,
   deleteXTTSPromptEntry,
-  deleteF5TTSPromptEntry,
   deleteF5TTSSKPromptEntry
 } from '../services/api'
 import Icon from './ui/Icons'
@@ -38,7 +36,7 @@ const saveExpandedState = (modelType, expanded) => {
 }
 
 function PromptsHistory({ modelType, onSelectPrompt }) {
-  // modelType: 'xtts' | 'f5tts' | 'f5tts-sk'
+  // modelType: 'xtts' | 'f5tts-sk'
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -76,8 +74,6 @@ function PromptsHistory({ modelType, onSelectPrompt }) {
 
       if (modelType === 'xtts') {
         data = await getXTTSPromptsHistory(null, 0)
-      } else if (modelType === 'f5tts') {
-        data = await getF5TTSPromptsHistory(null, 0)
       } else if (modelType === 'f5tts-sk') {
         data = await getF5TTSSKPromptsHistory(null, 0)
       } else {
@@ -102,8 +98,6 @@ function PromptsHistory({ modelType, onSelectPrompt }) {
     try {
       if (modelType === 'xtts') {
         await deleteXTTSPromptEntry(entryId)
-      } else if (modelType === 'f5tts') {
-        await deleteF5TTSPromptEntry(entryId)
       } else if (modelType === 'f5tts-sk') {
         await deleteF5TTSSKPromptEntry(entryId)
       }

@@ -35,7 +35,6 @@ print(f"{Fore.CYAN}[DEBUG] Importing middleware...{Style.RESET_ALL}")
 from backend.api.middleware import setup_cors, setup_not_found_cache
 
 print(f"{Fore.CYAN}[DEBUG] Importing dependencies...{Style.RESET_ALL}")
-from backend.api.dependencies import check_f5_tts_availability
 
 print(f"{Fore.CYAN}[DEBUG] Importing routers...{Style.RESET_ALL}")
 from backend.api.routers import (
@@ -61,8 +60,6 @@ async def lifespan(app: FastAPI):
         print(f"{Fore.GREEN}✓ Backend startup in progress...{Style.RESET_ALL}")
         # XTTS model nyní načítáme "lazy" až při prvním požadavku v /api/tts/generate
         logger.info("Backend startup: ready (models will be loaded on demand)")
-        # Ověření F5-TTS (neblokující, pouze informativní)
-        asyncio.create_task(check_f5_tts_availability())
 
         # Jasný indikátor, že backend běží
         print(f"{Fore.GREEN}{Style.BRIGHT}🚀 BACKEND IS READY AND RUNNING AT http://{API_HOST}:{API_PORT}{Style.RESET_ALL}")

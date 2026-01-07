@@ -119,15 +119,6 @@ F5_DEFAULT_NFE = int(os.getenv("F5_DEFAULT_NFE", "16"))  # Number of function ev
 F5_DEVICE = DEVICE  # Reuse stejný device jako XTTS
 F5_OUTPUT_SAMPLE_RATE = OUTPUT_SAMPLE_RATE  # Sladit s OUTPUT_SAMPLE_RATE
 
-# F5-TTS Czech model configuration (finetunovaný model)
-F5_CZECH_MODEL_DIR = MODELS_DIR / "f5-tts-czech"
-F5_CZECH_MODEL_DIR.mkdir(parents=True, exist_ok=True)
-F5_CZECH_CKPT_NAME = os.getenv("F5_CZECH_CKPT_NAME", "model.pt")
-F5_CZECH_VOCAB_NAME = os.getenv("F5_CZECH_VOCAB_NAME", "vocab.txt")
-F5_CZECH_CONFIG_NAME = os.getenv("F5_CZECH_CONFIG_NAME", "F5TTS_Czech.yaml")
-F5_CZECH_DEFAULT_NFE = int(os.getenv("F5_CZECH_DEFAULT_NFE", "24"))  # Zvýšeno na 24 pro lepší kvalitu
-USE_CZECH_FINETUNED_MODEL = os.getenv("USE_CZECH_FINETUNED_MODEL", "True").lower() == "true"  # Zapnuto - používá lokální český model
-
 # F5-TTS Slovak model configuration
 F5_SLOVAK_MODEL_NAME = os.getenv("F5_SLOVAK_MODEL_NAME", "petercheben/F5_TTS_Slovak")
 F5_SLOVAK_MODEL_DIR = MODELS_DIR / "f5-tts-slovak"
