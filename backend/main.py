@@ -1,6 +1,7 @@
 """
 FastAPI aplikace pro XTTS-v2 Demo
 """
+
 import sys
 import os
 import asyncio
@@ -48,9 +49,11 @@ from backend.api.routers import (
     audio,
     models,
     prompts,
+    applio,
 )
 
 logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -62,7 +65,9 @@ async def lifespan(app: FastAPI):
         logger.info("Backend startup: ready (models will be loaded on demand)")
 
         # Jasný indikátor, že backend běží
-        print(f"{Fore.GREEN}{Style.BRIGHT}🚀 BACKEND IS READY AND RUNNING AT http://{API_HOST}:{API_PORT}{Style.RESET_ALL}")
+        print(
+            f"{Fore.GREEN}{Style.BRIGHT}🚀 BACKEND IS READY AND RUNNING AT http://{API_HOST}:{API_PORT}{Style.RESET_ALL}"
+        )
         print(f"{Fore.MAGENTA}--- Initialization log ends here ---{Style.RESET_ALL}")
     except Exception as e:
         logger.error(f"Startup error: {str(e)}")
@@ -72,6 +77,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown (volitelné, pokud potřebujete cleanup)
     print(f"{Fore.YELLOW}Backend shutting down...{Style.RESET_ALL}")
+
 
 # Inicializace FastAPI
 app = FastAPI(title="XTTS-v2 Demo", version="1.0.0", lifespan=lifespan)
@@ -107,6 +113,8 @@ app.include_router(asr.router)
 app.include_router(audio.router)
 app.include_router(models.router)
 app.include_router(prompts.router)
+app.include_router(applio.router)
+
 
 @app.get("/")
 async def root():
@@ -114,6 +122,7 @@ async def root():
     if frontend_exists:
         return FileResponse(str(frontend_index), media_type="text/html")
     return {"message": "XTTS-v2 Demo API", "version": "1.0.0"}
+
 
 # Catch-all route pro SPA routing a statické soubory (musí být na konci, před uvicorn.run)
 # Servuje index.html pro všechny routes, které nezačínají /api
@@ -123,11 +132,13 @@ async def serve_spa(full_path: str, request: Request):
     # Pokud route začíná /api, vrátíme 404 (mělo by být zachyceno API routes)
     if full_path.startswith("api/"):
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Not found")
 
     # Pokud frontend neexistuje, vrátíme 404
     if not frontend_exists:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Not found")
 
     # Zkusit servovat statický soubor z frontend/dist (favicon.svg, atd.)
@@ -148,20 +159,22 @@ async def serve_spa(full_path: str, request: Request):
     # Pro všechny ostatní routes servuj index.html (SPA routing)
     return FileResponse(str(frontend_index), media_type="text/html")
 
+
 # Formátovače logů
 class ColoredFormatter(logging.Formatter):
     """Formátovač logů s barevným výstupem kompatibilní s uvicorn"""
+
     COLORS = {
-        'DEBUG': Fore.CYAN,
-        'INFO': Fore.GREEN,
-        'WARNING': Fore.YELLOW,
-        'ERROR': Fore.RED,
-        'CRITICAL': Fore.RED + Style.BRIGHT,
+        "DEBUG": Fore.CYAN,
+        "INFO": Fore.GREEN,
+        "WARNING": Fore.YELLOW,
+        "ERROR": Fore.RED,
+        "CRITICAL": Fore.RED + Style.BRIGHT,
     }
 
     def format(self, record):
         # Základní barevná úprava levelu
-        log_color = self.COLORS.get(record.levelname, '')
+        log_color = self.COLORS.get(record.levelname, "")
         reset_color = Style.RESET_ALL
 
         # Předat kopii recordu pro formátování (abychom neměnili originál trvale)
@@ -169,6 +182,7 @@ class ColoredFormatter(logging.Formatter):
         record_copy.levelname = f"{log_color}{record_copy.levelname}{reset_color}"
 
         return super().format(record_copy)
+
 
 class ColoredAccessFormatter(AccessFormatter):
     """Barevný access formátovač založený na uvicorn AccessFormatter"""
@@ -179,6 +193,7 @@ class ColoredAccessFormatter(AccessFormatter):
 
         # Pak přidáme barvu
         return f"{Fore.MAGENTA}{formatted}{Style.RESET_ALL}"
+
 
 def get_logging_config():
     """Vrací konfiguraci logování pro uvicorn"""
@@ -195,7 +210,7 @@ def get_logging_config():
             },
             "access": {
                 "()": ColoredAccessFormatter,
-                "format": "%(asctime)s - %(levelname)s - %(client_addr)s - \"%(request_line)s\" %(status_code)s",
+                "format": '%(asctime)s - %(levelname)s - %(client_addr)s - "%(request_line)s" %(status_code)s',
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
         },
@@ -220,19 +235,36 @@ def get_logging_config():
         },
         "loggers": {
             "": {"handlers": ["console", "file"], "level": level},
-            "uvicorn": {"handlers": ["console", "file"], "level": level, "propagate": False},
-            "uvicorn.error": {"handlers": ["console", "file"], "level": level, "propagate": False},
-            "uvicorn.access": {"handlers": ["access_console", "file"], "level": level, "propagate": False},
+            "uvicorn": {
+                "handlers": ["console", "file"],
+                "level": level,
+                "propagate": False,
+            },
+            "uvicorn.error": {
+                "handlers": ["console", "file"],
+                "level": level,
+                "propagate": False,
+            },
+            "uvicorn.access": {
+                "handlers": ["access_console", "file"],
+                "level": level,
+                "propagate": False,
+            },
         },
     }
+
 
 if __name__ == "__main__":
     # Nastavení logování pomocí LOGGING_CONFIG pro uvicorn
     log_config = get_logging_config()
 
     print(f"{Fore.GREEN}✓ Colorama initialized{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}DEBUG{Style.RESET_ALL} | {Fore.GREEN}INFO{Style.RESET_ALL} | {Fore.YELLOW}WARNING{Style.RESET_ALL} | {Fore.RED}ERROR{Style.RESET_ALL} | {Fore.MAGENTA}ACCESS{Style.RESET_ALL}")
-    print(f"{Fore.GREEN}[DEBUG] Starting uvicorn server on {API_HOST}:{API_PORT}{Style.RESET_ALL}")
+    print(
+        f"{Fore.CYAN}DEBUG{Style.RESET_ALL} | {Fore.GREEN}INFO{Style.RESET_ALL} | {Fore.YELLOW}WARNING{Style.RESET_ALL} | {Fore.RED}ERROR{Style.RESET_ALL} | {Fore.MAGENTA}ACCESS{Style.RESET_ALL}"
+    )
+    print(
+        f"{Fore.GREEN}[DEBUG] Starting uvicorn server on {API_HOST}:{API_PORT}{Style.RESET_ALL}"
+    )
 
     try:
         # Používáme app instanci a předáváme log_config
@@ -246,7 +278,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"{Fore.RED}[ERROR] Error starting uvicorn: {e}{Style.RESET_ALL}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
-
-
