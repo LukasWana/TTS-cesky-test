@@ -37,6 +37,10 @@ outputs/*
 # Runtime data
 history.json
 
+# Cache files
+.deps_cache.txt
+.start_cache.json
+
 # Local-only demo voices (keep repo lightweight / avoid accidental commits)
 frontend/assets/demo-voices/František Novotný .wav
 
