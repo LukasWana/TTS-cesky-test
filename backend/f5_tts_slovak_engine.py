@@ -18,7 +18,7 @@ from backend.config import (
     F5_SLOVAK_MODEL_NAME,
     F5_SLOVAK_MODEL_DIR,
     F5_SLOVAK_DEFAULT_NFE,
-    F5_DEVICE,
+    # F5_DEVICE, # Removed to avoid early access
     F5_OUTPUT_SAMPLE_RATE
 )
 
@@ -27,8 +27,16 @@ class F5TTSSlovakEngine:
     """Wrapper pro F5-TTS slovenský engine (v1: přes CLI)"""
 
     def __init__(self):
-        self.device = F5_DEVICE
+        self._device = None
         self.is_loaded = False  # CLI nepotřebuje předběžné načtení modelu
+
+    @property
+    def device(self):
+        if self._device is None:
+            # Lazy import config variables to avoid triggering __getattr__ too early
+            from backend.config import get_f5_device
+            self._device = get_f5_device()
+        return self._device
         # F5-TTS CLI očekává Hugging Face identifikátor (např. "petercheben/F5_TTS_Slovak")
         # a hledá config v f5_tts/configs/petercheben/F5_TTS_Slovak.yaml
         # Pokud model existuje lokálně, CLI ho stáhne z Hugging Face cache nebo použije lokální

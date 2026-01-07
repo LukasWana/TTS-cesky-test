@@ -12,10 +12,10 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-import torch
+# REMOVED: import torch
 import librosa
 
-from backend.config import DEVICE
+from backend.config import get_device
 
 
 _lock = threading.Lock()
@@ -48,7 +48,9 @@ class ASREngine:
         self.model_id = model_id
         self._pipe = None
         self._processor = None
-        self._device_index = 0 if (DEVICE == "cuda" and torch.cuda.is_available()) else -1
+
+        # Lazy resolve device index
+        self._device_index = None
 
     def _ensure_loaded(self) -> None:
         if self._pipe is not None:
@@ -57,6 +59,10 @@ class ASREngine:
         with _lock:
             if self._pipe is not None:
                 return
+
+            import torch  # Defer import
+            if self._device_index is None:
+                self._device_index = 0 if (get_device() == "cuda" and torch.cuda.is_available()) else -1
 
             from transformers import (
                 AutoModelForSpeechSeq2Seq,

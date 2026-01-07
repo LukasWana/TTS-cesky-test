@@ -16,10 +16,10 @@ from pathlib import Path
 from typing import Optional
 import numpy as np
 
-import torch
+# REMOVED: import torch
 import soundfile as sf
 
-from backend.config import OUTPUTS_DIR, DEVICE, OUTPUT_HEADROOM_DB
+from backend.config import OUTPUTS_DIR, OUTPUT_HEADROOM_DB, get_device
 from backend.progress_manager import ProgressManager
 
 
@@ -47,7 +47,11 @@ class BarkEngine:
         - mixed: text large, ostatní small (šetří VRAM)
         - small: vše small
         """
-        mm = (model_mode or os.getenv("BARK_MODEL_MODE", "auto") or "auto").strip().lower()
+        mm = (
+            (model_mode or os.getenv("BARK_MODEL_MODE", "auto") or "auto")
+            .strip()
+            .lower()
+        )
         if mm not in ("auto", "full", "mixed", "small"):
             mm = "auto"
         return mm
@@ -63,15 +67,34 @@ class BarkEngine:
         target = self._resolve_model_size(model_size)
         mode = self._resolve_model_mode(model_mode)
         # offload_cpu: explicitní parametr má přednost, jinak env SUNO_OFFLOAD_CPU
-        eff_offload = bool(offload_cpu) if offload_cpu is not None else (os.getenv("SUNO_OFFLOAD_CPU", "False").lower() == "true")
+        eff_offload = (
+            bool(offload_cpu)
+            if offload_cpu is not None
+            else (os.getenv("SUNO_OFFLOAD_CPU", "False").lower() == "true")
+        )
         with self._lock:
-            if self._model_loaded and self._model_size == target and self._model_mode == mode and self._offload_cpu == eff_offload:
+            if (
+                self._model_loaded
+                and self._model_size == target
+                and self._model_mode == mode
+                and self._offload_cpu == eff_offload
+            ):
                 if job_id:
-                    ProgressManager.update(job_id, percent=10, stage="bark", message="Model je již v paměti, začínám generovat…")
+                    ProgressManager.update(
+                        job_id,
+                        percent=10,
+                        stage="bark",
+                        message="Model je již v paměti, začínám generovat…",
+                    )
                 return
 
             if job_id:
-                ProgressManager.update(job_id, percent=5, stage="bark", message=f"Načítám Bark model ({target}, mode={mode}, offload_cpu={eff_offload})…")
+                ProgressManager.update(
+                    job_id,
+                    percent=5,
+                    stage="bark",
+                    message=f"Načítám Bark model ({target}, mode={mode}, offload_cpu={eff_offload})…",
+                )
 
             try:
                 from bark import SAMPLE_RATE, preload_models
@@ -110,10 +133,10 @@ class BarkEngine:
                         codec_use_small = True
                 else:
                     # auto: zachovej původní chování podle model_size
-                    text_use_small = (target == "small")
-                    coarse_use_small = (target == "small")
-                    fine_use_small = (target == "small")
-                    codec_use_small = (target == "small")
+                    text_use_small = target == "small"
+                    coarse_use_small = target == "small"
+                    fine_use_small = target == "small"
+                    codec_use_small = target == "small"
 
                 try:
                     preload_models(
@@ -134,7 +157,13 @@ class BarkEngine:
             except Exception as e:
                 raise RuntimeError(f"Chyba při načítání Bark modelu: {e}") from e
 
-            device = DEVICE if DEVICE in ("cpu", "cuda") else ("cuda" if torch.cuda.is_available() else "cpu")
+            import torch  # Defer import
+
+            device = (
+                get_device()
+                if get_device() in ("cpu", "cuda")
+                else ("cuda" if torch.cuda.is_available() else "cpu")
+            )
             self._model_loaded = True
             self._model_size = target
             self._model_mode = mode
@@ -172,7 +201,9 @@ class BarkEngine:
         if not text or not text.strip():
             raise ValueError("Textový prompt je prázdný")
 
-        self._ensure_loaded(model_size, model_mode=model_mode, offload_cpu=offload_cpu, job_id=job_id)
+        self._ensure_loaded(
+            model_size, model_mode=model_mode, offload_cpu=offload_cpu, job_id=job_id
+        )
 
         if seed is not None:
             s = int(seed)
@@ -181,82 +212,70 @@ class BarkEngine:
                 torch.cuda.manual_seed_all(s)
 
         if job_id:
-            ProgressManager.update(job_id, percent=15, stage="bark", message="Generuji audio…")
+            ProgressManager.update(
+                job_id, percent=15, stage="bark", message="Generuji audio…"
+            )
 
         try:
             from bark import generate_audio, SAMPLE_RATE
         except ImportError:
             raise RuntimeError("Bark knihovna není nainstalovaná")
 
-        print(f"[Bark] Start generování: text='{text[:50]}...', model={model_size}, device={self._device}")
+        print(
+            f"[Bark] Start generování: text='{text[:50]}...', model={model_size}, device={self._device}"
+        )
 
-        # Příprava history_prompt (klonování hlasu)
-        history_prompt_value = None
+        npz_history_prompt = None
+        temp_npz_path = None
+
         if history_prompt and Path(history_prompt).exists():
-            try:
-                # Bark očekává buď cestu k .npz souboru, nebo numpy array s audio daty
-                # Načteme WAV soubor a převedeme na numpy array
-                audio_data, sample_rate = sf.read(str(history_prompt))
+            file_ext = Path(history_prompt).suffix.lower()
+            if file_ext == ".npz":
+                npz_history_prompt = str(history_prompt)
+                print(
+                    f"[Bark] Používám existující NPZ voice prompt: {npz_history_prompt}"
+                )
+            else:
+                try:
+                    from backend.bark_voice_cloner import generate_voice_clone_path
 
-                # Zajistíme, že je to 1D array (mono)
-                if audio_data.ndim > 1:
-                    audio_data = np.mean(audio_data, axis=1)  # Převod stereo na mono
-
-                # Normalizace do rozsahu [-1, 1] pokud ještě není
-                if audio_data.dtype != np.float32:
-                    if audio_data.dtype == np.int16:
-                        audio_data = audio_data.astype(np.float32) / 32768.0
-                    elif audio_data.dtype == np.int32:
-                        audio_data = audio_data.astype(np.float32) / 2147483648.0
+                    print(f"[Bark] Extrakce voice features z: {history_prompt}")
+                    npz_history_prompt = generate_voice_clone_path(
+                        str(history_prompt),
+                        temp=True,
+                        device=self._device,
+                        verbose=True,
+                    )
+                    if npz_history_prompt:
+                        temp_npz_path = npz_history_prompt
+                        print(f"[Bark] Voice NPZ vytvořen: {npz_history_prompt}")
                     else:
-                        audio_data = audio_data.astype(np.float32)
+                        print(
+                            f"[Bark] ⚠️ Nepodařilo se extrahovat voice features, použije se výchozí hlas"
+                        )
+                except ImportError as e:
+                    print(f"[Bark] ⚠️ Voice cloner není dostupný: {e}")
+                except Exception as e:
+                    import traceback
 
-                # Clip na rozsah [-1, 1]
-                audio_data = np.clip(audio_data, -1.0, 1.0)
-
-                # Resample na Bark sample rate (24kHz) pokud je potřeba
-                if sample_rate != SAMPLE_RATE:
-                    try:
-                        from scipy import signal
-                        num_samples = int(len(audio_data) * SAMPLE_RATE / sample_rate)
-                        audio_data = signal.resample(audio_data, num_samples)
-                        print(f"[Bark] Resamplováno z {sample_rate}Hz na {SAMPLE_RATE}Hz")
-                    except ImportError:
-                        # scipy není dostupný, použijeme jednoduchý resampling pomocí numpy
-                        # (lineární interpolace pomocí numpy)
-                        try:
-                            old_length = len(audio_data)
-                            new_length = int(old_length * SAMPLE_RATE / sample_rate)
-                            old_indices = np.arange(old_length)
-                            new_indices = np.linspace(0, old_length - 1, new_length)
-                            audio_data = np.interp(new_indices, old_indices, audio_data)
-                            print(f"[Bark] Resamplováno z {sample_rate}Hz na {SAMPLE_RATE}Hz (numpy interpolace)")
-                        except Exception as e:
-                            print(f"[Bark] ⚠️ Nelze resamplovat z {sample_rate}Hz na {SAMPLE_RATE}Hz: {e}, použije se původní sample rate")
-
-                history_prompt_value = audio_data
-                print(f"[Bark] Načten referenční hlas z {history_prompt} (délka: {len(audio_data)/SAMPLE_RATE:.2f}s, SR: {SAMPLE_RATE}Hz)")
-            except Exception as e:
-                import traceback
-                print(f"[Bark] ⚠️ Chyba při načítání history_prompt: {e}")
-                print(f"[Bark] Traceback: {traceback.format_exc()}")
-                history_prompt_value = None
-        elif history_prompt:
-            print(f"[Bark] ⚠️ History prompt soubor neexistuje: {history_prompt}, použije se výchozí hlas")
+                    print(f"[Bark] ⚠️ Chyba při voice cloningu: {e}")
+                    print(traceback.format_exc())
 
         # Generování audia
         audio_array = generate_audio(
             text,
-            history_prompt=history_prompt_value,  # None = výchozí hlas, cesta = klonování hlasu
+            history_prompt=npz_history_prompt,
             text_temp=temperature,
             waveform_temp=temperature,
-            output_full=False,  # Vrací pouze audio array
+            output_full=False,
         )
 
         print("[Bark] Audio data vygenerována (v RAM).")
 
         if job_id:
-            ProgressManager.update(job_id, percent=92, stage="bark", message="Ukládám WAV…")
+            ProgressManager.update(
+                job_id, percent=92, stage="bark", message="Ukládám WAV…"
+            )
 
         # Převedení na numpy array a normalizace
         if isinstance(audio_array, torch.Tensor):
@@ -279,9 +298,18 @@ class BarkEngine:
             if target_samples > current_samples:
                 # Delší než generované - zacyklit
                 if job_id:
-                    ProgressManager.update(job_id, percent=90, stage="bark", message="Upravuji délku (zacyklení)…")
+                    ProgressManager.update(
+                        job_id,
+                        percent=90,
+                        stage="bark",
+                        message="Upravuji délku (zacyklení)…",
+                    )
 
-                from backend.audio_mix_utils import LoadedAudio, match_length_and_channels
+                from backend.audio_mix_utils import (
+                    LoadedAudio,
+                    match_length_and_channels,
+                )
+
                 # Vytvoříme LoadedAudio objekt pro použití match_length_and_channels
                 audio_obj = LoadedAudio(y=audio_array, sr=SAMPLE_RATE)
 
@@ -291,21 +319,29 @@ class BarkEngine:
                     target_len=target_samples,
                     target_channels=1,
                     loop=True,
-                    crossfade_ms=500  # 0.5s crossfade pro plynulé zacyklení
+                    crossfade_ms=500,  # 0.5s crossfade pro plynulé zacyklení
                 )
                 audio_array = looped_audio
-                print(f"[Bark] Audio zacykleno z {current_samples/SAMPLE_RATE:.1f}s na {target_samples/SAMPLE_RATE:.1f}s")
+                print(
+                    f"[Bark] Audio zacykleno z {current_samples / SAMPLE_RATE:.1f}s na {target_samples / SAMPLE_RATE:.1f}s"
+                )
             elif target_samples < current_samples:
                 # Kratší než generované - oříznout
                 audio_array = audio_array[:target_samples]
-                print(f"[Bark] Audio oříznuto z {current_samples/SAMPLE_RATE:.1f}s na {target_samples/SAMPLE_RATE:.1f}s")
+                print(
+                    f"[Bark] Audio oříznuto z {current_samples / SAMPLE_RATE:.1f}s na {target_samples / SAMPLE_RATE:.1f}s"
+                )
 
         # Aplikovat headroom (pokud je zadán)
         if target_headroom_db is not None:
             try:
                 final_headroom_db = target_headroom_db
                 if final_headroom_db is not None:
-                    peak = float(np.max(np.abs(audio_array))) if audio_array is not None and len(audio_array) else 0.0
+                    peak = (
+                        float(np.max(np.abs(audio_array)))
+                        if audio_array is not None and len(audio_array)
+                        else 0.0
+                    )
                     if peak > 0:
                         if float(final_headroom_db) < 0:
                             target_peak = 10 ** (float(final_headroom_db) / 20.0)
@@ -315,8 +351,12 @@ class BarkEngine:
                         if peak > target_peak:
                             audio_array = audio_array * (target_peak / peak)
                     if not np.isfinite(audio_array).all():
-                        audio_array = np.nan_to_num(audio_array, nan=0.0, posinf=0.0, neginf=0.0)
-                    print(f"[Bark] Headroom ceiling: {final_headroom_db} dB (aplikováno jen pokud peak přesáhl cíl)")
+                        audio_array = np.nan_to_num(
+                            audio_array, nan=0.0, posinf=0.0, neginf=0.0
+                        )
+                    print(
+                        f"[Bark] Headroom ceiling: {final_headroom_db} dB (aplikováno jen pokud peak přesáhl cíl)"
+                    )
             except Exception as e:
                 print(f"[Bark] ⚠️ Headroom selhal: {e}")
 
@@ -326,6 +366,13 @@ class BarkEngine:
 
         sf.write(str(out_path), audio_array, SAMPLE_RATE)
 
+        if temp_npz_path and Path(temp_npz_path).exists():
+            try:
+                Path(temp_npz_path).unlink()
+                print(f"[Bark] Smazán dočasný voice NPZ: {temp_npz_path}")
+            except Exception as e:
+                print(f"[Bark] ⚠️ Nepodařilo se smazat dočasný NPZ: {e}")
+
         # Cleanup VRAM
         if torch.cuda.is_available():
             try:
@@ -334,5 +381,3 @@ class BarkEngine:
                 pass
 
         return str(out_path)
-
-

@@ -4,11 +4,11 @@ Model Manager - správa XTTS modelu
 import asyncio
 from pathlib import Path
 from typing import Optional
-import torch
-from TTS.api import TTS
+# REMOVED: import torch
+# REMOVED: from TTS.api import TTS
 
 from backend.config import (
-    DEVICE,
+    get_device, # Use getter
     XTTS_MODEL_NAME,
     USE_SMALL_MODELS,
     ENABLE_CPU_OFFLOAD,
@@ -32,10 +32,17 @@ class ModelManager:
         Args:
             device: Device pro model (cuda/cpu)
         """
-        self.model: Optional[TTS] = None
-        self.device = device or DEVICE
+        self.model = None # Optional[TTS]
+        self._device = device  # Store raw argument
         self.is_loading = False
         self.is_loaded = False
+
+    @property
+    def device(self):
+        """Lazy resolve device"""
+        if self._device is None:
+            self._device = get_device()
+        return self._device
 
     async def load_model(self):
         """Načte XTTS-v2 model asynchronně"""
@@ -69,8 +76,10 @@ class ModelManager:
         finally:
             self.is_loading = False
 
-    def _load_model_sync(self) -> TTS:
+    def _load_model_sync(self):
         """Synchronní načtení modelu z Hugging Face nebo lokální cache"""
+        import torch
+        from TTS.api import TTS
         print(f"Loading model: {XTTS_MODEL_NAME}")
         print("Model bude stažen z Hugging Face, pokud není v cache...")
 
@@ -165,6 +174,7 @@ class ModelManager:
 
     def get_status(self, vocoder=None) -> dict:
         """Vrátí status modelu"""
+        import torch
         return {
             "loaded": self.is_loaded,
             "loading": self.is_loading,

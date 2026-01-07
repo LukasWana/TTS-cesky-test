@@ -5,10 +5,10 @@ import logging
 from pathlib import Path
 from typing import Tuple, Optional
 import soundfile as sf
-import torch
+# REMOVED: import torch
 import numpy as np
 
-from backend.config import DEVICE, TARGET_SAMPLE_RATE
+from backend.config import get_device, TARGET_SAMPLE_RATE # Use getter
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,8 @@ def separate_vocals(
         model.eval()
 
         # Přesunout model na správné zařízení
-        device = torch.device(DEVICE)
+        import torch # Defer import
+        device = torch.device(get_device())
         model = model.to(device)
 
         # Načtení audio pomocí soundfile

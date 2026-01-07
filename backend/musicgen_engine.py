@@ -15,10 +15,10 @@ import uuid
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
 
-import torch
+# REMOVED: import torch
 import soundfile as sf
 
-from backend.config import OUTPUTS_DIR, DEVICE, MODELS_DIR
+from backend.config import OUTPUTS_DIR, MODELS_DIR, get_device
 from backend.progress_manager import ProgressManager
 
 
@@ -100,7 +100,8 @@ class MusicGenEngine:
     ) -> None:
         target = self._resolve_model_name(model_size)
         with self._lock:
-            device = DEVICE if DEVICE in ("cpu", "cuda") else ("cuda" if torch.cuda.is_available() else "cpu")
+            import torch  # Defer import
+            device = get_device() if get_device() in ("cpu", "cuda") else ("cuda" if torch.cuda.is_available() else "cpu")
             prec = self._resolve_precision(precision, device)
             offload = bool(enable_offload) if enable_offload is not None else (os.getenv("MUSICGEN_ENABLE_OFFLOAD", "False").lower() == "true")
             max_gb = float(max_vram_gb) if max_vram_gb is not None else None

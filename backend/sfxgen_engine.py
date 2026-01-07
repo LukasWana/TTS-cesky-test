@@ -14,10 +14,10 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-import torch
+# REMOVED: import torch
 import soundfile as sf
 
-from backend.config import OUTPUTS_DIR, DEVICE
+from backend.config import OUTPUTS_DIR, get_device # Use getter
 from backend.progress_manager import ProgressManager
 
 
@@ -74,7 +74,8 @@ class SfxGenEngine:
                 error_msg += "\nPozn.: TTS a MusicGen fungují i bez této závislosti."
                 raise RuntimeError(error_msg) from e
 
-            device = DEVICE if DEVICE in ("cpu", "cuda") else ("cuda" if torch.cuda.is_available() else "cpu")
+            import torch # Defer import
+            device = get_device() if get_device() in ("cpu", "cuda") else ("cuda" if torch.cuda.is_available() else "cpu")
 
             try:
                 model = AudioGen.get_pretrained(target)

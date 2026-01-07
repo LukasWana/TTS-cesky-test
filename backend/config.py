@@ -2,7 +2,6 @@
 Konfigurační soubor pro XTTS-v2 Demo aplikaci
 """
 import os
-import torch
 from pathlib import Path
 
 # Base paths
@@ -40,25 +39,58 @@ try:
 except ImportError:
     COLOR_OK = COLOR_WARN = COLOR_INFO = COLOR_RESET = ""
 
-if FORCE_DEVICE == "cpu":
-    DEVICE = "cpu"
-    print(f"{COLOR_WARN}[WARN] Device vynucen na CPU (FORCE_DEVICE=cpu){COLOR_RESET}")
-elif FORCE_DEVICE == "cuda":
-    if torch.cuda.is_available():
-        DEVICE = "cuda"
-        print(f"{COLOR_OK}[OK] Device vynucen na GPU (FORCE_DEVICE=cuda){COLOR_RESET}")
-    else:
-        DEVICE = "cpu"
-        print(f"{COLOR_WARN}[WARN] GPU není dostupné, používá se CPU (FORCE_DEVICE=cuda byl ignorován){COLOR_RESET}")
-else:
-    # Automatická detekce (výchozí)
-    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    if DEVICE == "cuda":
-        print(f"{COLOR_OK}[OK] Automatická detekce: GPU dostupné, používá se CUDA{COLOR_RESET}")
-    else:
-        print(f"{COLOR_INFO}[INFO] Automatická detekce: GPU nedostupné, používá se CPU{COLOR_RESET}")
+# Lazy device detection - odložíme import torch až při skutečné potřebě
+# Pokud FORCE_DEVICE=cpu, nemusíme importovat torch vůbec
+def _detect_device():
+    """Lazy device detection - načte torch až při prvním použití"""
+    # Import torch až teď (lazy loading) - pouze pokud není FORCE_DEVICE=cpu
+    import torch
 
-# GPU memory optimization for 6GB VRAM cards (RTX 3060, etc.)
+    if FORCE_DEVICE == "cpu":
+        device = "cpu"
+        print(f"{COLOR_WARN}[WARN] Device vynucen na CPU (FORCE_DEVICE=cpu){COLOR_RESET}")
+    elif FORCE_DEVICE == "cuda":
+        if torch.cuda.is_available():
+            device = "cuda"
+            print(f"{COLOR_OK}[OK] Device vynucen na GPU (FORCE_DEVICE=cuda){COLOR_RESET}")
+        else:
+            device = "cpu"
+            print(f"{COLOR_WARN}[WARN] GPU není dostupné, používá se CPU (FORCE_DEVICE=cuda byl ignorován){COLOR_RESET}")
+    else:
+        # Automatická detekce (výchozí)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device == "cuda":
+            print(f"{COLOR_OK}[OK] Automatická detekce: GPU dostupné, používá se CUDA{COLOR_RESET}")
+        else:
+            print(f"{COLOR_INFO}[INFO] Automatická detekce: GPU nedostupné, používá se CPU{COLOR_RESET}")
+
+    return device
+
+
+# DEVICE - inicializace s lazy import torch
+# Místo přímé inicializace budeme používat funkci, nebo ji zinicializujeme až při prvním přístupu
+_DEVICE = None
+
+def get_device():
+    """Vrací detekovaný device (lazy)"""
+    global _DEVICE
+    if _DEVICE is None:
+        if FORCE_DEVICE == "cpu":
+            _DEVICE = "cpu"
+            print(f"{COLOR_WARN}[WARN] Device vynucen na CPU (FORCE_DEVICE=cpu){COLOR_RESET}")
+        else:
+            _DEVICE = _detect_device()
+    return _DEVICE
+
+# Pro zpětnou kompatibilitu a skutečné lazy loading použijeme __getattr__ (Python 3.7+)
+def __getattr__(name):
+    if name == "DEVICE":
+        return get_device()
+    if name == "F5_DEVICE":
+        return get_f5_device()
+    raise AttributeError(f"module {__name__} has no attribute {name}")
+
+# XTTS-v2 model configuration
 # Pokud máte GPU s 6GB VRAM, můžete použít tyto optimalizace:
 USE_SMALL_MODELS = os.getenv("SUNO_USE_SMALL_MODELS", "False").lower() == "true"
 ENABLE_CPU_OFFLOAD = os.getenv("SUNO_OFFLOAD_CPU", "False").lower() == "true"
@@ -116,7 +148,8 @@ OUTPUT_SAMPLE_RATE = int(os.getenv("OUTPUT_SAMPLE_RATE", "44100"))  # 22050, 240
 # F5-TTS model configuration
 F5_MODEL_NAME = os.getenv("F5_MODEL_NAME", "F5TTS_v1_Base")
 F5_DEFAULT_NFE = int(os.getenv("F5_DEFAULT_NFE", "16"))  # Number of function evaluations (kroky)
-F5_DEVICE = DEVICE  # Reuse stejný device jako XTTS
+def get_f5_device():
+    return get_device()  # Reuse stejný device jako XTTS
 F5_OUTPUT_SAMPLE_RATE = OUTPUT_SAMPLE_RATE  # Sladit s OUTPUT_SAMPLE_RATE
 
 # F5-TTS Slovak model configuration

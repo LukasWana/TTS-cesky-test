@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Optional, List, Dict
 import re
 import time
-from TTS.api import TTS
-import torch
+# REMOVED: from TTS.api import TTS
+# REMOVED: import torch
 import numpy as np
 import backend.config as config
 from num2words import num2words
@@ -23,7 +23,7 @@ from backend.tts.quality_control import QualityControl
 # Potlačení deprecation warning z librosa (pkg_resources je zastaralé, ale knihovna ho ještě používá)
 warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*", category=UserWarning)
 from backend.config import (
-    DEVICE,
+    get_device,
     XTTS_MODEL_NAME,
     MODEL_CACHE_DIR,
     OUTPUTS_DIR,
@@ -74,11 +74,11 @@ class XTTSEngine:
     """Wrapper pro XTTS-v2 TTS engine"""
 
     def __init__(self):
-        self.device = DEVICE
-        self.vocoder = get_hifigan_vocoder()
+        self._device = None
+        self._vocoder = None  # Lazy loading - načte se až při prvním použití
 
         # Komponenty
-        self.model_manager = ModelManager(device=self.device)
+        self.model_manager = ModelManager(device=None) # Lazy resolve inside ModelManager
         self.text_processor = TextProcessor(model=None)  # Model se nastaví po načtení
         self.quality_control = QualityControl()
 
@@ -87,6 +87,20 @@ class XTTSEngine:
         self.is_loading = False  # Bude nastaveno z model_manager
         self.is_loaded = False  # Bude nastaveno z model_manager
         self._bpe_tokenizer = None  # Bude nastaveno z text_processor
+
+    @property
+    def device(self):
+        """Lazy access to device"""
+        if self._device is None:
+            self._device = get_device()
+        return self._device
+
+    @property
+    def vocoder(self):
+        """Lazy loading vocoder - načte se až při prvním použití"""
+        if self._vocoder is None:
+            self._vocoder = get_hifigan_vocoder()
+        return self._vocoder
 
     @property
     def model(self):
@@ -141,7 +155,7 @@ class XTTSEngine:
         # Aktualizuj text_processor s načteným modelem
         self.text_processor.model = self.model_manager.model
 
-    def _load_model_sync(self) -> TTS:
+    def _load_model_sync(self):
         """Backward compatibility wrapper"""
         return self.model_manager._load_model_sync()
 
@@ -720,6 +734,7 @@ class XTTSEngine:
                 pass
 
         try:
+            import torch
             _progress(12, "prep", "Připravuji vstup…")
             # Nastavení seedu pro reprodukovatelnost
             if seed is not None:
