@@ -12,13 +12,19 @@ set "ROOT=%~dp0"
 if not "%ROOT:~-1%"=="\" set "ROOT=%ROOT%\"
 set "LOG_DIR=%ROOT%logs"
 set "BACKEND_LOG=%LOG_DIR%\backend.log"
+set "CACHE_SCRIPT=%ROOT%scripts\start_cache.py"
 
 echo XTTS-v2 Demo - START ALL
 echo =======================
 echo.
 
+REM 0) Zkontrolovat zda máme --force-check flag
+set "USE_CACHE=1"
+if "%1"=="--force-check" set "USE_CACHE=0"
+if "%2"=="--force-check" set "USE_CACHE=0"
+
 REM 1) Vyber kompatibilni Python (3.11 -> 3.10 -> 3.9)
-echo [1/9] Checking Python version...
+echo [1/11] Checking Python version...
 set "PYTHON_CMD="
 
 REM Zkus Python 3.11
@@ -59,21 +65,55 @@ echo Found: %PYTHON_CMD%
 %PYTHON_CMD% --version
 echo.
 
-REM 2) Node kontrola
-echo [2/9] Checking Node.js...
-node --version >nul 2>&1
-if errorlevel 1 (
-  echo ERROR: Node.js neni nainstalovany. Nainstalujte Node 18+.
-  echo Download from: https://nodejs.org/
+REM 1.5) Zkontrolovat cache (teď když máme Python)
+if "%USE_CACHE%"=="1" (
+  echo [1.5/11] Checking cache...
+  %PYTHON_CMD% "%CACHE_SCRIPT%" check >nul 2>&1
+  if not errorlevel 1 (
+    echo Cache is valid - using cached values for faster startup.
+    set "CACHE_VALID=1"
+  ) else (
+    set "CACHE_VALID=0"
+  )
   echo.
-  pause
-  exit /b 1
+) else (
+  set "CACHE_VALID=0"
 )
-node --version
-echo.
+
+REM 2) Node kontrola
+if "%CACHE_VALID%"=="1" (
+  echo [2/11] Node.js (cached - skipping check)
+  node --version
+  echo.
+) else (
+  echo [2/11] Checking Node.js...
+  node --version >nul 2>&1
+  if errorlevel 1 (
+    echo ERROR: Node.js neni nainstalovany. Nainstalujte Node 18+.
+    echo Download from: https://nodejs.org/
+    echo.
+    pause
+    exit /b 1
+  )
+  node --version
+  echo.
+)
 
 REM 3) Venv (jen kdyz neexistuje)
-echo [3/9] Checking virtual environment...
+:recreate_venv
+if "%CACHE_VALID%"=="1" (
+  echo [3/11] Virtual environment (cached - skipping check)
+  if not exist "%ROOT%venv\Scripts\python.exe" (
+    echo WARNING: venv not found despite cache - recreating...
+    set "CACHE_VALID=0"
+  )
+  if exist "%ROOT%venv\Scripts\python.exe" (
+    echo Virtual environment exists.
+    goto :venv_activated
+  )
+)
+
+echo [3/11] Checking virtual environment...
 if not exist "%ROOT%venv\Scripts\python.exe" (
   echo Creating venv with %PYTHON_CMD%...
   %PYTHON_CMD% -m venv "%ROOT%venv"
@@ -87,6 +127,7 @@ if not exist "%ROOT%venv\Scripts\python.exe" (
   echo Virtual environment exists.
 )
 
+:venv_activated
 echo Activating virtual environment...
 call "%ROOT%venv\Scripts\activate.bat"
 if errorlevel 1 (
@@ -105,6 +146,12 @@ set "WANDB_MODE=disabled"
 set "WANDB_SILENT=true"
 
 REM 4) Backend deps jen kdyz chybi (rychly check importu)
+if "%CACHE_VALID%"=="1" (
+  echo [4/11] Backend dependencies (cached - skipping check)
+  echo Backend dependencies OK (skip pip install).
+  goto :after_backend_check
+)
+
 echo [4/11] Checking backend dependencies...
 python -c "import fastapi" >nul 2>&1
 if errorlevel 1 goto :install_backend_deps
@@ -122,7 +169,7 @@ python -c "import yt_dlp" >nul 2>&1
 if errorlevel 1 goto :install_backend_deps
 
 echo Backend dependencies OK (skip pip install).
-goto :backend_deps_done
+goto :after_backend_check
 
 :install_backend_deps
 echo Installing backend dependencies (pip)...
@@ -139,11 +186,19 @@ if errorlevel 1 (
   exit /b 1
 )
 echo Backend dependencies installed.
+goto :after_backend_check
 
-:backend_deps_done
+:after_backend_check
 echo.
 
 REM 4.1) Kontrola Demucs (volitelné, ale doporučené pro separaci hlasu)
+if "%CACHE_VALID%"=="1" (
+  echo [4.1/11] Demucs (cached - skipping check)
+  echo Demucs is already installed.
+  echo.
+  goto :after_demucs
+)
+
 echo [4.1/11] Checking Demucs installation...
 python -c "import demucs" >nul 2>&1
 if errorlevel 1 (
@@ -164,6 +219,7 @@ if errorlevel 1 (
 ) else (
   echo Demucs is already installed.
 )
+:after_demucs
 echo.
 
 REM 4.2) Pokud je vyzadovano GPU, zajisti CUDA build PyTorch (jinak torch bude CPU build z requirements.txt)
@@ -201,6 +257,13 @@ goto :after_cuda_torch
 :after_cuda_torch
 
 REM 4.5) Bark instalace (volitelne, ale doporucene)
+if "%CACHE_VALID%"=="1" (
+  echo [5/11] Bark (cached - skipping check)
+  echo Bark is already installed.
+  echo.
+  goto :after_bark
+)
+
 echo [5/11] Checking Bark (Suno AI) installation...
 python -c "from bark import generate_audio, preload_models, SAMPLE_RATE" >nul 2>&1
 if errorlevel 1 (
@@ -221,9 +284,17 @@ if errorlevel 1 (
 ) else (
   echo Bark is already installed.
 )
+:after_bark
 echo.
 
 REM 4.6) F5-TTS instalace (volitelne)
+if "%CACHE_VALID%"=="1" (
+  echo [6/11] F5-TTS (cached - skipping check)
+  echo F5-TTS is already installed.
+  echo.
+  goto :f5_done
+)
+
 echo [6/11] Checking F5-TTS installation...
 if exist "%ROOT%venv\Scripts\f5-tts_infer-cli.exe" (
   echo F5-TTS is already installed.
@@ -256,6 +327,13 @@ echo F5-TTS installed successfully without dependencies.
 echo.
 
 REM 4.7) F5-TTS Slovak model download (volitelne)
+if "%CACHE_VALID%"=="1" (
+  echo [7/11] F5-TTS Slovak model (cached - skipping check)
+  echo F5-TTS Slovak model is already downloaded.
+  echo.
+  goto :f5_slovak_done
+)
+
 echo [7/11] Checking F5-TTS Slovak model...
 python -c "import sys; sys.path.insert(0, '.'); from backend.config import F5_SLOVAK_MODEL_DIR; from pathlib import Path; model_files = ['model_30000.safetensors', 'model_30000.txt']; exists = any((F5_SLOVAK_MODEL_DIR / f).exists() for f in model_files); sys.exit(0 if exists else 1)" >nul 2>&1
 if not errorlevel 1 (
@@ -274,8 +352,15 @@ echo F5-TTS Slovak model downloaded successfully.
 echo.
 
 REM 8) Frontend deps jen kdyz chybi
-echo [8/11] Checking frontend dependencies
 set "FRONTEND_DIR=%ROOT%frontend"
+if "%CACHE_VALID%"=="1" (
+  echo [8/11] Frontend dependencies (cached - skipping check)
+  echo Frontend dependencies OK - skipping npm install.
+  echo.
+  goto :after_frontend_deps
+)
+
+echo [8/11] Checking frontend dependencies
 if not exist "%FRONTEND_DIR%\node_modules" (
   echo Installing frontend dependencies (npm)
   pushd "%FRONTEND_DIR%"
@@ -291,10 +376,23 @@ if not exist "%FRONTEND_DIR%\node_modules" (
 ) else (
   echo Frontend dependencies OK - skipping npm install.
 )
+:after_frontend_deps
 echo.
 
-REM 8) Spust backend v novem okne
-echo [8/11] Starting backend...
+REM 8.5) Aktualizovat cache (až po aktivaci venv a kontrole závislostí)
+if "%CACHE_VALID%"=="0" (
+  echo [8.5/11] Updating cache...
+  python "%CACHE_SCRIPT%" update >nul 2>&1
+  if errorlevel 1 (
+    echo WARNING: Cache update failed, continuing anyway...
+  ) else (
+    echo Cache updated.
+  )
+  echo.
+)
+
+REM 9) Spust backend v novem okne
+echo [9/11] Starting backend...
 set "BACKEND_DIR=%ROOT%backend"
 set "VENV_ACTIVATE=%ROOT%venv\Scripts\activate.bat"
 
@@ -312,15 +410,16 @@ if defined FORCE_DEVICE (
   start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && python run_with_logging.py"
 )
 
-REM 9) Pockej, az backend dokonci startup (hlaska z uvicornu)
-echo [9/11] Waiting for backend readiness...
+REM 10) Pockej, az backend dokonci startup (hlaska z uvicornu)
+echo [10/11] Waiting for backend readiness...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$log = '%BACKEND_LOG%';" ^
   "$needle = 'Application startup complete.';" ^
   "$deadline = (Get-Date).AddMinutes(3);" ^
   "while((Get-Date) -lt $deadline) {" ^
   "  if(Test-Path $log) { if(Select-String -Path $log -SimpleMatch $needle -Quiet) { Write-Host 'Backend ready.'; exit 0 } }" ^
-  "  Start-Sleep -Milliseconds 250" ^
+  "  Start-Sleep -Milliseconds 1000;" ^
+  "  Write-Host -NoNewline '.';" ^
   "}" ^
   "Write-Host 'ERROR: Backend nedokoncil startup do 3 minut (nenalezena hlaska Application startup complete.).'; exit 1"
 if errorlevel 1 (
@@ -328,25 +427,27 @@ if errorlevel 1 (
   echo ERROR: Backend se nejevi jako ready. Frontend se nespusti.
   echo Tip: zkontrolujte log: "%BACKEND_LOG%"
   echo.
-  pause
+  if not "%2"=="--no-pause" pause
   exit /b 1
 )
 echo.
 
-REM 10) Spust frontend v novem okne
-echo [10/11] Starting frontend...
+REM 11) Spust frontend v novem okne
+echo [11/11] Starting frontend...
 start "XTTS Frontend" cmd /k "cd /d %FRONTEND_DIR% && npm run dev"
 
-REM 11) Otevri prohlizec
-echo [11/11] Opening browser...
+REM 12) Otevri prohlizec
+echo [12/12] Opening browser...
 timeout /t 2 /nobreak >nul 2>&1
 start "" "http://localhost:3000"
 
 echo.
 echo Done. (Backend: :8000, Frontend: :3000)
 echo.
-echo Press any key to close this window...
-pause >nul
+if not "%2"=="--no-pause" (
+  echo Press any key to close this window...
+  pause >nul
+)
 exit /b 0
 
 

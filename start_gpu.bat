@@ -12,7 +12,7 @@ set WANDB_MODE=disabled
 set WANDB_SILENT=true
 REM Default CUDA wheel index for PyTorch (cu121 / cu118)
 if "%CUDA_URL%"=="" set CUDA_URL=cu121
-call start_all.bat INTERNAL
+call start_all.bat INTERNAL %*
 
 
 
