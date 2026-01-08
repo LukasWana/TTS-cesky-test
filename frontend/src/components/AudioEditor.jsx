@@ -69,6 +69,8 @@ function AudioEditor() {
   const [history, setHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [showHistory, setShowHistory] = useState(true)
+  const [newApplioIds, setNewApplioIds] = useState(new Set())
+  const applioPollingRef = useRef(null)
 
   // Projects state
   const [savedProjects, setSavedProjects] = useState([])
@@ -79,6 +81,9 @@ function AudioEditor() {
 
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false)
+
+  // Loading state for adding layers from history
+  const [addingLayerId, setAddingLayerId] = useState(null)
 
   // Použít hooks pro layers a timeline
   const layersHook = useLayers()
@@ -92,7 +97,9 @@ function AudioEditor() {
     addLayer: addLayerFromHook,
     addLayerFromHistory: addLayerFromHistoryHook,
     updateLayer,
-    deleteLayer: deleteLayerFromHook
+    deleteLayer: deleteLayerFromHook,
+    loadAudioFromUrl,
+    layerIdCounterRef
   } = layersHook
 
   const timelineHook = useTimeline(layers, manualMaxDuration)
@@ -185,7 +192,7 @@ function AudioEditor() {
 
               const loadedLayers = []
               for (const layerData of layerDatas) {
-                const audioBuffer = await loadAudioFromUrl(layerData.audioUrl)
+                const audioBuffer = await loadAudioFromUrl(layerData.audioUrl, audioContextRef)
 
                 let id = layerData.id || makeNewLayerId()
                 let attempts = 0
@@ -507,9 +514,11 @@ function AudioEditor() {
     }
   }, [historyType, showHistory])
 
-  const loadHistory = async () => {
+  const loadHistory = async (isAutoRefresh = false) => {
     try {
-      setHistoryLoading(true)
+      if (!isAutoRefresh) {
+        setHistoryLoading(true)
+      }
       let allHistory = []
 
       // Načíst data z API (rychle, bez waveformů) - všechny záznamy
@@ -517,16 +526,14 @@ function AudioEditor() {
         try {
           const ttsData = await getHistory(null, 0)
           const ttsEntries = (ttsData.history || []).map(entry => {
-            // Rozlišení mezi českým a slovenským slovem podle engine v tts_params
             const engine = entry.tts_params?.engine || ''
             const isSlovak = engine === 'f5-tts-slovak'
 
-            // Filtrování podle typu
             if (historyType === 'tts' && isSlovak) {
-              return null // České slovo - přeskočit slovenské
+              return null
             }
             if (historyType === 'f5tts' && !isSlovak) {
-              return null // Slovenské slovo - přeskočit ostatní
+              return null
             }
 
             return {
@@ -534,7 +541,7 @@ function AudioEditor() {
               source: isSlovak ? 'f5tts' : 'tts',
               sourceLabel: isSlovak ? '🇸🇰 slovenské slovo' : '🎤 české slovo'
             }
-          }).filter(entry => entry !== null) // Odstranit null hodnoty
+          }).filter(entry => entry !== null)
 
           allHistory = [...allHistory, ...ttsEntries]
         } catch (err) {
@@ -577,7 +584,28 @@ function AudioEditor() {
             ...entry,
             source: 'applio',
             sourceLabel: '🎤 Applio'
-          }))
+          })).filter(entry => {
+            if (!entry.audio_url) {
+              console.warn('Applio entry missing audio_url:', entry.id)
+              return false
+            }
+            return true
+          })
+
+          // Při auto-refreshi detekovat nové Applio soubory
+          if (isAutoRefresh) {
+            const currentApplioIds = new Set(applioEntries.map(e => e.id))
+            setNewApplioIds(prev => {
+              const newSet = new Set(prev)
+              applioEntries.forEach(entry => {
+                if (!newSet.has(entry.id) && !prev.has(entry.id)) {
+                  newSet.add(entry.id)
+                }
+              })
+              return newSet
+            })
+          }
+
           allHistory = [...allHistory, ...applioEntries]
         } catch (err) {
           console.error('Chyba při načítání Applio historie:', err)
@@ -596,9 +624,55 @@ function AudioEditor() {
     } catch (err) {
       console.error('Chyba při načítání historie:', err)
     } finally {
-      setHistoryLoading(false)
+      if (!isAutoRefresh) {
+        setHistoryLoading(false)
+      }
     }
   }
+
+  // Auto-refresh Applio historie každých 15 sekund
+  useEffect(() => {
+    if (historyType !== 'all' && historyType !== 'applio') {
+      return
+    }
+
+    const refreshApplio = async () => {
+      await loadHistory(true)
+    }
+
+    // První refresh po 5 sekundách, pak každých 15 sekund
+    const initialTimeout = setTimeout(() => {
+      refreshApplio()
+    }, 5000)
+
+    applioPollingRef.current = setInterval(() => {
+      refreshApplio()
+    }, 15000)
+
+    return () => {
+      clearTimeout(initialTimeout)
+      if (applioPollingRef.current) {
+        clearInterval(applioPollingRef.current)
+      }
+    }
+  }, [historyType])
+
+  // Cleanup NEW badge po 30 sekundách
+  useEffect(() => {
+    if (newApplioIds.size === 0) return
+
+    const timer = setTimeout(() => {
+      setNewApplioIds(prev => {
+        const newSet = new Set(prev)
+        if (newSet.size > 0) {
+          console.debug(`Clearing ${newSet.size} NEW badges`)
+        }
+        return newSet
+      })
+    }, 30000)
+
+    return () => clearTimeout(timer)
+  }, [newApplioIds])
 
   // loadAudioFromUrl, loadAudioFile a createBlobUrl jsou nyní v useLayers hooku
   // Používáme je přes wrapper funkce
@@ -806,10 +880,13 @@ function AudioEditor() {
 
   const addLayerFromHistory = useCallback(async (entry) => {
     try {
+      setAddingLayerId(entry.id)
       await addLayerFromHistoryHook(entry, audioContextRef, sourceNodesRef, gainNodesRef)
     } catch (err) {
       console.error('Chyba při načítání audio z historie:', err)
       alert('Chyba při načítání audio souboru z historie')
+    } finally {
+      setAddingLayerId(null)
     }
   }, [addLayerFromHistoryHook])
 
@@ -1528,7 +1605,7 @@ function AudioEditor() {
       for (const layerData of project.layers) {
         try {
           if (layerData.audioUrl) {
-            const audioBuffer = await loadAudioFromUrl(layerData.audioUrl)
+            const audioBuffer = await loadAudioFromUrl(layerData.audioUrl, audioContextRef)
             const newLayer = {
               id: layerData.id || `layer-${Date.now()}-${++layerIdCounterRef.current}-${Math.random().toString(36).substr(2, 9)}`,
               name: layerData.name,
@@ -2227,6 +2304,8 @@ function AudioEditor() {
                   key={`${entry.source}-${entry.id}`}
                   entry={entry}
                   onAddToEditor={addLayerFromHistory}
+                  isNew={entry.source === 'applio' && newApplioIds.has(entry.id)}
+                  isLoading={addingLayerId === entry.id}
                 />
               ))}
             </div>
