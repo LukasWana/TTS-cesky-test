@@ -9,18 +9,22 @@ const API_BASE_URL = 'http://127.0.0.1:8000'
 /**
  * Komponenta pro náhled položky v historii
  */
-const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAddToEditor }) {
+const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAddToEditor, isNew = false, isLoading = false }) {
   const waveformRef = useRef(null)
   const wavesurferRef = useRef(null)
   const containerRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [hasError, setHasError] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState(null)
+  const [isLoadingWaveform, setIsLoadingWaveform] = useState(false)
   const [shouldLoad, setShouldLoad] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const errorTimeoutRef = useRef(null)
   const observerRef = useRef(null)
   const retryRef = useRef(false)
+
+  // Use external isLoading prop for add-to-editor loading
+  const showLoading = isLoading
 
   const audioUrl = entry?.audio_url
   const prompt = entry?.text || entry?.prompt || 'Bez popisu'
@@ -126,7 +130,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
 
     // Reset states při novém načítání
     setHasError(false)
-    setIsLoading(true)
+    setIsLoadingWaveform(true)
     retryRef.current = false
 
     // Vyčistit předchozí timeout
@@ -157,7 +161,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
       // Handler pro úspěšné načtení - uložit peaks do cache
       wavesurfer.on('ready', () => {
         setHasError(false)
-        setIsLoading(false)
+        setIsLoadingWaveform(false)
 
         // Uložit peaks do cache pro budoucí použití
         try {
@@ -192,54 +196,55 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
 
       // Error handling
       wavesurfer.on('error', (error) => {
-        // Ignorovat AbortError - je to normální při cleanup nebo scrollování
+        let errorMsg = null
         if (error) {
           const errorName = error.name || (typeof error === 'string' ? error : '')
-          const errorMessage = error.message || error.toString() || ''
+          const errorMsgText = error.message || error.toString() || ''
           if (errorName === 'AbortError' ||
             errorName === 'NotAllowedError' ||
-            errorMessage.includes('AbortError') ||
-            errorMessage.includes('NotAllowedError') ||
-            errorMessage.includes('cancelLoad') ||
-            errorMessage.includes('signal is aborted')) {
+            errorMsgText.includes('AbortError') ||
+            errorMsgText.includes('NotAllowedError') ||
+            errorMsgText.includes('cancelLoad') ||
+            errorMsgText.includes('signal is aborted')) {
             return
           }
+          errorMsg = errorMsgText || 'Neznámá chyba při načítání'
         }
         console.error('WaveSurfer error při načítání audio in Preview:', error, fullUrl)
 
-        // Pokud už jsme v procesu retry nebo jsme ho dokončili, už nic neděláme
         if (retryRef.current) {
-          setIsLoading(false)
+          setIsLoadingWaveform(false)
           setHasError(true)
+          setErrorMessage(errorMsg)
           return
         }
 
-        // Označíme, že jsme narazili na chybu
         retryRef.current = true
 
-        // Pokud máme url, zkusíme zkontrolovat jestli soubor existuje přes HEAD request
         if (audioUrl) {
           fetch(fullUrl, { method: 'HEAD' }).then(res => {
             if (res.status === 404) {
               console.warn(`HistoryItemPreview 404 confirmed for ${audioUrl}, invalidating cache.`);
               deleteWaveformCache(audioUrl);
+              setErrorMessage('Soubor nebyl nalezen (404)')
             }
           }).catch(() => { });
         }
 
-        // Pokud máme cached peaks, zkusíme načíst bez nich (může být chyba v dekódování peaks)
         if (cachedPeaks && wavesurfer) {
           console.warn('HistoryItemPreview: Chyba při načítání s cached peaks, zkouším bez peaks...')
           try {
             wavesurfer.load(fullUrl).catch(() => { });
           } catch (e) {
             console.error('HistoryItemPreview: Chyba při inicializaci reloadu bez peaks:', e)
-            setIsLoading(false)
+            setIsLoadingWaveform(false)
             setHasError(true)
+            setErrorMessage(errorMsg)
           }
         } else {
-          setIsLoading(false)
+          setIsLoadingWaveform(false)
           setHasError(true)
+          setErrorMessage(errorMsg)
         }
       })
 
@@ -249,7 +254,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
 
       // Timeout pro detekci pomalého načítání
       errorTimeoutRef.current = setTimeout(() => {
-        if (isLoading) {
+        if (isLoadingWaveform) {
           console.warn('Audio se načítá příliš dlouho:', fullUrl)
         }
       }, 10000)
@@ -345,7 +350,7 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           }
         }
         console.error('Chyba při volání load():', loadError, fullUrl)
-        setIsLoading(false)
+        setIsLoadingWaveform(false)
         setHasError(true)
       }
 
@@ -506,9 +511,9 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           className="history-item-play-btn"
           onClick={togglePlay}
           title={isPlaying ? 'Pauza' : 'Přehrát'}
-          disabled={hasError || isLoading || !shouldLoad}
+          disabled={hasError || isLoadingWaveform || !shouldLoad}
         >
-          {hasError ? '⚠️' : (isLoading && !shouldLoad ? '⏳' : (isPlaying ? '⏸' : '▶'))}
+          {hasError ? '⚠️' : (isLoadingWaveform && !shouldLoad ? '⏳' : (isPlaying ? '⏸' : '▶'))}
         </button>
         {!shouldLoad ? (
           <div className="history-item-waveform-placeholder" style={{
@@ -527,12 +532,20 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
             flex: 1,
             minHeight: '40px',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'rgba(255, 255, 255, 0.4)',
-            fontSize: '0.75rem'
+            color: 'rgba(255, 100, 100, 0.8)',
+            fontSize: '0.7rem',
+            padding: '4px 8px',
+            textAlign: 'center'
           }}>
-            Chyba při načítání
+            <span>⚠️ Chyba načítání</span>
+            {errorMessage && (
+              <span style={{ color: 'rgba(255, 100, 100, 0.6)', fontSize: '0.65rem', marginTop: '2px' }}>
+                {errorMessage.length > 50 ? errorMessage.substring(0, 50) + '...' : errorMessage}
+              </span>
+            )}
           </div>
         ) : (
           <div className="history-item-waveform" ref={waveformRef}></div>
@@ -543,9 +556,56 @@ const HistoryItemPreview = React.memo(function HistoryItemPreview({ entry, onAdd
           </div>
         )}
       </div>
-      <div className="history-item-compact-text">
-        {prompt}
+      <div className="history-item-compact-text" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {isNew && (
+          <span className="history-item-new-badge" style={{
+            backgroundColor: '#10b981',
+            color: '#fff',
+            padding: '2px 6px',
+            borderRadius: '4px',
+            fontSize: '0.65rem',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            NEW
+          </span>
+        )}
+        <span>{prompt}</span>
+        {showLoading && (
+          <span style={{
+            marginLeft: '8px',
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: '0.7rem'
+          }}>
+            ⏳ Přidávání...
+          </span>
+        )}
       </div>
+      {showLoading && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 5
+        }}>
+          <div style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            color: '#fff',
+            fontSize: '0.8rem'
+          }}>
+            ⏳ Načítání audia...
+          </div>
+        </div>
+      )}
     </div>
   )
 }, (prevProps, nextProps) => {
