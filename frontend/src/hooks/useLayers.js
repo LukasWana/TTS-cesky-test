@@ -15,7 +15,6 @@ export function useLayers() {
   // Načtení audio z URL (vyžaduje audioContextRef)
   const loadAudioFromUrl = useCallback(async (audioUrl, audioContextRef) => {
     try {
-      // Validace URL
       if (!audioUrl || typeof audioUrl !== 'string' || audioUrl.trim() === '') {
         throw new Error('Neplatná audio URL: URL musí být neprázdný řetězec')
       }
@@ -31,7 +30,7 @@ export function useLayers() {
 
       const response = await fetch(fullUrl)
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`)
       }
 
       const arrayBuffer = await response.arrayBuffer()
@@ -42,7 +41,7 @@ export function useLayers() {
       const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer)
       return audioBuffer
     } catch (error) {
-      console.error('Chyba při načítání audio z URL:', error)
+      console.error('Chyba při načítání audio z URL:', error.message, 'URL:', audioUrl)
       throw error
     }
   }, [])
@@ -129,13 +128,16 @@ export function useLayers() {
   // Přidání vrstvy z historie
   const addLayerFromHistory = useCallback(async (entry, audioContextRef, sourceNodesRef, gainNodesRef) => {
     try {
+      if (!entry?.audio_url) {
+        throw new Error('History entry nemá audio_url')
+      }
+
       const audioBuffer = await loadAudioFromUrl(entry.audio_url, audioContextRef)
       const duration = audioBuffer.duration
 
       const name = entry.filename || entry.audio_url.split('/').pop() || 'Audio z historie'
       const sourceInfo = entry.sourceLabel || ''
 
-      // Určit kategorii z history entry
       const category = getCategoryFromHistoryEntry(entry)
       let newLayer = null
 
@@ -168,7 +170,7 @@ export function useLayers() {
 
       return newLayer
     } catch (err) {
-      console.error('Chyba při načítání audio z historie:', err)
+      console.error('Chyba při načítání audio z historie:', err.message, 'Entry:', entry)
       throw err
     }
   }, [loadAudioFromUrl])
@@ -266,7 +268,8 @@ export function useLayers() {
     updateLayer,
     deleteLayer,
     loadAudioFromUrl,
-    loadAudioFile
+    loadAudioFile,
+    layerIdCounterRef
   }
 }
 
