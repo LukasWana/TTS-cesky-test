@@ -1,6 +1,7 @@
 """
 Audio router - endpointy pro serving audio souborů
 """
+
 import logging
 import time
 from pathlib import Path
@@ -16,14 +17,39 @@ router = APIRouter(prefix="/api/audio", tags=["audio"])
 
 # Cache pro varování o neexistujících souborech (aby se neopakovaly stále dokola)
 _missing_file_warnings = {}  # {filename: timestamp}
-_WARNING_CACHE_TTL = 60  # Logovat varování maximálně jednou za 60 sekund pro stejný soubor
+_WARNING_CACHE_TTL = (
+    60  # Logovat varování maximálně jednou za 60 sekund pro stejný soubor
+)
+
+# Mapa přípon na MIME typy
+AUDIO_MIME_TYPES = {
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".flac": "audio/flac",
+    ".ogg": "audio/ogg",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+}
+
+
+def _get_audio_mime_type(filename: str) -> str:
+    """Získá správný MIME typ pro audio soubor."""
+    ext = Path(filename).suffix.lower()
+    return AUDIO_MIME_TYPES.get(ext, "application/octet-stream")
+
+
+def _normalize_audio_filename(filename: str) -> str:
+    """Normalizuje název audio souboru - odstraní nebezpečné znaky."""
+    norm = filename.strip().replace("\\", "/")
+    if ".." in norm or "/" in norm:
+        raise HTTPException(status_code=400, detail="Neplatný název souboru")
+    return norm
 
 
 @router.get("/{filename}")
 async def get_audio(filename: str):
     """Vrátí audio soubor z outputs"""
-    if '..' in filename or '/' in filename or '\\' in filename:
-        raise HTTPException(status_code=400, detail="Neplatný název souboru")
+    filename = _normalize_audio_filename(filename)
 
     try:
         file_path = (OUTPUTS_DIR / filename).resolve()
@@ -35,24 +61,24 @@ async def get_audio(filename: str):
         raise HTTPException(status_code=400, detail=f"Neplatná cesta: {str(e)}")
 
     if not file_path.exists():
-        # Logovat varování pouze jednou za čas (aby se neopakovaly stále dokola)
         current_time = time.time()
         last_warning_time = _missing_file_warnings.get(filename, 0)
 
         if current_time - last_warning_time > _WARNING_CACHE_TTL:
-            logger.warning(f"Audio file not found: {file_path} (requested as {filename})")
+            logger.warning(
+                f"Audio file not found: {file_path} (requested as {filename})"
+            )
             _missing_file_warnings[filename] = current_time
 
-            # Vyčistit staré záznamy (starší než 5 minut) pro úsporu paměti
             if len(_missing_file_warnings) > 1000:
-                cutoff_time = current_time - 300  # 5 minut
-                _missing_file_warnings.clear()  # Pro jednoduchost vyčistit vše, pokud je cache příliš velká
+                cutoff_time = current_time - 300
+                _missing_file_warnings.clear()
 
         raise HTTPException(status_code=404, detail="Soubor nebyl nalezen")
 
     return FileResponse(
         str(file_path),
-        media_type="audio/wav",
+        media_type=_get_audio_mime_type(filename),
         filename=filename,
         headers={
             "Access-Control-Allow-Origin": "*",
@@ -96,7 +122,7 @@ async def get_demo_audio(filename: str):
 
     return FileResponse(
         str(file_path),
-        media_type="audio/wav",
+        media_type=_get_audio_mime_type(fname),
         filename=filename,
         headers={
             "Access-Control-Allow-Origin": "*",
@@ -104,4 +130,3 @@ async def get_demo_audio(filename: str):
             "Access-Control-Allow-Headers": "*",
         },
     )
-

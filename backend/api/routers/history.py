@@ -1,6 +1,7 @@
 """
 History router - endpointy pro TTS historii
 """
+
 import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException
@@ -20,7 +21,26 @@ async def get_history(limit: Optional[int] = None, offset: int = 0):
         stats = HistoryManager.get_stats()
         return {"history": history, "stats": stats, "limit": limit, "offset": offset}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chyba při načítání historie: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Chyba při načítání historie: {str(e)}"
+        )
+
+
+@router.get("/applio")
+async def get_applio_files():
+    """Vrátí seznam Applio souborů z outputs složky."""
+    try:
+        applio_files = HistoryManager.get_applio_files()
+        return {
+            "history": applio_files,
+            "stats": {"total_entries": len(applio_files)},
+            "limit": None,
+            "offset": 0,
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Chyba při načítání Applio souborů: {str(e)}"
+        )
 
 
 @router.get("/{entry_id}")
@@ -34,7 +54,9 @@ async def get_history_entry(entry_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chyba při načítání záznamu: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Chyba při načítání záznamu: {str(e)}"
+        )
 
 
 @router.delete("/{entry_id}")
@@ -48,7 +70,9 @@ async def delete_history_entry(entry_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chyba při mazání záznamu: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Chyba při mazání záznamu: {str(e)}"
+        )
 
 
 @router.delete("")
@@ -58,5 +82,6 @@ async def clear_history():
         count = HistoryManager.clear_history()
         return {"success": True, "message": f"Historie vymazána ({count} záznamů)"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chyba při mazání historie: {str(e)}")
-
+        raise HTTPException(
+            status_code=500, detail=f"Chyba při mazání historie: {str(e)}"
+        )
