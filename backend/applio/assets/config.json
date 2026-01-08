@@ -1,10 +1,12 @@
 {
   "theme": {
-    "file": "Applio.py",
-    "class": "Applio"
+    "file": null,
+    "class": "gradio/monochrome"
   },
-  "plugins": [],
-  "discord_presence": true,
+  "plugins": [
+    "UVR"
+  ],
+  "discord_presence": false,
   "lang": {
     "override": false,
     "selected_lang": "en_US"
