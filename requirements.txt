@@ -76,3 +76,6 @@ parallel-wavegan>=0.5.0  # Použijte pokud chcete HiFi-GAN
 
 # Barevný výstup pro konzoli (Windows/Linux/Mac)
 colorama>=0.4.6
+
+# Applio Gradio Client
+gradio>=4.0.0

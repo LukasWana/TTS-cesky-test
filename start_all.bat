@@ -410,18 +410,27 @@ if defined FORCE_DEVICE (
   start "XTTS Backend" cmd /k "cd /d %BACKEND_DIR% && call %VENV_ACTIVATE% && set PYTHONPATH=%ROOT% && set PYTHONIOENCODING=utf-8 && set WANDB_MODE=disabled && set WANDB_SILENT=true && python run_with_logging.py"
 )
 
-REM 10) Pockej, az backend dokonci startup (hlaska z uvicornu)
-echo [10/11] Waiting for backend readiness...
+REM 9.5) Sync Applio voices and start Applio
+echo [9.5/12] Syncing Applio voices and starting Applio...
+powershell -ExecutionPolicy Bypass -File "backend\applio\sync-voices.ps1" >nul
+start "" cmd /c "cd /d backend\applio && env\python.exe app.py --open"
+echo Applio started (check http://localhost:6969)
+echo.
+
+REM 10) Pockej, az backend dokonci startup
+echo [10/12] Waiting for backend readiness...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$log = '%BACKEND_LOG%';" ^
-  "$needle = 'Application startup complete.';" ^
-  "$deadline = (Get-Date).AddMinutes(3);" ^
-  "while((Get-Date) -lt $deadline) {" ^
-  "  if(Test-Path $log) { if(Select-String -Path $log -SimpleMatch $needle -Quiet) { Write-Host 'Backend ready.'; exit 0 } }" ^
-  "  Start-Sleep -Milliseconds 1000;" ^
-  "  Write-Host -NoNewline '.';" ^
-  "}" ^
-  "Write-Host 'ERROR: Backend nedokoncil startup do 3 minut (nenalezena hlaska Application startup complete.).'; exit 1"
+  "$log = '%BACKEND_LOG%'; " ^
+  "$needle = 'BACKEND IS READY'; " ^
+  "$ready = $false; " ^
+  "$deadline = (Get-Date).AddMinutes(5); " ^
+  "while((Get-Date) -lt $deadline) { " ^
+  "  try { $resp = Invoke-WebRequest -Uri 'http://localhost:8000/docs' -TimeoutSec 1 -UseBasicParsing; if($resp.StatusCode -eq 200) { $ready = $true; break } } catch { } " ^
+  "  if(Test-Path $log) { if(Select-String -Path $log -SimpleMatch $needle -Quiet) { $ready = $true; break } } " ^
+  "  Start-Sleep -Milliseconds 1000; " ^
+  "  Write-Host -NoNewline '.'; " ^
+  "} " ^
+  "if($ready) { Write-Host ' Backend ready.' } else { Write-Host ' ERROR: Backend nedokoncil startup.'; exit 1 }"
 if errorlevel 1 (
   echo.
   echo ERROR: Backend se nejevi jako ready. Frontend se nespusti.
@@ -433,21 +442,26 @@ if errorlevel 1 (
 echo.
 
 REM 11) Spust frontend v novem okne
-echo [11/11] Starting frontend...
+echo [11/12] Starting frontend...
 start "XTTS Frontend" cmd /k "cd /d %FRONTEND_DIR% && npm run dev"
 
 REM 12) Otevri prohlizec
 echo [12/12] Opening browser...
 timeout /t 2 /nobreak >nul 2>&1
 start "" "http://localhost:3000"
+start "" "http://localhost:6969"
 
 echo.
-echo Done. (Backend: :8000, Frontend: :3000)
+echo ============================================
+echo All services started successfully!
+echo ============================================
 echo.
-if not "%2"=="--no-pause" (
-  echo Press any key to close this window...
-  pause >nul
-)
+echo  Backend:    http://localhost:8000
+echo  Frontend:   http://localhost:3000
+echo  Applio:     http://localhost:6969 (optional)
+echo.
+echo Press any key to close this window...
+pause >nul
 exit /b 0
 
 
