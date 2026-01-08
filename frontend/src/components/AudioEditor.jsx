@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useSectionColor } from '../contexts/SectionColorContext'
 import WaveSurfer from 'wavesurfer.js'
 import './AudioEditor.css'
-import { getHistory, getMusicHistory, getBarkHistory } from '../services/api'
+import { getHistory, getMusicHistory, getBarkHistory, getApplioFiles } from '../services/api'
 import { getWaveformCache, setWaveformCache } from '../utils/waveformCache'
 import LayerWaveform from './audioEditor/LayerWaveform'
 import HistoryItemPreview from './audioEditor/HistoryItemPreview'
@@ -21,7 +21,8 @@ const HISTORY_TYPES = {
   tts: { label: 'české slovo', icon: 'microphone' },
   f5tts: { label: 'slovenské slovo', icon: 'microphone' },
   music: { label: 'hudba', icon: 'music' },
-  bark: { label: 'FX & English', icon: 'speaker' }
+  bark: { label: 'FX & English', icon: 'speaker' },
+  applio: { label: 'Applio', icon: 'microphone' }
 }
 
 // LayerWaveform and HistoryItemPreview are now imported from separate files
@@ -566,6 +567,20 @@ function AudioEditor() {
           allHistory = [...allHistory, ...barkEntries]
         } catch (err) {
           console.error('Chyba při načítání Bark historie:', err)
+        }
+      }
+
+      if (historyType === 'all' || historyType === 'applio') {
+        try {
+          const applioData = await getApplioFiles()
+          const applioEntries = (applioData.history || []).map(entry => ({
+            ...entry,
+            source: 'applio',
+            sourceLabel: '🎤 Applio'
+          }))
+          allHistory = [...allHistory, ...applioEntries]
+        } catch (err) {
+          console.error('Chyba při načítání Applio historie:', err)
         }
       }
 
@@ -2144,7 +2159,8 @@ function AudioEditor() {
                     'tts': 'tts',
                     'f5tts': 'f5tts',
                     'music': 'music',
-                    'bark': 'bark'
+                    'bark': 'bark',
+                    'applio': 'applio'
                   }
                   const category = categoryMap[key] || 'file'
                   const categoryColor = getCategoryColor(category, 0)

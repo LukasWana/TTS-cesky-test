@@ -38,14 +38,13 @@ function AudioPlayer({ audioUrl, variant = 'full' }) {
         waveColor: 'rgba(255, 255, 255, 0.25)',
         progressColor: 'rgba(99, 102, 241, 0.6)',
         cursorColor: 'transparent',
-        // Pozn.: barWidth/barGap/barRadius přepínají renderer do „sloupců“ (barcode look).
-        // Pro náhledy chceme plynulý průběh jako v editoru -> necháme default waveform renderer.
         responsive: true,
         height: 40,
         normalize: true,
         interact: false,
-        // Preview: MediaElement backend je výrazně lehčí než WebAudio decode pro waveform list
-        backend: 'MediaElement',
+        // WebAudio backend je robustnější pro dekódování různých formátů
+        // MediaElement má problémy s některými WAV soubory (sample rate, atd.)
+        backend: 'WebAudio',
         partialRender: true
       })
 
@@ -187,6 +186,13 @@ function AudioPlayer({ audioUrl, variant = 'full' }) {
         }
 
         console.error('WaveSurfer error:', error)
+        console.error('Error type:', error.constructor?.name || 'unknown')
+        console.error('Audio URL:', fullUrl)
+
+        // Zvlášť zpracovat MediaError (code 4 = Format error)
+        if (error.code === 4 || error.message?.includes('Format error')) {
+          console.error('MediaError: Format error - audio formát není podporován prohlížečem')
+        }
 
         // Pokud už jsme v procesu retry nebo jsme ho dokončili, už nic neděláme
         if (retryRef.current) {
@@ -197,36 +203,27 @@ function AudioPlayer({ audioUrl, variant = 'full' }) {
         // Označíme, že jsme narazili na chybu a budeme zkoušet nápravu
         retryRef.current = true
 
-        // HEAD request pouze pokud máme cached peaks (soubor dříve existoval) nebo pokud je to jasně 404
-        // Tím se vyhneme zbytečným requestům při jiných typech chyb
-        if (audioUrl && (hasValidCachedPeaks || error.message?.includes('404') || error.message?.includes('Not Found'))) {
-          fetch(fullUrl, { method: 'HEAD' }).then(res => {
+        // Nejdřív ověřit, že soubor existuje a je dostupný
+        fetch(fullUrl, { method: 'HEAD' })
+          .then(res => {
             if (res.status === 404) {
-              console.warn(`Audio 404 confirmed for ${audioUrl}, invalidating cache.`);
-              deleteWaveformCache(audioUrl);
-              markAudioNotFound(audioUrl); // Označit jako neexistující
+              console.warn(`Audio 404 confirmed for ${audioUrl}`)
+              deleteWaveformCache(audioUrl)
+              markAudioNotFound(audioUrl)
+              setHasError(true)
+              return
             }
-          }).catch(() => { });
-        }
 
-        // Pokud je to 404 chyba (z HTTP response), označit soubor jako neexistující
-        if (error.message?.includes('404') || error.message?.includes('Not Found')) {
-          markAudioNotFound(audioUrl);
-        }
-
-        // Pokud máme cached peaks, zkusíme načíst bez nich (může být chyba v dekódování peaks)
-        if (hasValidCachedPeaks && wavesurfer.current) {
-          console.warn('Chyba při načítání s cached peaks, zkouším bez peaks...')
-          try {
-            wavesurfer.current.load(fullUrl).catch(() => { });
-          } catch (e) {
-            console.error('Chyba při inicializaci reloadu bez peaks:', e)
+            // Soubor existuje, zkusíme reload bez peaks
+            if (wavesurfer.current) {
+              console.warn('Soubor existuje, zkouším reload bez peaks...')
+              wavesurfer.current.load(fullUrl)
+            }
+          })
+          .catch(err => {
+            console.error('HEAD request failed:', err)
             setHasError(true)
-          }
-        } else {
-          // Pokud nemáme cached peaks a došlo k chybě, rovnou zobrazit chybu
-          setHasError(true)
-        }
+          })
       })
 
       wavesurfer.current.on('audioprocess', () => {

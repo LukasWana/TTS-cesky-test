@@ -3,7 +3,8 @@ import { useSectionColor } from '../contexts/SectionColorContext'
 import {
   getHistory, deleteHistoryEntry, clearHistory,
   getMusicHistory, deleteMusicHistoryEntry, clearMusicHistory,
-  getBarkHistory, deleteBarkHistoryEntry, clearBarkHistory
+  getBarkHistory, deleteBarkHistoryEntry, clearBarkHistory,
+  getApplioFiles
 } from '../services/api'
 import { deleteWaveformCache, clearWaveformCache } from '../utils/waveformCache'
 import AudioPlayer from './AudioPlayer'
@@ -17,7 +18,8 @@ const API_BASE_URL = 'http://127.0.0.1:8000'
 const HISTORY_TYPES = {
   tts: { label: 'mluvené slovo', icon: 'microphone' },
   music: { label: 'hudba', icon: 'music' },
-  bark: { label: 'FX & English', icon: 'speaker' }
+  bark: { label: 'FX & English', icon: 'speaker' },
+  applio: { label: 'Applio', icon: 'microphone' }
 }
 
 function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
@@ -27,7 +29,7 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
     '--section-color-rgb': rgb
   }
 
-  const [historyType, setHistoryType] = useState('tts') // 'tts' | 'music' | 'bark'
+  const [historyType, setHistoryType] = useState('tts') // 'tts' | 'music' | 'bark' | 'applio'
   const [history, setHistory] = useState([])
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -44,10 +46,8 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
       setError(null)
       let data
 
-      // Načíst všechny záznamy (limit = null)
       if (historyType === 'tts') {
         data = await getHistory(null, 0)
-        // Přidat source pro rozlišení mezi tts a f5tts
         const entries = (data.history || []).map(entry => {
           const engine = entry.tts_params?.engine || ''
           const isSlovak = engine === 'f5-tts-slovak'
@@ -59,7 +59,6 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
         data = { ...data, history: entries }
       } else if (historyType === 'music') {
         data = await getMusicHistory(null, 0)
-        // Přidat source pro hudbu
         const entries = (data.history || []).map(entry => ({
           ...entry,
           source: 'music'
@@ -67,10 +66,16 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
         data = { ...data, history: entries }
       } else if (historyType === 'bark') {
         data = await getBarkHistory(null, 0)
-        // Přidat source pro Bark
         const entries = (data.history || []).map(entry => ({
           ...entry,
           source: 'bark'
+        }))
+        data = { ...data, history: entries }
+      } else if (historyType === 'applio') {
+        data = await getApplioFiles()
+        const entries = (data.history || []).map(entry => ({
+          ...entry,
+          source: 'applio'
         }))
         data = { ...data, history: entries }
       }
@@ -92,7 +97,6 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
     }
 
     try {
-      // Najít entry před smazáním pro vyčištění cache
       const entryToDelete = history.find(entry => entry.id === entryId)
 
       if (historyType === 'tts') {
@@ -101,9 +105,10 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
         await deleteMusicHistoryEntry(entryId)
       } else if (historyType === 'bark') {
         await deleteBarkHistoryEntry(entryId)
+      } else if (historyType === 'applio') {
+        await deleteHistoryEntry(entryId)
       }
 
-      // Vyčistit cache pro smazané audio
       if (entryToDelete?.audio_url) {
         deleteWaveformCache(entryToDelete.audio_url)
       }
@@ -127,9 +132,10 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
         await clearMusicHistory()
       } else if (historyType === 'bark') {
         await clearBarkHistory()
+      } else if (historyType === 'applio') {
+        await clearHistory()
       }
 
-      // Vyčistit celou waveform cache (jednodušší než iterovat přes všechny položky)
       clearWaveformCache()
 
       setHistory([])
@@ -165,7 +171,8 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
       'demo': 'Demo hlas',
       'upload': 'Nahraný soubor',
       'record': 'Nahrávka z mikrofonu',
-      'youtube': 'YouTube'
+      'youtube': 'YouTube',
+      'applio': 'Applio (Voice Clone)'
     }
     return labels[type] || type
   }
@@ -188,6 +195,9 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
     } else if (historyType === 'bark' && entry.prompt && onRestorePrompt) {
       onRestorePrompt(entry.prompt)
       if (onSwitchTab) onSwitchTab('bark')
+    } else if (historyType === 'applio' && entry.text && onRestoreText) {
+      onRestoreText(entry.text)
+      if (onSwitchTab) onSwitchTab('f5tts')
     }
   }
 
@@ -206,11 +216,11 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
           <h2>Historie</h2>
           <div className="history-filter-buttons">
             {Object.entries(HISTORY_TYPES).map(([key, { label, icon }]) => {
-              // Mapování history type na kategorii
               const categoryMap = {
                 'tts': 'tts',
                 'music': 'music',
-                'bark': 'bark'
+                'bark': 'bark',
+                'applio': 'applio'
               }
               const category = categoryMap[key] || 'file'
               const categoryColor = getCategoryColor(category, 0)
@@ -330,6 +340,12 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
                     )}
                     {historyType === 'music' && 'MusicGen'}
                     {historyType === 'bark' && 'Bark'}
+                    {historyType === 'applio' && (
+                      <>
+                        {getVoiceTypeLabel(entry.voice_type)}
+                        {entry.voice_name && `: ${entry.voice_name}`}
+                      </>
+                    )}
                   </span>
                 </div>
                 <button
@@ -388,6 +404,23 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
                 </div>
               )}
 
+              {historyType === 'applio' && entry.tts_params && Object.keys(entry.tts_params).length > 0 && (
+                <div className="history-item-params">
+                  {entry.tts_params.tts_voice && (
+                    <span className="param-badge">Voice: {entry.tts_params.tts_voice}</span>
+                  )}
+                  {entry.tts_params.model && (
+                    <span className="param-badge">RVC: {entry.tts_params.model}</span>
+                  )}
+                  {entry.tts_params.pitch !== undefined && entry.tts_params.pitch !== 0 && (
+                    <span className="param-badge">Pitch: {entry.tts_params.pitch}</span>
+                  )}
+                  {entry.tts_params.speed !== undefined && entry.tts_params.speed !== 0 && (
+                    <span className="param-badge">Speed: {entry.tts_params.speed}</span>
+                  )}
+                </div>
+              )}
+
               {selectedEntry?.id === entry.id && (
                 <div className="history-item-details" onClick={(e) => e.stopPropagation()}>
                   <div className="history-item-actions">
@@ -400,7 +433,7 @@ function History({ onRestoreText, onRestorePrompt, onSwitchTab }) {
                       className="btn-restore-text"
                       onClick={() => handleRestore(entry)}
                     >
-                      ✍️ {historyType === 'tts' ? 'Použít tento text' : 'Použít tento prompt'}
+                      ✍️ {(historyType === 'tts' || historyType === 'applio') ? 'Použít tento text' : 'Použít tento prompt'}
                     </button>
                   </div>
                 </div>

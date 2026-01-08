@@ -489,13 +489,15 @@ function App() {
               )}
 
               {activeTab === 'f5tts' && (
-                <F5TTS
-                  text={text}
-                  setText={setText}
-                  versions={textVersions}
-                  onSaveVersion={() => saveTextVersion(text)}
-                  onDeleteVersion={deleteTextVersion}
-                />
+                <div className="slovak-section">
+                  <F5TTS
+                    text={text}
+                    setText={setText}
+                    versions={textVersions}
+                    onSaveVersion={() => saveTextVersion(text)}
+                    onDeleteVersion={deleteTextVersion}
+                  />
+                </div>
               )}
 
               {activeTab === 'bark' && (

@@ -8,30 +8,30 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
 }
 
 .history-filter-buttons {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .history-filter-btn {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .history-filter-btn:hover:not(.active) {
@@ -55,29 +55,29 @@
 
 .history-header h2 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: #fff;
 }
 
 .history-stats {
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.8rem;
 }
 
 .history-stats strong {
-  color: #6366f1;
+  color: #818cf8;
   font-weight: 700;
 }
 
 .btn-clear-all {
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(239, 68, 68, 0.08);
   color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  padding: 10px 20px;
-  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  padding: 6px 12px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 600;
   transition: all 0.2s ease;
 }
@@ -113,32 +113,20 @@
 
 .history-list {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-@media (max-width: 1400px) {
-  .history-list {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .history-list {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
 }
 
 .history-item {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 12px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 /* Hover stavy jsou nyní řešeny inline styles v React komponentě pro podporu barev kategorií */
@@ -158,40 +146,44 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .history-item-info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   flex: 1;
+  min-width: 0;
 }
 
 .history-item-date {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.35);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .history-item-voice {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #fff;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .history-item-audio-preview {
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .history-item-text {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.8);
-  line-height: 1.5;
-  margin-bottom: 12px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+  margin-bottom: 4px;
   font-style: italic;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -205,28 +197,28 @@
 
 .history-item-params {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .param-badge {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.6);
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
   font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .history-item-details {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .history-item-actions {
@@ -238,15 +230,15 @@
   background: rgba(99, 102, 241, 0.1);
   color: #818cf8;
   border: 1px solid rgba(99, 102, 241, 0.2);
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 0.9rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .btn-restore-text:hover {
@@ -256,12 +248,12 @@
 }
 
 .btn-delete-entry {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
   border: none;
   cursor: pointer;
-  font-size: 14px;
-  padding: 8px;
-  border-radius: 8px;
+  font-size: 12px;
+  padding: 6px;
+  border-radius: 6px;
   transition: all 0.2s ease;
   opacity: 0.4;
   color: #fff;
