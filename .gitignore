@@ -87,3 +87,14 @@ speaker_cache/
 
 # work data
 data/
+
+# ==================== APPLIO ====================
+# Applio - Voice Conversion Tool
+backend/applio/env/
+backend/applio/outputs/*
+!backend/applio/outputs/.gitkeep
+backend/applio/logs/
+backend/applio/models/
+backend/applio/voices/
+backend/applio/assets/datasets/
+backend/applio/assets/audios/
