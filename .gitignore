@@ -98,3 +98,8 @@ backend/applio/models/
 backend/applio/voices/
 backend/applio/assets/datasets/
 backend/applio/assets/audios/
+# Applio executables (velké soubory)
+backend/applio/ffprobe.exe
+backend/applio/ffmpeg.exe
+# Applio index soubory (velké soubory)
+**/*.index
