@@ -3,6 +3,9 @@ import sys
 import json
 import argparse
 import subprocess
+import shutil
+from datetime import datetime
+from pathlib import Path
 from functools import lru_cache
 from distutils.util import strtobool
 
@@ -316,6 +319,112 @@ def run_batch_infer_script(
     return f"Files from {input_folder} inferred successfully."
 
 
+def detect_audio_format(filepath: Path) -> str:
+    """
+    Detekuje formát audio souboru podle Magic Bytes.
+
+    Args:
+        filepath: Cesta k audio souboru
+
+    Returns:
+        Přípona souboru (.wav, .mp3, .flac, .ogg, .m4a)
+    """
+    try:
+        with open(filepath, "rb") as f:
+            header = f.read(12)
+
+        if len(header) < 4:
+            return ".wav"
+
+        # WAV: RIFF....WAVE
+        if header[:4] == b"RIFF" and header[8:12] == b"WAVE":
+            return ".wav"
+
+        # MP3: ID3 (starts with ID3) or sync word
+        if header[:3] == b"ID3" or (header[0] == 0xFF and (header[1] & 0xE0) == 0xE0):
+            return ".mp3"
+
+        # FLAC: fLaC
+        if header[:4] == b"fLaC":
+            return ".flac"
+
+        # OGG: OggS
+        if header[:4] == b"OggS":
+            return ".ogg"
+
+        # M4A/MP4: ftyp
+        if header[:4] == b"M4A" or header[:4] == b"ftyp":
+            return ".m4a"
+
+        # Default to WAV if unknown
+        print(f"[Applio] Neznámý formát souboru, používám WAV")
+        return ".wav"
+
+    except Exception as e:
+        print(f"[Applio] Chyba při detekci formátu: {e}")
+        return ".wav"
+
+
+def move_applio_output_to_outputs(source_path: str, pth_path: str):
+    """
+    Přesune Applio výstup do hlavní outputs složky s přeformátovaným názvem.
+
+    Args:
+        source_path: Cesta k source souboru (např. tts_rvc_output.wav)
+        pth_path: Cesta k modelovému souboru (např. model/Catwoman.pth)
+
+    Returns:
+        Cesta k přesunutému souboru (nebo None při chybě)
+    """
+    try:
+        if not source_path:
+            print(f"[Applio] Varování: source_path je prázdný")
+            return None
+
+        source_path = Path(source_path)
+
+        if not source_path.exists():
+            print(f"[Applio] Varování: Source soubor neexistuje: {source_path}")
+            return None
+
+        print(f"[Applio] Zpracovávám soubor: {source_path}")
+
+        now_dir = os.getcwd()
+        outputs_dir = os.path.join(now_dir, "..", "..", "outputs")
+        os.makedirs(outputs_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+        # Extrakce jména modelu z cesty (např. "model/Catwoman.pth" -> "Catwoman")
+        if pth_path:
+            model_name = Path(pth_path).stem
+        else:
+            model_name = "Unknown"
+
+        safe_speaker = "".join(
+            c for c in model_name if c.isalnum() or c in (" ", "-", "_")
+        ).strip()
+        safe_speaker = safe_speaker.replace(" ", "_")
+
+        # Detekovat skutečný formát souboru podle obsahu
+        file_extension = detect_audio_format(source_path)
+        print(f"[Applio] Detekovaný formát: {file_extension}")
+
+        new_filename = f"_Applio-{safe_speaker}-{timestamp}{file_extension}"
+
+        dest_path = os.path.join(outputs_dir, new_filename)
+        shutil.move(str(source_path), str(dest_path))
+
+        print(f"[Applio] Přesunuto do outputs: {new_filename}")
+        return dest_path
+    except Exception as e:
+        print(f"[Applio] Varování: Nepodařilo se přesunout výstup: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return None
+
+
 # TTS
 def run_tts_script(
     tts_file: str,
@@ -343,7 +452,6 @@ def run_tts_script(
     embedder_model_custom: str = None,
     sid: int = 0,
 ):
-
     tts_script_path = os.path.join("rvc", "lib", "tools", "tts.py")
 
     if os.path.exists(output_tts_path) and os.path.abspath(output_tts_path).startswith(
@@ -405,6 +513,8 @@ def run_tts_script(
         sliders=None,
     )
 
+    move_applio_output_to_outputs(output_rvc_path, pth_path)
+
     return f"Text {tts_text} synthesized successfully.", output_rvc_path.replace(
         ".wav", f".{export_format.lower()}"
     )
@@ -460,7 +570,6 @@ def run_extract_script(
     embedder_model_custom: str = None,
     include_mutes: int = 2,
 ):
-
     model_path = os.path.join(logs_path, model_name)
     extract = os.path.join("rvc", "train", "extract", "extract.py")
 
@@ -509,7 +618,6 @@ def run_train_script(
     vocoder: str = "HiFi-GAN",
     checkpointing: bool = False,
 ):
-
     if pretrained == True:
         from rvc.lib.tools.pretrained_selector import pretrained_selector
 

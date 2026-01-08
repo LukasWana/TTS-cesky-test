@@ -137,6 +137,16 @@ with gr.Blocks(
 
 
 def launch_gradio(server_name: str, server_port: int) -> None:
+    import os
+    from pathlib import Path
+
+    now_path = Path(now_dir)
+
+    allowed_paths = [
+        str(now_path / "outputs"),
+        str(now_path.parent / "outputs"),
+        str(now_path.parent / "assets"),
+    ]
     app, _, _ = Applio.launch(
         favicon_path="assets/ICON.ico",
         share="--share" in sys.argv,
@@ -144,6 +154,7 @@ def launch_gradio(server_name: str, server_port: int) -> None:
         server_name=server_name,
         server_port=server_port,
         prevent_thread_lock=client_mode,
+        allowed_paths=allowed_paths,
     )
 
     if client_mode:
