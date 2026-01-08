@@ -6,40 +6,46 @@
 // Barevné palety pro jednotlivé kategorie (4 odstíny každá)
 const COLOR_PALETTES = {
   tts: [
-    '#3b82f6', // Modrá - světlejší
-    '#2563eb', // Modrá - střední
-    '#1d4ed8', // Modrá - tmavší
-    '#1e40af'  // Modrá - nejtmavší
+    '#3b82f6',
+    '#2563eb',
+    '#1d4ed8',
+    '#1e40af'
   ],
   f5tts: [
-    '#a855f7', // Fialová - světlejší
-    '#9333ea', // Fialová - střední
-    '#7e22ce', // Fialová - tmavší
-    '#6b21a8'  // Fialová - nejtmavší
+    '#a855f7',
+    '#9333ea',
+    '#7e22ce',
+    '#6b21a8'
   ],
   music: [
-    '#10b981', // Zelená - světlejší
-    '#059669', // Zelená - střední
-    '#047857', // Zelená - tmavší
-    '#065f46'  // Zelená - nejtmavší
+    '#10b981',
+    '#059669',
+    '#047857',
+    '#065f46'
   ],
   bark: [
-    '#f97316', // Oranžová - světlejší
-    '#ea580c', // Oranžová - střední
-    '#c2410c', // Oranžová - tmavší
-    '#9a3412'  // Oranžová - nejtmavší
+    '#f97316',
+    '#ea580c',
+    '#c2410c',
+    '#9a3412'
+  ],
+  applio: [
+    '#06b6d4',
+    '#0891b2',
+    '#0e7490',
+    '#155e75'
   ],
   file: [
-    '#9ca3af', // Šedá - světlejší
-    '#6b7280', // Šedá - střední
-    '#4b5563', // Šedá - tmavší
-    '#374151'  // Šedá - nejtmavší
+    '#9ca3af',
+    '#6b7280',
+    '#4b5563',
+    '#374151'
   ],
   voicepreparation: [
-    '#8b0000', // Tmavě červená - nejtmavší (hlavní barva)
-    '#991b1b', // Tmavě červená - tmavší
-    '#b91c1c', // Tmavě červená - střední
-    '#dc2626'  // Tmavě červená - světlejší
+    '#8b0000',
+    '#991b1b',
+    '#b91c1c',
+    '#dc2626'
   ]
 }
 

@@ -526,6 +526,19 @@ export async function clearHistory() {
     throw new Error(error.detail || 'Chyba při mazání historie')
   }
 
+  return await response.json()
+}
+
+/**
+ * Získá seznam Applio souborů z outputs složky
+ */
+export async function getApplioFiles() {
+  const response = await fetch(`${API_BASE_URL}/api/history/applio`)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Chyba při načítání Applio souborů')
+  }
 
   return await response.json()
 }
