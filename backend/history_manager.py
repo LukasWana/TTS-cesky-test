@@ -1,6 +1,7 @@
 """
 Správa historie generovaných audio souborů
 """
+
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class HistoryManager:
     """Správa historie generovaných audio souborů"""
+
     HISTORY_FILE = BASE_DIR / "history.json"
 
     @classmethod
@@ -24,7 +26,7 @@ class HistoryManager:
             return []
 
         try:
-            with open(cls.HISTORY_FILE, 'r', encoding='utf-8') as f:
+            with open(cls.HISTORY_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return []
@@ -57,7 +59,7 @@ class HistoryManager:
         voice_type: str,
         voice_name: Optional[str] = None,
         tts_params: Optional[Dict] = None,
-        created_at: Optional[str] = None
+        created_at: Optional[str] = None,
     ) -> Dict:
         """
         Přidá nový záznam do historie
@@ -76,7 +78,9 @@ class HistoryManager:
         """
         # Kontrola existence souboru před přidáním do historie
         if filename and not (OUTPUTS_DIR / filename).exists():
-            logger.warning(f"Audio soubor neexistuje při přidávání do historie: {filename}")
+            logger.warning(
+                f"Audio soubor neexistuje při přidávání do historie: {filename}"
+            )
             # Pokračujeme i když soubor neexistuje (může být race condition)
 
         history = HistoryManager._load_history()
@@ -85,7 +89,9 @@ class HistoryManager:
         # Pokud je filename stejné, vrátit existující záznam (to by se nemělo stát, ale pro jistotu)
         if history and len(history) > 0:
             # Zkontroluj, zda už existuje záznam se stejným filename
-            existing_entry = next((entry for entry in history if entry.get("filename") == filename), None)
+            existing_entry = next(
+                (entry for entry in history if entry.get("filename") == filename), None
+            )
             if existing_entry:
                 # Stejný filename - vrátit existující záznam (to by se nemělo stát, protože filename je UUID)
                 return existing_entry
@@ -95,14 +101,14 @@ class HistoryManager:
             history = history[:999]  # Necháme místo pro nový záznam
 
         entry = {
-            "id": filename.replace('.wav', ''),
+            "id": filename.replace(".wav", ""),
             "audio_url": audio_url,
             "filename": filename,
             "text": text,
             "voice_type": voice_type,
             "voice_name": voice_name,
             "tts_params": tts_params or {},
-            "created_at": created_at or datetime.now().isoformat()
+            "created_at": created_at or datetime.now().isoformat(),
         }
 
         # Přidat na začátek (nejnovější první)
@@ -144,7 +150,7 @@ class HistoryManager:
         if limit is None:
             return history[offset:]
         else:
-            return history[offset:offset + limit]
+            return history[offset : offset + limit]
 
     @staticmethod
     def get_entry_by_id(entry_id: str) -> Optional[Dict]:
@@ -196,9 +202,77 @@ class HistoryManager:
         return {
             "total_entries": len(history),
             "oldest_entry": history[-1]["created_at"] if history else None,
-            "newest_entry": history[0]["created_at"] if history else None
+            "newest_entry": history[0]["created_at"] if history else None,
         }
 
+    @staticmethod
+    def get_applio_files() -> List[Dict]:
+        """
+        Získá seznam Applio souborů z outputs složky
+        Soubory mají prefix _Applio- (např. _Applio-Arkham-20260107-143052.wav)
+        """
+        applio_entries = []
 
+        try:
+            print(f"[Applio] Hledám soubory v: {OUTPUTS_DIR}")
 
+            # Najít všechny soubory matching _Applio-* pattern (jakákoliv přípona)
+            # Používáme pathlib rglob pro lepší kompatibilitu s Windows
+            applio_files = list(OUTPUTS_DIR.glob("_Applio-*"))
 
+            # Filtrovat pouze audio soubory
+            audio_extensions = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac"}
+            applio_files = [
+                f for f in applio_files if f.suffix.lower() in audio_extensions
+            ]
+
+            print(
+                f"[Applio] Nalezeno {len(applio_files)} souborů: {[f.name for f in applio_files]}"
+            )
+
+            for filepath in applio_files:
+                filename = filepath.name
+                # Extrakce info z názvu souboru
+                # Format: _Applio-VOICE_NAME-DATETIME.ext
+                name_without_ext = filepath.stem  # Správně odstraní příponu
+                parts = name_without_ext.split("-")
+
+                if len(parts) >= 3:
+                    # _Applio-{speaker}-{datetime}
+                    voice_name = parts[1]
+                    text = ""
+                else:
+                    voice_name = "Unknown"
+                    text = ""
+
+                # Získat čas modifikace souboru
+                try:
+                    mtime = filepath.stat().st_mtime
+                    created_at = datetime.fromtimestamp(mtime).isoformat()
+                except Exception:
+                    created_at = datetime.now().isoformat()
+
+                entry = {
+                    "id": name_without_ext,
+                    "audio_url": f"/api/audio/{filename}",
+                    "filename": filename,
+                    "text": text,
+                    "voice_type": "applio",
+                    "voice_name": voice_name,
+                    "tts_params": {
+                        "engine": "applio",
+                        "tts_voice": voice_name,
+                        "source": "external",
+                    },
+                    "created_at": created_at,
+                    "source": "applio_file",
+                }
+                applio_entries.append(entry)
+
+            # Seřadit podle data (nejnovější první)
+            applio_entries.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+        except Exception as e:
+            logger.error(f"Chyba při načítání Applio souborů: {e}")
+
+        return applio_entries
