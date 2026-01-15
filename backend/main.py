@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+import argparse
 import uvicorn
 from uvicorn.logging import AccessFormatter
 from colorama import init, Fore, Style
@@ -38,10 +39,20 @@ from backend.api.middleware import setup_cors, setup_not_found_cache
 print(f"{Fore.CYAN}[DEBUG] Importing dependencies...{Style.RESET_ALL}")
 
 print(f"{Fore.CYAN}[DEBUG] Importing routers...{Style.RESET_ALL}")
+
+# Parse args to check for lite mode (before importing heavy routers)
+from backend.api.dependencies import tts_engine
+parser = argparse.ArgumentParser()
+parser.add_argument("--lite", action="store_true", help="Run in lite mode (skip heavy audio modules)")
+# Ignorovat neznámé argumenty (pokud by uvicorn předával nějaké své)
+args, unknown = parser.parse_known_args()
+
+lite_mode = args.lite
+if lite_mode:
+    print(f"{Fore.YELLOW}[INFO] Running in LITE mode - skipping MusicGen, Bark, Applio{Style.RESET_ALL}")
+
 from backend.api.routers import (
     tts,
-    music,
-    bark,
     history,
     progress,
     voice,
@@ -49,8 +60,15 @@ from backend.api.routers import (
     audio,
     models,
     prompts,
-    applio,
+    realtime,
 )
+
+if not lite_mode:
+    from backend.api.routers import (
+        music,
+        bark,
+        applio,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +79,16 @@ async def lifespan(app: FastAPI):
     # Startup
     try:
         print(f"{Fore.GREEN}✓ Backend startup in progress...{Style.RESET_ALL}")
-        # XTTS model nyní načítáme "lazy" až při prvním požadavku v /api/tts/generate
+        print(f"{Fore.GREEN}✓ Backend startup in progress...{Style.RESET_ALL}")
+
+        # Eager load XTTS if in lite mode (requested by user)
+        if lite_mode:
+            print(f"{Fore.YELLOW}[INFO] Lite mode: Eager loading XTTS model...{Style.RESET_ALL}")
+            await tts_engine.load_model()
+            print(f"{Fore.GREEN}[INFO] XTTS model loaded and ready.{Style.RESET_ALL}")
+
+        # XTTS model nyní načítáme "lazy" až při prvním požadavku v /api/tts/generate,
+        # pokud není lite_mode (tam jsme ho načetli výše)
         logger.info("Backend startup: ready (models will be loaded on demand)")
 
         # Jasný indikátor, že backend běží
@@ -104,8 +131,6 @@ if frontend_exists:
 
 # Registrace routerů (musí být před root route pro prioritu)
 app.include_router(tts.router)
-app.include_router(music.router)
-app.include_router(bark.router)
 app.include_router(history.router)
 app.include_router(progress.router)
 app.include_router(voice.router)
@@ -113,7 +138,12 @@ app.include_router(asr.router)
 app.include_router(audio.router)
 app.include_router(models.router)
 app.include_router(prompts.router)
-app.include_router(applio.router)
+app.include_router(realtime.router)
+
+if not lite_mode:
+    app.include_router(music.router)
+    app.include_router(bark.router)
+    app.include_router(applio.router)
 
 
 @app.get("/")

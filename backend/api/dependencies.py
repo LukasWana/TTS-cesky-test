@@ -9,26 +9,41 @@ from backend.music_history_manager import MusicHistoryManager
 from backend.bark_history_manager import BarkHistoryManager
 from backend.asr_engine import get_asr_engine
 
-# Inicializace engine instancí s lazy importy těžkých modulů
-# Enginy se vytvoří hned, ale importy těžkých modulů (TTS, torch) jsou odložené
-# do __init__ metod jednotlivých enginů
 
-# TTS engine - import je odložen do XTTSEngine.__init__
-from backend.tts_engine import XTTSEngine
-tts_engine = XTTSEngine()
+class LazyProxy:
+    def __init__(self, factory):
+        self._factory = factory
+        self._instance = None
 
-# F5-TTS Slovak engine - import je odložen do F5TTSSlovakEngine.__init__
-from backend.f5_tts_slovak_engine import F5TTSSlovakEngine
-f5_tts_slovak_engine = F5TTSSlovakEngine()
+    def __getattr__(self, name):
+        if self._instance is None:
+            self._instance = self._factory()
+        return getattr(self._instance, name)
 
-# MusicGen engine - import je odložen do MusicGenEngine.__init__
-from backend.musicgen_engine import MusicGenEngine
-music_engine = MusicGenEngine()
+def get_tts_engine():
+    from backend.tts_engine import XTTSEngine
+    return XTTSEngine()
 
-# Bark engine - import je odložen do BarkEngine.__init__
-from backend.bark_engine import BarkEngine
-bark_engine = BarkEngine()
+def get_f5_tts_slovak_engine():
+    from backend.f5_tts_slovak_engine import F5TTSSlovakEngine
+    return F5TTSSlovakEngine()
 
-# ASR (Whisper) – lazy singleton (už má lazy loading)
-asr_engine = get_asr_engine()
+def get_music_engine():
+    from backend.musicgen_engine import MusicGenEngine
+    return MusicGenEngine()
+
+def get_bark_engine():
+    from backend.bark_engine import BarkEngine
+    return BarkEngine()
+
+def get_asr_engine_lazy():
+    from backend.asr_engine import get_asr_engine
+    return get_asr_engine()
+
+# Inicializace engine instancí s lazy importy pomocí LazyProxy
+tts_engine = LazyProxy(get_tts_engine)
+f5_tts_slovak_engine = LazyProxy(get_f5_tts_slovak_engine)
+music_engine = LazyProxy(get_music_engine)
+bark_engine = LazyProxy(get_bark_engine)
+asr_engine = LazyProxy(get_asr_engine_lazy)
 

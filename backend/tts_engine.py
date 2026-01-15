@@ -1,6 +1,7 @@
 """
 XTTS-v2 TTS Engine wrapper
 """
+
 import uuid
 import asyncio
 import threading
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Optional, List, Dict
 import re
 import time
+
 # REMOVED: from TTS.api import TTS
 # REMOVED: import torch
 import numpy as np
@@ -21,7 +23,9 @@ from backend.tts.model_manager import ModelManager
 from backend.tts.quality_control import QualityControl
 
 # Potlačení deprecation warning z librosa (pkg_resources je zastaralé, ale knihovna ho ještě používá)
-warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*", category=UserWarning)
+warnings.filterwarnings(
+    "ignore", message=".*pkg_resources is deprecated.*", category=UserWarning
+)
 from backend.config import (
     get_device,
     XTTS_MODEL_NAME,
@@ -47,7 +51,7 @@ from backend.config import (
     ENABLE_CZECH_TEXT_PROCESSING,
     ENABLE_DIALECT_CONVERSION,
     DIALECT_CODE,
-    DIALECT_INTENSITY
+    DIALECT_INTENSITY,
 )
 from backend.audio_enhancer import AudioEnhancer
 from backend.vocoder_hifigan import get_hifigan_vocoder
@@ -55,6 +59,7 @@ from backend.phonetic_translator import get_phonetic_translator
 
 # Monkey patch pro správnou podporu češtiny v num2words (TTS upstream používá kód "cz")
 try:
+
     def _expand_number_cs(m, lang="en"):
         lang_code = "cs" if lang.split("-")[0] == "cs" else lang
         return num2words(int(m.group(0)), lang=lang_code)
@@ -78,7 +83,9 @@ class XTTSEngine:
         self._vocoder = None  # Lazy loading - načte se až při prvním použití
 
         # Komponenty
-        self.model_manager = ModelManager(device=None) # Lazy resolve inside ModelManager
+        self.model_manager = ModelManager(
+            device=None
+        )  # Lazy resolve inside ModelManager
         self.text_processor = TextProcessor(model=None)  # Model se nastaví po načtení
         self.quality_control = QualityControl()
 
@@ -149,6 +156,92 @@ class XTTSEngine:
         """Backward compatibility wrapper"""
         return self.text_processor.split_text_by_xtts_tokens(text, language)
 
+    @staticmethod
+    def _split_text_by_commas_and_words(text: str, language: str = "cs") -> List[str]:
+        """
+        Rozdělí text po čárkách a maximálně 8-10 slovech.
+
+        Pravidla:
+        - Primárně dělit po čárkách
+        - Pokud část má > 10 slov, dělit dále po slovech
+        - Odstranit koncovou interpunkci uvnitř částí (tečka, otazník, vykřičník)
+        - Obalit každou část uvozovkami
+
+        Args:
+            text: Text k rozdělení
+            language: Jazyk textu
+
+        Returns:
+            Seznam textových částí s uvozovkami
+        """
+        from backend.config import (
+            ENABLE_CZ_SPLIT_BY_COMMAS,
+            CZ_SPLIT_MAX_WORDS,
+            CZ_SPLIT_LANGUAGES,
+        )
+
+        # Aplikovat jen pro konfigurované jazyky
+        if language not in CZ_SPLIT_LANGUAGES:
+            return [text]
+
+        # Pokud je funkce vypnutá, vrať původní text
+        if not ENABLE_CZ_SPLIT_BY_COMMAS:
+            return [text]
+
+        # Normalizace mezer
+        text = re.sub(r"\s+", " ", text.strip())
+
+        # 1. Primárně dělit po čárkách (včetně čárek s mezerami)
+        # Regex zachytí: "," - čárku s mezerou nebo bez
+        comma_parts = re.split(r",\s*", text)
+
+        # 2. Dělit každou část podle max. počtu slov
+        max_words = CZ_SPLIT_MAX_WORDS
+        chunks = []
+
+        for part in comma_parts:
+            part = part.strip()
+            if not part:
+                continue
+
+            # Počítat slova (mezera jako oddělovač)
+            words = [w for w in part.split(" ") if w]
+
+            if len(words) <= max_words:
+                # Pokud je část dostatečně krátká, přidat jako jeden chunk
+                chunks.append(part)
+            else:
+                # Dělit dále po slovech
+                for i in range(0, len(words), max_words):
+                    chunk_words = words[i : i + max_words]
+                    chunk = " ".join(chunk_words)
+                    chunks.append(chunk)
+
+        # 3. Předzpracovat každou část
+        processed_chunks = []
+        for chunk in chunks:
+            if not chunk.strip():
+                continue
+
+            # Odstranit koncovou interpunkci (tečka, otazník, vykřičník, ...)
+            chunk = re.sub(r"\s*[.!?…]+(\s*)$", r"\1", chunk).rstrip()
+
+            # Přidat uvozovky
+            from backend.config import ENABLE_CZ_SENTENCE_QUOTES
+
+            if ENABLE_CZ_SENTENCE_QUOTES:
+                chunk = f'"{chunk}"'
+
+            processed_chunks.append(chunk)
+
+        print(
+            f"[DEBUG] Rozděleno na {len(processed_chunks)} částí (max {max_words} slov na část)"
+        )
+        for i, chunk in enumerate(processed_chunks):
+            print(f"  [{i + 1}] {chunk[:50]}{'...' if len(chunk) > 50 else ''}")
+
+        return processed_chunks
+
     async def load_model(self):
         """Načte XTTS-v2 model asynchronně"""
         await self.model_manager.load_model()
@@ -203,8 +296,14 @@ class XTTSEngine:
             - headroom: {target_headroom_db}
         """
         from backend.config import (
-            TTS_SPEED, TTS_TEMPERATURE, TTS_LENGTH_PENALTY, TTS_REPETITION_PENALTY, TTS_TOP_K, TTS_TOP_P,
-            OUTPUT_HEADROOM_DB, ENABLE_AUDIO_ENHANCEMENT
+            TTS_SPEED,
+            TTS_TEMPERATURE,
+            TTS_LENGTH_PENALTY,
+            TTS_REPETITION_PENALTY,
+            TTS_TOP_K,
+            TTS_TOP_P,
+            OUTPUT_HEADROOM_DB,
+            ENABLE_AUDIO_ENHANCEMENT,
         )
 
         # Výchozí hodnoty z configu
@@ -283,7 +382,9 @@ class XTTSEngine:
         hifigan_refinement_intensity: Optional[float] = None,
         hifigan_normalize_output: Optional[bool] = None,
         hifigan_normalize_gain: Optional[float] = None,
-        job_id: Optional[str] = None
+        job_id: Optional[str] = None,
+        gpt_cond_latent=None,
+        speaker_embedding=None,
     ):
         """
         Generuje řeč z textu
@@ -326,7 +427,10 @@ class XTTSEngine:
         if job_id:
             try:
                 from backend.progress_manager import ProgressManager
-                ProgressManager.update(job_id, percent=2, stage="prepare", message="Připravuji generování…")
+
+                ProgressManager.update(
+                    job_id, percent=2, stage="prepare", message="Připravuji generování…"
+                )
             except Exception:
                 pass
 
@@ -369,7 +473,9 @@ class XTTSEngine:
         target_headroom_db = effective["headroom"]["target_headroom_db"]
 
         if quality_mode:
-            print(f"🎯 Quality mode '{quality_mode}' aplikován - efektivní nastavení vypočítáno z presetu (speed={speed:.2f}x)")
+            print(
+                f"🎯 Quality mode '{quality_mode}' aplikován - efektivní nastavení vypočítáno z presetu (speed={speed:.2f}x)"
+            )
 
         # Multi-pass generování
         if multi_pass or (ENABLE_MULTI_PASS and not multi_pass):
@@ -402,7 +508,7 @@ class XTTSEngine:
                 hifigan_normalize_output=hifigan_normalize_output,
                 hifigan_normalize_gain=hifigan_normalize_gain,
                 enable_enhancement=enable_enhancement,
-                job_id=job_id
+                job_id=job_id,
             )
 
         # Skutečné pauzy: [PAUSE] / [pause] a [PAUSE:ms] / [pause:ms]
@@ -410,12 +516,15 @@ class XTTSEngine:
         # Tady to řešíme správně: vygenerujeme úseky zvlášť a mezi ně vložíme ticho v milisekundách.
         if handle_pauses:
             import re
+
             # Najdi všechny pauzy a rozsekej text (case-insensitive).
             # Podporované formy:
             # - [pause]
             # - [pause:500], [pause=500]
             # - [pause:500ms], [pause = 500 ms]
-            pause_re = re.compile(r"\[pause(?:\s*[:=]\s*(\d+)\s*(?:ms)?)?\]", re.IGNORECASE)
+            pause_re = re.compile(
+                r"\[pause(?:\s*[:=]\s*(\d+)\s*(?:ms)?)?\]", re.IGNORECASE
+            )
             matches = list(pause_re.finditer(text))
             if matches:
                 segments: List[str] = []
@@ -425,7 +534,7 @@ class XTTSEngine:
                 pending_pause = 0
 
                 for m in matches:
-                    seg = text[last:m.start()]
+                    seg = text[last : m.start()]
                     dur_raw = m.group(1)
                     try:
                         dur = int(dur_raw) if dur_raw is not None else 500
@@ -478,12 +587,16 @@ class XTTSEngine:
                         if job_id:
                             try:
                                 from backend.progress_manager import ProgressManager
+
                                 ProgressManager.update(
                                     job_id,
                                     percent=5 + (80.0 * idx / max(1, len(segments))),
                                     stage="pause_segments",
-                                    message=f"Generuji segment {idx+1}/{len(segments)}…",
-                                    meta_update={"segment": idx + 1, "segments_total": len(segments)},
+                                    message=f"Generuji segment {idx + 1}/{len(segments)}…",
+                                    meta_update={
+                                        "segment": idx + 1,
+                                        "segments_total": len(segments),
+                                    },
                                 )
                             except Exception:
                                 pass
@@ -523,7 +636,13 @@ class XTTSEngine:
                         if job_id:
                             try:
                                 from backend.progress_manager import ProgressManager
-                                ProgressManager.update(job_id, percent=90, stage="concat", message="Skládám segmenty…")
+
+                                ProgressManager.update(
+                                    job_id,
+                                    percent=90,
+                                    stage="concat",
+                                    message="Skládám segmenty…",
+                                )
                             except Exception:
                                 pass
                         import librosa
@@ -537,7 +656,9 @@ class XTTSEngine:
                         out_parts: List[np.ndarray] = []
                         if leading_pause_ms > 0:
                             leading_samps = int(leading_pause_ms * sr / 1000)
-                            print(f"⏱️  Leading pause: {leading_pause_ms} ms => {leading_samps} samples @ {sr} Hz")
+                            print(
+                                f"⏱️  Leading pause: {leading_pause_ms} ms => {leading_samps} samples @ {sr} Hz"
+                            )
                             out_parts.append(np.zeros(leading_samps, dtype=np.float32))
                         for i, p in enumerate(part_paths):
                             audio, _sr = librosa.load(p, sr=sr, mono=True)
@@ -546,8 +667,11 @@ class XTTSEngine:
                             # Proto každý segment před spojením ořízneme na řeč a necháme jen malý padding.
                             try:
                                 from backend.vad_processor import get_vad_processor
+
                                 vadp = get_vad_processor()
-                                trimmed = vadp.trim_silence_vad(audio, sample_rate=sr, padding_ms=30.0)
+                                trimmed = vadp.trim_silence_vad(
+                                    audio, sample_rate=sr, padding_ms=30.0
+                                )
                                 if trimmed is not None and len(trimmed) > 0:
                                     audio = trimmed
                             except Exception:
@@ -558,19 +682,31 @@ class XTTSEngine:
                                     pass
                             # jemný fade in/out
                             if len(audio) > fade_samples * 2:
-                                audio[:fade_samples] *= np.linspace(0.0, 1.0, fade_samples)
-                                audio[-fade_samples:] *= np.linspace(1.0, 0.0, fade_samples)
+                                audio[:fade_samples] *= np.linspace(
+                                    0.0, 1.0, fade_samples
+                                )
+                                audio[-fade_samples:] *= np.linspace(
+                                    1.0, 0.0, fade_samples
+                                )
                             out_parts.append(audio)
 
                             if i < len(pauses_ms):
                                 pause_ms = pauses_ms[i]
                                 pause_samps = int(pause_ms * sr / 1000)
                                 if pause_samps > 0:
-                                    print(f"⏱️  Pause[{i}]: {pause_ms} ms => {pause_samps} samples @ {sr} Hz")
-                                    out_parts.append(np.zeros(pause_samps, dtype=np.float32))
+                                    print(
+                                        f"⏱️  Pause[{i}]: {pause_ms} ms => {pause_samps} samples @ {sr} Hz"
+                                    )
+                                    out_parts.append(
+                                        np.zeros(pause_samps, dtype=np.float32)
+                                    )
 
-                        final_audio = np.concatenate(out_parts) if out_parts else np.array([], dtype=np.float32)
-                        sf.write(str(final_output), final_audio, sr)
+                        final_audio = (
+                            np.concatenate(out_parts)
+                            if out_parts
+                            else np.array([], dtype=np.float32)
+                        )
+                        sf.write(str(final_output), final_audio, sr, subtype="PCM_16")
                     finally:
                         # uklidit dočasné segmenty
                         for p in part_paths:
@@ -590,9 +726,15 @@ class XTTSEngine:
         if token_count is not None and token_count > hard_limit:
             enable_batch = True
 
-        use_batch = enable_batch if enable_batch is not None else (
-            ENABLE_BATCH_PROCESSING and (
-                (token_count is not None and token_count > target_limit) or (len(text) > MAX_CHUNK_LENGTH)
+        use_batch = (
+            enable_batch
+            if enable_batch is not None
+            else (
+                ENABLE_BATCH_PROCESSING
+                and (
+                    (token_count is not None and token_count > target_limit)
+                    or (len(text) > MAX_CHUNK_LENGTH)
+                )
             )
         )
         if use_batch:
@@ -620,13 +762,14 @@ class XTTSEngine:
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity,
-                job_id=job_id
+                job_id=job_id,
             )
 
         # Prosody preprocessing
         prosody_metadata = {}
         try:
             from backend.prosody_processor import ProsodyProcessor
+
             if ENABLE_PROSODY_CONTROL:
                 text, prosody_metadata = ProsodyProcessor.process_text(text)
         except Exception as e:
@@ -640,7 +783,10 @@ class XTTSEngine:
         if job_id:
             try:
                 from backend.progress_manager import ProgressManager
-                ProgressManager.update(job_id, percent=10, stage="synth", message="Syntetizuji…")
+
+                ProgressManager.update(
+                    job_id, percent=10, stage="synth", message="Syntetizuji…"
+                )
             except Exception:
                 pass
         loop = asyncio.get_event_loop()
@@ -680,6 +826,8 @@ class XTTSEngine:
             job_id,
             enable_enhancement,
             prosody_metadata,
+            gpt_cond_latent,
+            speaker_embedding,
         )
 
         # finální 100% řeší backend/main.py (ProgressManager.done(job_id))
@@ -719,22 +867,30 @@ class XTTSEngine:
         hifigan_normalize_gain: Optional[float] = None,
         job_id: Optional[str] = None,
         enable_enhancement: Optional[bool] = None,
-        prosody_metadata: Optional[Dict] = None
+        prosody_metadata: Optional[Dict] = None,
+        # Caching support
+        gpt_cond_latent=None,
+        speaker_embedding=None,
     ):
         # DEBUG: Ověření, že speed parametr skutečně přichází
-        print(f"🔍 DEBUG _generate_sync START: speed={speed}, type={type(speed)}, output_path={output_path}")
+        print(
+            f"🔍 DEBUG _generate_sync START: speed={speed}, type={type(speed)}, output_path={output_path}"
+        )
         """Synchronní generování řeči"""
+
         def _progress(pct: float, stage: str, msg: str):
             if not job_id:
                 return
             try:
                 from backend.progress_manager import ProgressManager
+
                 ProgressManager.update(job_id, percent=pct, stage=stage, message=msg)
             except Exception:
                 pass
 
         try:
             import torch
+
             _progress(12, "prep", "Připravuji vstup…")
             # Nastavení seedu pro reprodukovatelnost
             if seed is not None:
@@ -763,20 +919,149 @@ class XTTSEngine:
                 language,
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
-                dialect_intensity=dialect_intensity
+                dialect_intensity=dialect_intensity,
             )
 
-            # Úprava: Odstranit koncovou tečku jen pro XTTS model,
-            # aby ji model nepřečetl jako slovo "tečka".
-            # Intonace (FALL) je už zachycena v prosody_metadata z dřívější fáze.
-            text_for_model = processed_text
-            if language == "cs" and isinstance(text_for_model, str):
-                # Odstraníme koncovou tečku/tečky a případné mezery za ní
-                text_for_model = re.sub(r"\s*[.…]+(\s*)$", r"\1", text_for_model).rstrip()
-                if not text_for_model.strip():
-                    # Pokud by po odstranění tečky nic nezbylo (např. vstup "."),
-                    # vrátíme původní text jako fallback
-                    text_for_model = processed_text
+            # PŘEDZPRACOVÁNÍ TEXTU S DĚLENÍM
+            text_parts = []
+            use_multi_part = False
+
+            # Zjistit, zda použít dělení po čárkách a slovech
+            from backend.config import ENABLE_CZ_SPLIT_BY_COMMAS, CZ_SPLIT_LANGUAGES
+
+            if language in CZ_SPLIT_LANGUAGES and ENABLE_CZ_SPLIT_BY_COMMAS:
+                # Použij dělení po čárkách a slovech (statická metoda)
+                text_parts = self._split_text_by_commas_and_words(
+                    processed_text, language
+                )
+
+                if len(text_parts) > 1:
+                    use_multi_part = True
+                    print(
+                        f"[INFO] Text rozdělen na {len(text_parts)} částí pro lepší intonaci"
+                    )
+                else:
+                    # Pokud je jen jedna část, použij původní logiku (jedna věta)
+                    text_parts = []
+            else:
+                # Původní logika (jedna věta)
+                text_for_model = processed_text
+                if language == "cs" and isinstance(text_for_model, str):
+                    # Odstranime koncovou interpunkci (tečka, otazník, vykřičník, ...)
+                    # a případné mezery za ní
+                    text_for_model = re.sub(
+                        r"\s*[.!?…]+(\s*)$", r"\1", text_for_model
+                    ).rstrip()
+                    if not text_for_model.strip():
+                        # Pokud by po odstranění interpunkce nic nezbylo (např. vstup "."),
+                        # vrátíme původní text jako fallback
+                        text_for_model = processed_text
+
+                    # Přidat uvozovky na začátek a konec věty pro lepší intonaci XTTS modelu
+                    from backend.config import ENABLE_CZ_SENTENCE_QUOTES
+
+                    if ENABLE_CZ_SENTENCE_QUOTES:
+                        text_for_model = f'"{text_for_model}"'
+                        print(
+                            f'[OK] CZ Sentence Quotes applied: "{text_for_model[:50]}..."'
+                        )
+
+                text_parts = [text_for_model]
+
+            if use_multi_part:
+                # VÍCE ČÁSTÍ: Generuj každou část zvlášť
+                _progress(15, "tts_multi", f"Generuji {len(text_parts)} částí…")
+
+                audio_files = []
+                temp_dir = OUTPUTS_DIR / "temp_parts"
+                temp_dir.mkdir(exist_ok=True)
+
+                for i, part in enumerate(text_parts):
+                    part_output = temp_dir / f"part_{i}_{uuid.uuid4()}.wav"
+
+                    # Aktualizace progressu
+                    if job_id:
+                        try:
+                            from backend.progress_manager import ProgressManager
+
+                            ProgressManager.update(
+                                job_id,
+                                percent=15 + (70.0 * i / len(text_parts)),
+                                stage="tts_multi_part",
+                                message=f"Generuji část {i + 1}/{len(text_parts)}…",
+                                meta_update={
+                                    "part": i + 1,
+                                    "parts_total": len(text_parts),
+                                },
+                            )
+                        except Exception:
+                            pass
+
+                    # Příprava parametrů pro jednu část
+                    tts_params_part = {
+                        "text": part,
+                        "speaker_wav": speaker_wav,
+                        "language": language,
+                        "file_path": str(part_output),
+                        "temperature": temperature,
+                        "length_penalty": length_penalty,
+                        "repetition_penalty": repetition_penalty,
+                        "top_k": top_k,
+                        "top_p": top_p,
+                    }
+
+                    print(f'   [Part {i + 1}/{len(text_parts)}] "{part[:50]}..."')
+
+                    # Generování jedné části
+                    try:
+                        self.model.tts_to_file(**tts_params_part)
+                    except TypeError as e:
+                        # Fallback na základní parametry
+                        print(
+                            f"   ⚠️ Warning pro část {i + 1}: Některé parametry nemusí být podporovány"
+                        )
+                        basic_params_part = {
+                            "text": part,
+                            "speaker_wav": speaker_wav,
+                            "language": language,
+                            "file_path": str(part_output),
+                            "temperature": temperature,
+                        }
+                        self.model.tts_to_file(**basic_params_part)
+
+                    audio_files.append(str(part_output))
+
+                # Spojení audio částí
+                _progress(85, "concat_multi", "Spojuji audio části…")
+
+                # Použij AudioConcatenator s minimálním crossfade (20-30ms) pro plynulé spojení
+                from backend.audio_concatenator import AudioConcatenator
+
+                AudioConcatenator.concatenate_audio(
+                    audio_files,
+                    output_path,
+                    crossfade_ms=30,  # Krátký crossfade pro plynulé spojení
+                    pause_ms=0,  # Žádná pauza
+                )
+
+                # Úklid dočasných souborů
+                for audio_file in audio_files:
+                    try:
+                        Path(audio_file).unlink(missing_ok=True)
+                    except Exception as e:
+                        print(
+                            f"Warning: Nepodařilo se smazat dočasný soubor {audio_file}: {e}"
+                        )
+
+                _progress(90, "multi_done", "Hotovo.")
+
+                # Ukončit funkci tady (audio už je vygenerováno a spojeno)
+                # Post-processing se aplikuje dále v kódu
+                return str(output_path)
+
+            # PŮVODNÍ LOGIKA (jedna část)
+            # Odstranit koncovou interpunkci a přidat uvozovky
+            text_for_model = text_parts[0] if text_parts else processed_text
 
             _progress(15, "tts", "Generuji řeč (XTTS)…")
 
@@ -787,24 +1072,42 @@ class XTTSEngine:
 
             # Validace a korekce extrémních parametrů, které mohou způsobovat problémy
             # Extrémně nízká temperature (< 0.2) může způsobovat chrčení a dlouhé ticho
-            safe_temperature = max(0.3, min(1.0, temperature)) if temperature < 0.3 else temperature
+            safe_temperature = (
+                max(0.3, min(1.0, temperature)) if temperature < 0.3 else temperature
+            )
             if safe_temperature != temperature:
-                print(f"⚠️ Temperature {temperature} je příliš nízká, upravuji na {safe_temperature} (min: 0.3)")
+                print(
+                    f"⚠️ Temperature {temperature} je příliš nízká, upravuji na {safe_temperature} (min: 0.3)"
+                )
 
             # Extrémně vysoká length_penalty (> 1.5) může způsobovat velmi dlouhé generování
-            safe_length_penalty = min(1.3, max(0.5, length_penalty)) if length_penalty > 1.3 else length_penalty
+            safe_length_penalty = (
+                min(1.3, max(0.5, length_penalty))
+                if length_penalty > 1.3
+                else length_penalty
+            )
             if safe_length_penalty != length_penalty:
-                print(f"⚠️ Length penalty {length_penalty} je příliš vysoká, upravuji na {safe_length_penalty} (max: 1.3)")
+                print(
+                    f"⚠️ Length penalty {length_penalty} je příliš vysoká, upravuji na {safe_length_penalty} (max: 1.3)"
+                )
 
             # Extrémně nízká repetition_penalty (< 1.3) může způsobovat opakování
-            safe_repetition_penalty = max(1.5, min(3.0, repetition_penalty)) if repetition_penalty < 1.5 else repetition_penalty
+            safe_repetition_penalty = (
+                max(1.5, min(3.0, repetition_penalty))
+                if repetition_penalty < 1.5
+                else repetition_penalty
+            )
             if safe_repetition_penalty != repetition_penalty:
-                print(f"⚠️ Repetition penalty {repetition_penalty} je příliš nízká, upravuji na {safe_repetition_penalty} (min: 1.5)")
+                print(
+                    f"⚠️ Repetition penalty {repetition_penalty} je příliš nízká, upravuji na {safe_repetition_penalty} (min: 1.5)"
+                )
 
             # Extrémně nízká top_p (< 0.3) může způsobovat problémy
             safe_top_p = max(0.5, min(0.95, top_p)) if top_p < 0.5 else top_p
             if safe_top_p != top_p:
-                print(f"⚠️ Top-p {top_p} je příliš nízká, upravuji na {safe_top_p} (min: 0.5)")
+                print(
+                    f"⚠️ Top-p {top_p} je příliš nízká, upravuji na {safe_top_p} (min: 0.5)"
+                )
 
             tts_params = {
                 "text": text_for_model,
@@ -816,13 +1119,14 @@ class XTTSEngine:
                 "length_penalty": safe_length_penalty,
                 "repetition_penalty": safe_repetition_penalty,
                 "top_k": top_k,
-                "top_p": safe_top_p
+                "top_p": safe_top_p,
             }
 
             # Volitelné: použít caching conditioning latents (pokud to verze TTS podporuje)
             # Cíl: rychlejší opakované generování + stabilnější conditioning u stejného referenčního hlasu.
             try:
                 from backend.config import ENABLE_SPEAKER_CACHE
+
                 if ENABLE_SPEAKER_CACHE and self.model is not None:
                     import inspect
                     from backend.speaker_adapter import get_speaker_adapter
@@ -835,36 +1139,52 @@ class XTTSEngine:
 
                     if sig is not None:
                         param_names = set(sig.parameters.keys())
-                        supports_embed = ("speaker_embeddings" in param_names) or ("speaker_embedding" in param_names)
-                        supports_gpt = ("gpt_cond_latent" in param_names) or ("gpt_cond_latents" in param_names)
+                        supports_embed = ("speaker_embeddings" in param_names) or (
+                            "speaker_embedding" in param_names
+                        )
+                        supports_gpt = ("gpt_cond_latent" in param_names) or (
+                            "gpt_cond_latents" in param_names
+                        )
 
-                        if supports_embed:
+                        # Use provided explicit latents if available (Consistency Priority)
+                        if (
+                            gpt_cond_latent is not None
+                            and speaker_embedding is not None
+                        ):
+                            latents = (gpt_cond_latent, speaker_embedding)
+                        # Otherwise try to compute or get from cache
+                        elif supports_embed and config.ENABLE_SPEAKER_CACHE:
                             adapter = get_speaker_adapter()
-                            latents = adapter.get_conditioning_latents(speaker_wav, self.model)
-                            if latents is not None:
-                                gpt_cond_latent, speaker_embedding = latents
-                                # Přesuň na správný device, pokud je potřeba
-                                try:
-                                    device = self.device
-                                    if hasattr(gpt_cond_latent, "to"):
-                                        gpt_cond_latent = gpt_cond_latent.to(device)
-                                    if hasattr(speaker_embedding, "to"):
-                                        speaker_embedding = speaker_embedding.to(device)
-                                except Exception:
-                                    pass
+                            latents = adapter.get_conditioning_latents(
+                                speaker_wav, self.model
+                            )
+                        else:
+                            latents = None
 
-                                # Preferuj embeddingy místo speaker_wav (aby se conditioning znovu nepočítal)
-                                tts_params.pop("speaker_wav", None)
-                                if "speaker_embeddings" in param_names:
-                                    tts_params["speaker_embeddings"] = speaker_embedding
-                                elif "speaker_embedding" in param_names:
-                                    tts_params["speaker_embedding"] = speaker_embedding
+                        if latents is not None:
+                            gpt_cond_latent, speaker_embedding = latents
+                            # Přesuň na správný device, pokud je potřeba
+                            try:
+                                device = self.device
+                                if hasattr(gpt_cond_latent, "to"):
+                                    gpt_cond_latent = gpt_cond_latent.to(device)
+                                if hasattr(speaker_embedding, "to"):
+                                    speaker_embedding = speaker_embedding.to(device)
+                            except Exception:
+                                pass
 
-                                if supports_gpt:
-                                    if "gpt_cond_latent" in param_names:
-                                        tts_params["gpt_cond_latent"] = gpt_cond_latent
-                                    elif "gpt_cond_latents" in param_names:
-                                        tts_params["gpt_cond_latents"] = gpt_cond_latent
+                            # Preferuj embeddingy místo speaker_wav (aby se conditioning znovu nepočítal)
+                            tts_params.pop("speaker_wav", None)
+                            if "speaker_embeddings" in param_names:
+                                tts_params["speaker_embeddings"] = speaker_embedding
+                            elif "speaker_embedding" in param_names:
+                                tts_params["speaker_embedding"] = speaker_embedding
+
+                            if supports_gpt:
+                                if "gpt_cond_latent" in param_names:
+                                    tts_params["gpt_cond_latent"] = gpt_cond_latent
+                                elif "gpt_cond_latents" in param_names:
+                                    tts_params["gpt_cond_latents"] = gpt_cond_latent
             except Exception as e:
                 print(f"⚠️ Conditioning cache nepoužit (ignorováno): {e}")
 
@@ -876,7 +1196,9 @@ class XTTSEngine:
             print(f"   Repetition Penalty: {repetition_penalty}")
             print(f"   Top-K: {top_k}")
             print(f"   Top-P: {top_p}")
-            print(f"   Quality Mode: {quality_mode if quality_mode else 'None (using individual params)'}")
+            print(
+                f"   Quality Mode: {quality_mode if quality_mode else 'None (using individual params)'}"
+            )
 
             # Heartbeat mechanismus během XTTS inference (ukáže, že proces stále běží)
             heartbeat_stop = threading.Event()
@@ -885,12 +1207,13 @@ class XTTSEngine:
             def heartbeat_worker():
                 """Aktualizuje progress pravidelně během inference"""
                 import time
+
                 # Odhad rychlosti: cca 15 znaků za sekundu na průměrném stroji
                 # Pro 150 znaků (cca 10s) chceme dojít z 15% na 50% (+35%)
                 char_count = len(text)
                 estimated_seconds = max(3.0, char_count / 15.0)
                 # Kolik procent přidat každých 0.5 sekundy
-                increment = (35.0 / (estimated_seconds * 2.0))
+                increment = 35.0 / (estimated_seconds * 2.0)
 
                 while not heartbeat_stop.is_set():
                     time.sleep(0.5)
@@ -899,11 +1222,17 @@ class XTTSEngine:
                     # Postupně zvyšuj progress (15% → 55% během inference)
                     # Častější malé updaty + CSS transition na FE vytvoří plynulý pohyb
                     heartbeat_pct[0] = min(55.0, heartbeat_pct[0] + increment)
-                    _progress(heartbeat_pct[0], "tts", f"Generuji řeč… ({int(heartbeat_pct[0])}%)")
+                    _progress(
+                        heartbeat_pct[0],
+                        "tts",
+                        f"Generuji řeč… ({int(heartbeat_pct[0])}%)",
+                    )
 
             heartbeat_thread = None
             if job_id:
-                heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True)
+                heartbeat_thread = threading.Thread(
+                    target=heartbeat_worker, daemon=True
+                )
                 heartbeat_thread.start()
 
             try:
@@ -921,7 +1250,9 @@ class XTTSEngine:
                 except TypeError as e:
                     # Pokud některý parametr není podporován, zkusíme bez volitelných parametrů
                     error_msg = str(e)
-                    print(f"⚠️ Warning: Some parameters may not be supported: {error_msg}")
+                    print(
+                        f"⚠️ Warning: Some parameters may not be supported: {error_msg}"
+                    )
                     print("   Attempting with basic parameters only (temperature)...")
 
                     # Základní parametry + pouze temperature (nejčastěji podporované)
@@ -931,11 +1262,13 @@ class XTTSEngine:
                         "speaker_wav": speaker_wav,
                         "language": language,
                         "file_path": output_path,
-                        "temperature": temperature
+                        "temperature": temperature,
                     }
 
                     result = self.model.tts_to_file(**basic_params)
-                    print("   ⚠️ Note: Some advanced parameters (length_penalty, repetition_penalty, top_k, top_p) may not be supported by this XTTS version")
+                    print(
+                        "   ⚠️ Note: Some advanced parameters (length_penalty, repetition_penalty, top_k, top_p) may not be supported by this XTTS version"
+                    )
             finally:
                 # Zastav heartbeat
                 if heartbeat_thread:
@@ -973,36 +1306,54 @@ class XTTSEngine:
                             vad_processor = get_vad_processor()
                             padding = 20.0 if is_short_text else 50.0
                             audio_trimmed = vad_processor.trim_silence_vad(
-                                audio,
-                                sample_rate=sr,
-                                padding_ms=padding
+                                audio, sample_rate=sr, padding_ms=padding
                             )
                             if audio_trimmed is not None and len(audio_trimmed) > 0:
                                 audio = audio_trimmed
-                                print(f"✂️ VAD trim (před upsamplingem): {original_length:.1f}s → {len(audio)/sr:.1f}s")
+                                print(
+                                    f"✂️ VAD trim (před upsamplingem): {original_length:.1f}s → {len(audio) / sr:.1f}s"
+                                )
                         else:
                             # Fallback: agresivnější librosa trim
                             top_db = 40 if is_short_text else 30
-                            audio, _ = librosa.effects.trim(audio, top_db=top_db, frame_length=2048, hop_length=512)
-                            print(f"✂️ Librosa trim (před upsamplingem): {original_length:.1f}s → {len(audio)/sr:.1f}s")
+                            audio, _ = librosa.effects.trim(
+                                audio, top_db=top_db, frame_length=2048, hop_length=512
+                            )
+                            print(
+                                f"✂️ Librosa trim (před upsamplingem): {original_length:.1f}s → {len(audio) / sr:.1f}s"
+                            )
                     except Exception as e:
                         # Fallback: agresivnější librosa trim
                         top_db = 40 if is_short_text else 30
-                        audio, _ = librosa.effects.trim(audio, top_db=top_db, frame_length=2048, hop_length=512)
-                        print(f"✂️ Fallback trim (před upsamplingem): {original_length:.1f}s → {len(audio)/sr:.1f}s")
+                        audio, _ = librosa.effects.trim(
+                            audio, top_db=top_db, frame_length=2048, hop_length=512
+                        )
+                        print(
+                            f"✂️ Fallback trim (před upsamplingem): {original_length:.1f}s → {len(audio) / sr:.1f}s"
+                        )
 
                 # Maximální délka pro krátké texty (před upsamplingem)
                 if is_short_text:
                     max_duration_samples = int(5.0 * sr)
                     if len(audio) > max_duration_samples:
-                        print(f"⚠️ Krátký text ({word_count} slova) je příliš dlouhý ({len(audio)/sr:.1f}s), ořezávám na 5s")
+                        print(
+                            f"⚠️ Krátký text ({word_count} slova) je příliš dlouhý ({len(audio) / sr:.1f}s), ořezávám na 5s"
+                        )
                         audio = audio[:max_duration_samples]
 
                 # Upsampling na cílovou sample rate (pokud je jiná)
                 if sr != OUTPUT_SAMPLE_RATE:
-                    _progress(62, "upsample", f"Převzorkování z {sr} Hz na {OUTPUT_SAMPLE_RATE} Hz…")
-                    print(f"🎵 Upsampling audio z {sr} Hz na {OUTPUT_SAMPLE_RATE} Hz (CD kvalita)...")
-                    audio = librosa.resample(audio, orig_sr=sr, target_sr=OUTPUT_SAMPLE_RATE)
+                    _progress(
+                        62,
+                        "upsample",
+                        f"Převzorkování z {sr} Hz na {OUTPUT_SAMPLE_RATE} Hz…",
+                    )
+                    print(
+                        f"🎵 Upsampling audio z {sr} Hz na {OUTPUT_SAMPLE_RATE} Hz (CD kvalita)..."
+                    )
+                    audio = librosa.resample(
+                        audio, orig_sr=sr, target_sr=OUTPUT_SAMPLE_RATE
+                    )
                     sr = OUTPUT_SAMPLE_RATE
                     print(f"✅ Audio upsamplováno na {OUTPUT_SAMPLE_RATE} Hz")
 
@@ -1011,27 +1362,36 @@ class XTTSEngine:
                     try:
                         from backend.intonation_processor import IntonationProcessor
                         from backend.audio_enhancer import AudioEnhancer
-                        from backend.config import ENABLE_INTONATION_PROCESSING, ENABLE_PROSODY_CONTROL
+                        from backend.config import (
+                            ENABLE_INTONATION_PROCESSING,
+                            ENABLE_PROSODY_CONTROL,
+                        )
 
                         # Intonační post-processing
-                        if ENABLE_INTONATION_PROCESSING and prosody_metadata.get('intonation'):
+                        if ENABLE_INTONATION_PROCESSING and prosody_metadata.get(
+                            "intonation"
+                        ):
                             _progress(63, "intonation", "Aplikuji intonaci…")
-                            intonation_metadata = prosody_metadata.get('intonation', [])
+                            intonation_metadata = prosody_metadata.get("intonation", [])
 
                             if intonation_metadata:
-                                print(f"🎵 Aplikuji {len(intonation_metadata)} intonačních změn…")
+                                print(
+                                    f"🎵 Aplikuji {len(intonation_metadata)} intonačních změn…"
+                                )
                                 applied_count = 0
 
                                 for i, inton in enumerate(intonation_metadata):
-                                    inton_type = inton.get('intonation_type')
-                                    contour = inton.get('contour')
-                                    content = inton.get('content', '')
-                                    position = inton.get('position', 0)
-                                    length = inton.get('length', len(content))
-                                    intensity = inton.get('intensity', 1.0)
-                                    auto_detected = inton.get('auto_detected', False)
+                                    inton_type = inton.get("intonation_type")
+                                    contour = inton.get("contour")
+                                    content = inton.get("content", "")
+                                    position = inton.get("position", 0)
+                                    length = inton.get("length", len(content))
+                                    intensity = inton.get("intensity", 1.0)
+                                    auto_detected = inton.get("auto_detected", False)
 
-                                    print(f"   Intonace {i+1}: type={inton_type}, auto={auto_detected}, content='{content[:50]}', pos={position}, len={length}")
+                                    print(
+                                        f"   Intonace {i + 1}: type={inton_type}, auto={auto_detected}, content='{content[:50]}', pos={position}, len={length}"
+                                    )
 
                                     # Vypočítej pozice v audio (relativní k původnímu textu)
                                     text_length = len(text)
@@ -1042,161 +1402,287 @@ class XTTSEngine:
                                         start_sample = int(start_ratio * len(audio))
                                         end_sample = int(end_ratio * len(audio))
 
-                                        print(f"      Audio: text_len={text_length}, audio_len={len(audio)}, start={start_sample}, end={end_sample}")
+                                        print(
+                                            f"      Audio: text_len={text_length}, audio_len={len(audio)}, start={start_sample}, end={end_sample}"
+                                        )
 
-                                        if start_sample < end_sample and end_sample <= len(audio):
+                                        if (
+                                            start_sample < end_sample
+                                            and end_sample <= len(audio)
+                                        ):
                                             if contour:
                                                 # Aplikuj konturu
                                                 segment = audio[start_sample:end_sample]
-                                                modified_segment = IntonationProcessor.apply_contour(
-                                                    segment, sr, contour
+                                                modified_segment = (
+                                                    IntonationProcessor.apply_contour(
+                                                        segment, sr, contour
+                                                    )
                                                 )
-                                                audio[start_sample:end_sample] = modified_segment
+                                                audio[start_sample:end_sample] = (
+                                                    modified_segment
+                                                )
                                                 applied_count += 1
-                                                print(f"      ✅ Kontura aplikována na segment {start_sample}-{end_sample}")
+                                                print(
+                                                    f"      ✅ Kontura aplikována na segment {start_sample}-{end_sample}"
+                                                )
                                             elif inton_type:
                                                 # Pro automaticky detekovanou intonaci
-                                                if auto_detected and inton_type in ['FALL', 'RISE', 'HALF_FALL']:
-                                                    segment_length = end_sample - start_sample
+                                                if auto_detected and inton_type in [
+                                                    "FALL",
+                                                    "RISE",
+                                                    "HALF_FALL",
+                                                ]:
+                                                    segment_length = (
+                                                        end_sample - start_sample
+                                                    )
 
                                                     # Pro FALL aplikuj na celou větu pro výraznější a přirozenější pokles
-                                                    if inton_type == 'FALL':
+                                                    if inton_type == "FALL":
                                                         # Aplikuj FALL na celou větu - profil už má pokles jen na konci
                                                         intonation_start = start_sample
                                                         intonation_end = end_sample
 
                                                         # Zkontroluj, jestli je to vykřičník (vyšší intenzita)
-                                                        is_exclamation = inton.get('is_exclamation', False)
+                                                        is_exclamation = inton.get(
+                                                            "is_exclamation", False
+                                                        )
                                                         if is_exclamation:
                                                             # Pro vykřičník použij mírně vyšší intenzitu
                                                             fall_intensity = 1.2
-                                                            print(f"      Auto-detekce FALL (vykřičník!): aplikuji na celou větu ({intonation_start}-{intonation_end}, 100% věty, intensity={fall_intensity})")
+                                                            print(
+                                                                f"      Auto-detekce FALL (vykřičník!): aplikuji na celou větu ({intonation_start}-{intonation_end}, 100% věty, intensity={fall_intensity})"
+                                                            )
                                                         else:
                                                             # Přirozená intenzita pro běžný FALL
                                                             fall_intensity = 1.1
-                                                            print(f"      Auto-detekce FALL: aplikuji na celou větu ({intonation_start}-{intonation_end}, 100% věty, intensity={fall_intensity})")
-                                                    elif inton_type == 'RISE':
+                                                            print(
+                                                                f"      Auto-detekce FALL: aplikuji na celou větu ({intonation_start}-{intonation_end}, 100% věty, intensity={fall_intensity})"
+                                                            )
+                                                    elif inton_type == "RISE":
                                                         # Pro RISE stačí posledních 40% - stoupání je výraznější
-                                                        intonation_start = start_sample + int(segment_length * 0.6)
+                                                        intonation_start = (
+                                                            start_sample
+                                                            + int(segment_length * 0.6)
+                                                        )
                                                         intonation_end = end_sample
                                                         fall_intensity = intensity
-                                                        print(f"      Auto-detekce RISE: aplikuji na konec ({intonation_start}-{intonation_end}, {100*(intonation_end-intonation_start)/segment_length:.0f}% věty)")
+                                                        print(
+                                                            f"      Auto-detekce RISE: aplikuji na konec ({intonation_start}-{intonation_end}, {100 * (intonation_end - intonation_start) / segment_length:.0f}% věty)"
+                                                        )
                                                     else:  # HALF_FALL
-                                                        intonation_start = start_sample + int(segment_length * 0.7)
+                                                        intonation_start = (
+                                                            start_sample
+                                                            + int(segment_length * 0.7)
+                                                        )
                                                         intonation_end = end_sample
                                                         fall_intensity = intensity
-                                                        print(f"      Auto-detekce HALF_FALL: aplikuji na konec ({intonation_start}-{intonation_end}, {100*(intonation_end-intonation_start)/segment_length:.0f}% věty)")
+                                                        print(
+                                                            f"      Auto-detekce HALF_FALL: aplikuji na konec ({intonation_start}-{intonation_end}, {100 * (intonation_end - intonation_start) / segment_length:.0f}% věty)"
+                                                        )
 
-                                                    if intonation_start < intonation_end:
+                                                    if (
+                                                        intonation_start
+                                                        < intonation_end
+                                                    ):
                                                         audio = IntonationProcessor.apply_intonation_to_segment(
-                                                            audio, sr, intonation_start, intonation_end,
-                                                            inton_type, fall_intensity if inton_type == 'FALL' else intensity
+                                                            audio,
+                                                            sr,
+                                                            intonation_start,
+                                                            intonation_end,
+                                                            inton_type,
+                                                            fall_intensity
+                                                            if inton_type == "FALL"
+                                                            else intensity,
                                                         )
                                                         applied_count += 1
-                                                        print(f"      ✅ Intonace {inton_type} aplikována na segment {intonation_start}-{intonation_end}")
+                                                        print(
+                                                            f"      ✅ Intonace {inton_type} aplikována na segment {intonation_start}-{intonation_end}"
+                                                        )
                                                     else:
                                                         # Pokud je segment příliš krátký, aplikuj na celý
                                                         audio = IntonationProcessor.apply_intonation_to_segment(
-                                                            audio, sr, start_sample, end_sample,
-                                                            inton_type, fall_intensity if inton_type == 'FALL' else intensity
+                                                            audio,
+                                                            sr,
+                                                            start_sample,
+                                                            end_sample,
+                                                            inton_type,
+                                                            fall_intensity
+                                                            if inton_type == "FALL"
+                                                            else intensity,
                                                         )
                                                         applied_count += 1
-                                                        print(f"      ✅ Intonace {inton_type} aplikována na celý segment {start_sample}-{end_sample} (segment příliš krátký)")
+                                                        print(
+                                                            f"      ✅ Intonace {inton_type} aplikována na celý segment {start_sample}-{end_sample} (segment příliš krátký)"
+                                                        )
                                                 else:
                                                     # Pro explicitní značky aplikuj na celý segment
                                                     audio = IntonationProcessor.apply_intonation_to_segment(
-                                                        audio, sr, start_sample, end_sample,
-                                                        inton_type, intensity
+                                                        audio,
+                                                        sr,
+                                                        start_sample,
+                                                        end_sample,
+                                                        inton_type,
+                                                        intensity,
                                                     )
                                                     applied_count += 1
-                                                    print(f"      ✅ Intonace {inton_type} aplikována na segment {start_sample}-{end_sample}")
+                                                    print(
+                                                        f"      ✅ Intonace {inton_type} aplikována na segment {start_sample}-{end_sample}"
+                                                    )
                                         else:
-                                            print(f"      ⚠️ Intonace NENÍ aplikována: start={start_sample}, end={end_sample}, audio_len={len(audio)}")
+                                            print(
+                                                f"      ⚠️ Intonace NENÍ aplikována: start={start_sample}, end={end_sample}, audio_len={len(audio)}"
+                                            )
 
-                                print(f"✅ Intonace aplikována: {applied_count}/{len(intonation_metadata)}")
+                                print(
+                                    f"✅ Intonace aplikována: {applied_count}/{len(intonation_metadata)}"
+                                )
 
                         # Emphasis post-processing
-                        if ENABLE_PROSODY_CONTROL and prosody_metadata.get('emphasis'):
+                        if ENABLE_PROSODY_CONTROL and prosody_metadata.get("emphasis"):
                             _progress(64, "emphasis", "Aplikuji důraz…")
-                            emphasis_metadata = prosody_metadata.get('emphasis', [])
+                            emphasis_metadata = prosody_metadata.get("emphasis", [])
 
                             if emphasis_metadata:
                                 print(f"💪 Aplikuji {len(emphasis_metadata)} důrazů…")
                                 applied_count = 0
 
                                 for i, emph in enumerate(emphasis_metadata):
-                                    level = emph.get('level', 'MODERATE')
+                                    level = emph.get("level", "MODERATE")
                                     # Použij zpracovaný obsah a pozici (pokud existuje), jinak původní
-                                    processed_content = emph.get('processed_content', emph.get('content', ''))
-                                    processed_position = emph.get('processed_position', emph.get('position', 0))
-                                    processed_length = emph.get('processed_length', len(processed_content))
-                                    auto_detected_emphasis = emph.get('auto_detected', False)
+                                    processed_content = emph.get(
+                                        "processed_content", emph.get("content", "")
+                                    )
+                                    processed_position = emph.get(
+                                        "processed_position", emph.get("position", 0)
+                                    )
+                                    processed_length = emph.get(
+                                        "processed_length", len(processed_content)
+                                    )
+                                    auto_detected_emphasis = emph.get(
+                                        "auto_detected", False
+                                    )
 
-                                    print(f"   Emphasis {i+1}: level={level}, auto={auto_detected_emphasis}, content='{emph.get('content', '')[:30]}', processed='{processed_content[:30]}', pos={processed_position}, len={processed_length}")
+                                    print(
+                                        f"   Emphasis {i + 1}: level={level}, auto={auto_detected_emphasis}, content='{emph.get('content', '')[:30]}', processed='{processed_content[:30]}', pos={processed_position}, len={processed_length}"
+                                    )
 
                                     # Vypočítej pozice v audio (relativní k zpracovanému textu)
                                     text_length = len(text)
                                     if text_length > 0:
                                         # Odhad délky emphasis segmentu v audio
                                         if processed_length > 0:
-                                            content_ratio = processed_length / text_length
-                                            segment_length = int(content_ratio * len(audio))
+                                            content_ratio = (
+                                                processed_length / text_length
+                                            )
+                                            segment_length = int(
+                                                content_ratio * len(audio)
+                                            )
 
                                             # Najdi pozici v audio
-                                            position_ratio = processed_position / text_length
-                                            start_sample = int(position_ratio * len(audio))
-                                            end_sample = min(start_sample + segment_length, len(audio))
+                                            position_ratio = (
+                                                processed_position / text_length
+                                            )
+                                            start_sample = int(
+                                                position_ratio * len(audio)
+                                            )
+                                            end_sample = min(
+                                                start_sample + segment_length,
+                                                len(audio),
+                                            )
 
-                                            print(f"      Audio: text_len={text_length}, audio_len={len(audio)}, start={start_sample}, end={end_sample}, segment_len={segment_length}")
+                                            print(
+                                                f"      Audio: text_len={text_length}, audio_len={len(audio)}, start={start_sample}, end={end_sample}, segment_len={segment_length}"
+                                            )
 
-                                            if start_sample < end_sample and end_sample <= len(audio):
+                                            if (
+                                                start_sample < end_sample
+                                                and end_sample <= len(audio)
+                                            ):
                                                 # Aplikuj emphasis efekt na segment
                                                 segment = audio[start_sample:end_sample]
                                                 # Pro STRONG použij jemnější intenzitu (0.5), pro MODERATE standardní (0.6)
                                                 # Pro automaticky detekovaný emphasis z vykřičníku použij ještě vyšší intenzitu
-                                                if auto_detected_emphasis and emph.get('source') == 'exclamation':
+                                                if (
+                                                    auto_detected_emphasis
+                                                    and emph.get("source")
+                                                    == "exclamation"
+                                                ):
                                                     # Bezpečný důraz pro vykřičník (bez přebuzení)
                                                     emphasis_intensity = 0.7
-                                                elif level == 'STRONG':
+                                                elif level == "STRONG":
                                                     emphasis_intensity = 0.5  # Sníženo z 0.8 na 0.5 pro jemnější důraz
                                                 else:
-                                                    emphasis_intensity = 0.6  # Sníženo z 0.7 na 0.6
-                                                modified_segment = AudioEnhancer.apply_emphasis_effect(
-                                                    segment, sr, level=level, intensity=emphasis_intensity
+                                                    emphasis_intensity = (
+                                                        0.6  # Sníženo z 0.7 na 0.6
+                                                    )
+                                                modified_segment = (
+                                                    AudioEnhancer.apply_emphasis_effect(
+                                                        segment,
+                                                        sr,
+                                                        level=level,
+                                                        intensity=emphasis_intensity,
+                                                    )
                                                 )
 
                                                 # Vlož zpět s vyhlazením přechodů
-                                                fade_samples = min(int(sr * 0.01), len(modified_segment) // 4)  # 10ms fade
+                                                fade_samples = min(
+                                                    int(sr * 0.01),
+                                                    len(modified_segment) // 4,
+                                                )  # 10ms fade
                                                 if fade_samples > 0:
-                                                    fade_in = np.linspace(0.0, 1.0, fade_samples)
-                                                    fade_out = np.linspace(1.0, 0.0, fade_samples)
-                                                    modified_segment[:fade_samples] *= fade_in
-                                                    modified_segment[-fade_samples:] *= fade_out
+                                                    fade_in = np.linspace(
+                                                        0.0, 1.0, fade_samples
+                                                    )
+                                                    fade_out = np.linspace(
+                                                        1.0, 0.0, fade_samples
+                                                    )
+                                                    modified_segment[:fade_samples] *= (
+                                                        fade_in
+                                                    )
+                                                    modified_segment[
+                                                        -fade_samples:
+                                                    ] *= fade_out
 
-                                                audio[start_sample:end_sample] = modified_segment
+                                                audio[start_sample:end_sample] = (
+                                                    modified_segment
+                                                )
                                                 applied_count += 1
-                                                print(f"      ✅ Emphasis aplikován na segment {start_sample}-{end_sample}")
+                                                print(
+                                                    f"      ✅ Emphasis aplikován na segment {start_sample}-{end_sample}"
+                                                )
                                             else:
-                                                print(f"      ⚠️ Emphasis NENÍ aplikován: start={start_sample}, end={end_sample}, audio_len={len(audio)}")
+                                                print(
+                                                    f"      ⚠️ Emphasis NENÍ aplikován: start={start_sample}, end={end_sample}, audio_len={len(audio)}"
+                                                )
                                         else:
-                                            print(f"      ⚠️ Emphasis NENÍ aplikován: processed_length=0")
+                                            print(
+                                                f"      ⚠️ Emphasis NENÍ aplikován: processed_length=0"
+                                            )
                                     else:
-                                        print(f"      ⚠️ Emphasis NENÍ aplikován: text_length=0")
+                                        print(
+                                            f"      ⚠️ Emphasis NENÍ aplikován: text_length=0"
+                                        )
 
-                                print(f"✅ Důraz aplikován: {applied_count}/{len(emphasis_metadata)}")
+                                print(
+                                    f"✅ Důraz aplikován: {applied_count}/{len(emphasis_metadata)}"
+                                )
 
                         # Rate post-processing (rychlost řeči)
-                        if ENABLE_PROSODY_CONTROL and prosody_metadata.get('rate_changes'):
+                        if ENABLE_PROSODY_CONTROL and prosody_metadata.get(
+                            "rate_changes"
+                        ):
                             _progress(65, "rate", "Aplikuji rychlost…")
-                            rate_metadata = prosody_metadata.get('rate_changes', [])
+                            rate_metadata = prosody_metadata.get("rate_changes", [])
 
                             if rate_metadata:
-                                print(f"⚡ Aplikuji {len(rate_metadata)} změn rychlosti…")
+                                print(
+                                    f"⚡ Aplikuji {len(rate_metadata)} změn rychlosti…"
+                                )
 
                                 for rate_info in rate_metadata:
-                                    rate = rate_info.get('rate', 'NORMAL')
-                                    content = rate_info.get('content', '')
-                                    position = rate_info.get('position', 0)
+                                    rate = rate_info.get("rate", "NORMAL")
+                                    content = rate_info.get("content", "")
+                                    position = rate_info.get("position", 0)
 
                                     # Vypočítej pozice v audio
                                     text_length = len(text)
@@ -1204,53 +1690,98 @@ class XTTSEngine:
                                         content_length = len(content)
                                         if content_length > 0:
                                             content_ratio = content_length / text_length
-                                            segment_length = int(content_ratio * len(audio))
+                                            segment_length = int(
+                                                content_ratio * len(audio)
+                                            )
 
                                             position_ratio = position / text_length
-                                            start_sample = int(position_ratio * len(audio))
-                                            end_sample = min(start_sample + segment_length, len(audio))
+                                            start_sample = int(
+                                                position_ratio * len(audio)
+                                            )
+                                            end_sample = min(
+                                                start_sample + segment_length,
+                                                len(audio),
+                                            )
 
-                                            if start_sample < end_sample and end_sample <= len(audio):
+                                            if (
+                                                start_sample < end_sample
+                                                and end_sample <= len(audio)
+                                            ):
                                                 # Aplikuj rate efekt na segment
                                                 segment = audio[start_sample:end_sample]
-                                                modified_segment = AudioEnhancer.apply_rate_effect(
-                                                    segment, sr, rate=rate, intensity=1.0
+                                                modified_segment = (
+                                                    AudioEnhancer.apply_rate_effect(
+                                                        segment,
+                                                        sr,
+                                                        rate=rate,
+                                                        intensity=1.0,
+                                                    )
                                                 )
 
                                                 # Vlož zpět s vyhlazením přechodů
-                                                fade_samples = min(int(sr * 0.01), len(modified_segment) // 4)
+                                                fade_samples = min(
+                                                    int(sr * 0.01),
+                                                    len(modified_segment) // 4,
+                                                )
                                                 if fade_samples > 0:
-                                                    fade_in = np.linspace(0.0, 1.0, fade_samples)
-                                                    fade_out = np.linspace(1.0, 0.0, fade_samples)
-                                                    modified_segment[:fade_samples] *= fade_in
-                                                    modified_segment[-fade_samples:] *= fade_out
+                                                    fade_in = np.linspace(
+                                                        0.0, 1.0, fade_samples
+                                                    )
+                                                    fade_out = np.linspace(
+                                                        1.0, 0.0, fade_samples
+                                                    )
+                                                    modified_segment[:fade_samples] *= (
+                                                        fade_in
+                                                    )
+                                                    modified_segment[
+                                                        -fade_samples:
+                                                    ] *= fade_out
 
                                                 # Pokud se délka změnila, musíme upravit audio
-                                                length_diff = len(modified_segment) - len(segment)
+                                                length_diff = len(
+                                                    modified_segment
+                                                ) - len(segment)
                                                 if length_diff != 0:
                                                     # Vytvoř nové audio s upravenou délkou
-                                                    new_audio = np.zeros(len(audio) + length_diff, dtype=audio.dtype)
-                                                    new_audio[:start_sample] = audio[:start_sample]
-                                                    new_audio[start_sample:start_sample + len(modified_segment)] = modified_segment
-                                                    new_audio[start_sample + len(modified_segment):] = audio[end_sample:]
+                                                    new_audio = np.zeros(
+                                                        len(audio) + length_diff,
+                                                        dtype=audio.dtype,
+                                                    )
+                                                    new_audio[:start_sample] = audio[
+                                                        :start_sample
+                                                    ]
+                                                    new_audio[
+                                                        start_sample : start_sample
+                                                        + len(modified_segment)
+                                                    ] = modified_segment
+                                                    new_audio[
+                                                        start_sample
+                                                        + len(modified_segment) :
+                                                    ] = audio[end_sample:]
                                                     audio = new_audio
                                                 else:
-                                                    audio[start_sample:end_sample] = modified_segment
+                                                    audio[start_sample:end_sample] = (
+                                                        modified_segment
+                                                    )
 
                                 print(f"✅ Rychlost aplikována")
 
                         # Pitch post-processing (výška hlasu)
-                        if ENABLE_PROSODY_CONTROL and prosody_metadata.get('pitch_changes'):
+                        if ENABLE_PROSODY_CONTROL and prosody_metadata.get(
+                            "pitch_changes"
+                        ):
                             _progress(66, "pitch", "Aplikuji výšku hlasu…")
-                            pitch_metadata = prosody_metadata.get('pitch_changes', [])
+                            pitch_metadata = prosody_metadata.get("pitch_changes", [])
 
                             if pitch_metadata:
-                                print(f"🎵 Aplikuji {len(pitch_metadata)} změn výšky hlasu…")
+                                print(
+                                    f"🎵 Aplikuji {len(pitch_metadata)} změn výšky hlasu…"
+                                )
 
                                 for pitch_info in pitch_metadata:
-                                    pitch = pitch_info.get('pitch', 'NORMAL')
-                                    content = pitch_info.get('content', '')
-                                    position = pitch_info.get('position', 0)
+                                    pitch = pitch_info.get("pitch", "NORMAL")
+                                    content = pitch_info.get("content", "")
+                                    position = pitch_info.get("position", 0)
 
                                     # Vypočítej pozice v audio
                                     text_length = len(text)
@@ -1258,28 +1789,56 @@ class XTTSEngine:
                                         content_length = len(content)
                                         if content_length > 0:
                                             content_ratio = content_length / text_length
-                                            segment_length = int(content_ratio * len(audio))
+                                            segment_length = int(
+                                                content_ratio * len(audio)
+                                            )
 
                                             position_ratio = position / text_length
-                                            start_sample = int(position_ratio * len(audio))
-                                            end_sample = min(start_sample + segment_length, len(audio))
+                                            start_sample = int(
+                                                position_ratio * len(audio)
+                                            )
+                                            end_sample = min(
+                                                start_sample + segment_length,
+                                                len(audio),
+                                            )
 
-                                            if start_sample < end_sample and end_sample <= len(audio):
+                                            if (
+                                                start_sample < end_sample
+                                                and end_sample <= len(audio)
+                                            ):
                                                 # Aplikuj pitch efekt na segment
                                                 segment = audio[start_sample:end_sample]
-                                                modified_segment = AudioEnhancer.apply_pitch_effect(
-                                                    segment, sr, pitch=pitch, intensity=1.0
+                                                modified_segment = (
+                                                    AudioEnhancer.apply_pitch_effect(
+                                                        segment,
+                                                        sr,
+                                                        pitch=pitch,
+                                                        intensity=1.0,
+                                                    )
                                                 )
 
                                                 # Vlož zpět s vyhlazením přechodů
-                                                fade_samples = min(int(sr * 0.01), len(modified_segment) // 4)
+                                                fade_samples = min(
+                                                    int(sr * 0.01),
+                                                    len(modified_segment) // 4,
+                                                )
                                                 if fade_samples > 0:
-                                                    fade_in = np.linspace(0.0, 1.0, fade_samples)
-                                                    fade_out = np.linspace(1.0, 0.0, fade_samples)
-                                                    modified_segment[:fade_samples] *= fade_in
-                                                    modified_segment[-fade_samples:] *= fade_out
+                                                    fade_in = np.linspace(
+                                                        0.0, 1.0, fade_samples
+                                                    )
+                                                    fade_out = np.linspace(
+                                                        1.0, 0.0, fade_samples
+                                                    )
+                                                    modified_segment[:fade_samples] *= (
+                                                        fade_in
+                                                    )
+                                                    modified_segment[
+                                                        -fade_samples:
+                                                    ] *= fade_out
 
-                                                audio[start_sample:end_sample] = modified_segment
+                                                audio[start_sample:end_sample] = (
+                                                    modified_segment
+                                                )
 
                                 print(f"✅ Výška hlasu aplikována")
                     except Exception as e:
@@ -1290,14 +1849,22 @@ class XTTSEngine:
                 _progress(65, "upsample", "Upsampling dokončen")
 
             except Exception as e:
-                print(f"⚠️ Warning: Post-processing (upsampling) failed: {e}, continuing with original audio")
+                print(
+                    f"⚠️ Warning: Post-processing (upsampling) failed: {e}, continuing with original audio"
+                )
                 # Pokračujeme s původním audio
 
             # Post-processing audio enhancement (pokud je zapnuto)
-            if ENABLE_AUDIO_ENHANCEMENT and (enable_enhancement is None or enable_enhancement):
+            if ENABLE_AUDIO_ENHANCEMENT and (
+                enable_enhancement is None or enable_enhancement
+            ):
                 try:
                     # Použít předaný enhancement_preset, nebo výchozí z configu (pro kompatibilitu se starým kódem)
-                    preset_to_use = enhancement_preset if enhancement_preset else AUDIO_ENHANCEMENT_PRESET
+                    preset_to_use = (
+                        enhancement_preset
+                        if enhancement_preset
+                        else AUDIO_ENHANCEMENT_PRESET
+                    )
 
                     # Progress callback wrapper: mapuje 0-100 z AudioEnhancer na 68-88 v celkovém progressu
                     def enhance_progress(percent: float, stage: str, message: str):
@@ -1318,10 +1885,12 @@ class XTTSEngine:
                         whisper_intensity=whisper_intensity,
                         enable_vad=enable_vad,
                         target_headroom_db=target_headroom_db,
-                        progress_callback=enhance_progress
+                        progress_callback=enhance_progress,
                     )
                 except Exception as e:
-                    print(f"Warning: Audio enhancement failed: {e}, continuing with original audio")
+                    print(
+                        f"Warning: Audio enhancement failed: {e}, continuing with original audio"
+                    )
                     _progress(88, "enhance", "Enhancement přeskočen (chyba)")
 
             # HiFi-GAN Vocoder refinement (pokud zapnuto)
@@ -1348,7 +1917,7 @@ class XTTSEngine:
                         win_length=mel_params["win_length"],
                         n_mels=mel_params["n_mels"],
                         fmin=mel_params["fmin"],
-                        fmax=mel_params["fmax"]
+                        fmax=mel_params["fmax"],
                     )
 
                     # OPRAVA: HiFi-GAN očekává log-mel (v dB), ne power-mel
@@ -1363,14 +1932,22 @@ class XTTSEngine:
                         original_audio=original_audio,
                         refinement_intensity=hifigan_refinement_intensity,
                         normalize_output=hifigan_normalize_output,
-                        normalize_gain=hifigan_normalize_gain
+                        normalize_gain=hifigan_normalize_gain,
                     )
 
                     if refined_audio is not None:
                         # Uložení vylepšeného audio
                         sf.write(output_path, refined_audio, sr)
-                        used_intensity = hifigan_refinement_intensity if hifigan_refinement_intensity is not None else config.HIFIGAN_REFINEMENT_INTENSITY
-                        intensity_str = f" (intensity: {used_intensity:.2f})" if used_intensity is not None and used_intensity < 1.0 else ""
+                        used_intensity = (
+                            hifigan_refinement_intensity
+                            if hifigan_refinement_intensity is not None
+                            else config.HIFIGAN_REFINEMENT_INTENSITY
+                        )
+                        intensity_str = (
+                            f" (intensity: {used_intensity:.2f})"
+                            if used_intensity is not None and used_intensity < 1.0
+                            else ""
+                        )
                         print(f"✅ HiFi-GAN refinement dokončen{intensity_str}")
                     else:
                         print("⚠️ HiFi-GAN vocoding vrátil None, refinement přeskočen")
@@ -1393,7 +1970,9 @@ class XTTSEngine:
                     from backend.audio_processor import AudioProcessor
 
                     if AudioProcessor._check_ffmpeg():
-                        print(f"🎚️  Aplikuji změnu rychlosti (tempo) přes FFmpeg atempo: {speed_float}x")
+                        print(
+                            f"🎚️  Aplikuji změnu rychlosti (tempo) přes FFmpeg atempo: {speed_float}x"
+                        )
                         tmp_path = f"{output_path}.tmp_speed.wav"
                         # atempo podporuje 0.5–2.0 (což odpovídá validaci v API)
                         cmd = [
@@ -1410,7 +1989,12 @@ class XTTSEngine:
                             str(OUTPUT_SAMPLE_RATE),
                             tmp_path,
                         ]
-                        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+                        subprocess.run(
+                            cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            check=True,
+                        )
                         os.replace(tmp_path, str(output_path))
                         print("✅ Rychlost změněna (FFmpeg atempo)")
                     else:
@@ -1428,12 +2012,16 @@ class XTTSEngine:
                         audio, sr = librosa.load(output_path, sr=None)
                         # Pro rychlejší řeč potřebujeme méně samplů => target_sr = sr / speed
                         target_sr = max(8000, int(sr / speed_float))
-                        audio_rs = librosa.resample(audio, orig_sr=sr, target_sr=target_sr)
+                        audio_rs = librosa.resample(
+                            audio, orig_sr=sr, target_sr=target_sr
+                        )
                         # Zapíšeme při původním sr -> efekt rychlosti (s posunem pitch)
                         sf.write(output_path, audio_rs, sr)
                         print("✅ Rychlost změněna (fallback resampling)")
                     except Exception as e2:
-                        print(f"⚠️ Warning: Změna rychlosti selhala i ve fallbacku: {e2}, pokračuji bez změny rychlosti")
+                        print(
+                            f"⚠️ Warning: Změna rychlosti selhala i ve fallbacku: {e2}, pokračuji bez změny rychlosti"
+                        )
             else:
                 # Normální rychlost
                 pass
@@ -1446,12 +2034,20 @@ class XTTSEngine:
                 import soundfile as sf
 
                 audio, sr = librosa.load(output_path, sr=None)
-                final_headroom_db = target_headroom_db if target_headroom_db is not None else OUTPUT_HEADROOM_DB
+                final_headroom_db = (
+                    target_headroom_db
+                    if target_headroom_db is not None
+                    else OUTPUT_HEADROOM_DB
+                )
                 if final_headroom_db is not None:
                     try:
                         # Headroom funguje jako "ceiling" (strop): pokud je peak nad cílem, ztlumíme.
                         # Nechceme nikdy zesilovat tiché výstupy, protože to působí, že posuvník "nefunguje".
-                        peak = float(np.max(np.abs(audio))) if audio is not None and len(audio) else 0.0
+                        peak = (
+                            float(np.max(np.abs(audio)))
+                            if audio is not None and len(audio)
+                            else 0.0
+                        )
                         if peak > 0:
                             if float(final_headroom_db) < 0:
                                 target_peak = 10 ** (float(final_headroom_db) / 20.0)
@@ -1462,7 +2058,11 @@ class XTTSEngine:
                                 scale = target_peak / peak
                                 audio = audio * scale
                                 try:
-                                    peak_after = float(np.max(np.abs(audio))) if audio is not None and len(audio) else 0.0
+                                    peak_after = (
+                                        float(np.max(np.abs(audio)))
+                                        if audio is not None and len(audio)
+                                        else 0.0
+                                    )
                                     print(
                                         f"🔉 Headroom ceiling detail: headroom_db={float(final_headroom_db):.1f} dB, "
                                         f"peak_before={peak:.4f}, target_peak={target_peak:.4f}, scale={scale:.4f}, peak_after={peak_after:.4f}"
@@ -1480,12 +2080,16 @@ class XTTSEngine:
                                     pass
 
                         if not np.isfinite(audio).all():
-                            audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+                            audio = np.nan_to_num(
+                                audio, nan=0.0, posinf=0.0, neginf=0.0
+                            )
                     except Exception:
                         audio = np.clip(audio, -0.999, 0.999)
 
                     sf.write(output_path, audio, sr)
-                    print(f"🔉 Finální headroom ceiling: {final_headroom_db} dB (aplikováno jen pokud peak přesáhl cíl)")
+                    print(
+                        f"🔉 Finální headroom ceiling: {final_headroom_db} dB (aplikováno jen pokud peak přesáhl cíl)"
+                    )
             except Exception as e:
                 print(f"⚠️ Warning: Finální headroom selhal: {e}")
             # 99% necháme až pro úplně poslední krok v backend/main.py (těsně před done=100),
@@ -1494,11 +2098,10 @@ class XTTSEngine:
 
         except Exception as e:
             import traceback
+
             error_details = traceback.format_exc()
             print(f"Generate error details:\n{error_details}")
             raise Exception(f"Chyba při generování řeči: {str(e)}")
-
-
 
     async def warmup(self, demo_voice_path: Optional[str] = None):
         """
@@ -1542,7 +2145,7 @@ class XTTSEngine:
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
-        job_id: Optional[str] = None
+        job_id: Optional[str] = None,
     ) -> List[dict]:
         """
         Generuje více variant řeči s různými parametry
@@ -1571,21 +2174,18 @@ class XTTSEngine:
         base_seed = 42
 
         # Variace teplot pro různé varianty
-        temperature_variations = [
-            temperature - 0.1,
-            temperature,
-            temperature + 0.1
-        ]
+        temperature_variations = [temperature - 0.1, temperature, temperature + 0.1]
 
         for i in range(variant_count):
             if job_id:
                 try:
                     from backend.progress_manager import ProgressManager
+
                     ProgressManager.update(
                         job_id,
                         percent=2 + (90.0 * i / max(1, variant_count)),
                         stage="multi_pass",
-                        message=f"Generuji variantu {i+1}/{variant_count}…",
+                        message=f"Generuji variantu {i + 1}/{variant_count}…",
                         meta_update={"variant": i + 1, "variants_total": variant_count},
                     )
                 except Exception:
@@ -1627,19 +2227,21 @@ class XTTSEngine:
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity,
-                job_id=job_id
+                job_id=job_id,
             )
 
             filename = Path(output_path).name
             audio_url = f"/api/audio/{filename}"
 
-            variants.append({
-                "audio_url": audio_url,
-                "filename": filename,
-                "seed": variant_seed,
-                "temperature": variant_temp,
-                "index": i + 1
-            })
+            variants.append(
+                {
+                    "audio_url": audio_url,
+                    "filename": filename,
+                    "seed": variant_seed,
+                    "temperature": variant_temp,
+                    "index": i + 1,
+                }
+            )
 
         return variants
 
@@ -1668,7 +2270,7 @@ class XTTSEngine:
         enable_dialect_conversion: Optional[bool] = None,
         dialect_code: Optional[str] = None,
         dialect_intensity: float = 1.0,
-        job_id: Optional[str] = None
+        job_id: Optional[str] = None,
     ) -> str:
         """
         Generuje řeč pro dlouhý text pomocí batch processing
@@ -1698,19 +2300,27 @@ class XTTSEngine:
         chunks = self._split_text_by_xtts_tokens(text, language=language)
         token_counts = [self._count_xtts_tokens(c, language) for c in chunks]
         # fallback na délku v znacích, pokud tokenizer není k dispozici
-        units = [(tc if tc is not None and tc > 0 else max(1, len(ch))) for tc, ch in zip(token_counts, chunks)]
+        units = [
+            (tc if tc is not None and tc > 0 else max(1, len(ch)))
+            for tc, ch in zip(token_counts, chunks)
+        ]
         total_units = max(1, sum(units))
         done_units = 0
 
         if job_id:
             try:
                 from backend.progress_manager import ProgressManager
+
                 ProgressManager.update(
                     job_id,
                     percent=3,
                     stage="batch_prepare",
                     message=f"Rozděleno na {len(chunks)} částí…",
-                    meta_update={"chunks_total": len(chunks), "total_units": total_units, "unit": "tokens_or_chars"},
+                    meta_update={
+                        "chunks_total": len(chunks),
+                        "total_units": total_units,
+                        "unit": "tokens_or_chars",
+                    },
                 )
             except Exception:
                 pass
@@ -1743,7 +2353,7 @@ class XTTSEngine:
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity,
-                job_id=job_id
+                job_id=job_id,
             )
 
         print(f"📦 Batch processing: rozděleno na {len(chunks)} částí")
@@ -1754,6 +2364,7 @@ class XTTSEngine:
             if job_id:
                 try:
                     from backend.progress_manager import ProgressManager
+
                     # ETA: odhad z už hotových částí (sekundy / unit), po 1. části je to už celkem stabilní
                     now = time.time()
                     started_at = ProgressManager.get(job_id).get("started_at", now)  # type: ignore[union-attr]
@@ -1768,12 +2379,16 @@ class XTTSEngine:
                         percent=percent,
                         eta_seconds=eta,
                         stage="batch",
-                        message=f"Generuji část {i+1}/{len(chunks)}…",
-                        meta_update={"chunk": i + 1, "chunks_total": len(chunks), "done_units": done_units},
+                        message=f"Generuji část {i + 1}/{len(chunks)}…",
+                        meta_update={
+                            "chunk": i + 1,
+                            "chunks_total": len(chunks),
+                            "done_units": done_units,
+                        },
                     )
                 except Exception:
                     pass
-            print(f"   Generuji část {i+1}/{len(chunks)}...")
+            print(f"   Generuji část {i + 1}/{len(chunks)}...")
             chunk_output = await self.generate(
                 text=chunk,
                 speaker_wav=speaker_wav,
@@ -1800,7 +2415,7 @@ class XTTSEngine:
                 enable_dialect_conversion=enable_dialect_conversion,
                 dialect_code=dialect_code,
                 dialect_intensity=dialect_intensity,
-                job_id=job_id
+                job_id=job_id,
             )
             audio_files.append(chunk_output)
             done_units += units[i]
@@ -1808,6 +2423,7 @@ class XTTSEngine:
             if job_id:
                 try:
                     from backend.progress_manager import ProgressManager
+
                     now = time.time()
                     started_at = ProgressManager.get(job_id).get("started_at", now)  # type: ignore[union-attr]
                     elapsed = max(0.0, now - float(started_at))
@@ -1820,7 +2436,7 @@ class XTTSEngine:
                         percent=percent,
                         eta_seconds=eta,
                         stage="batch",
-                        message=f"Hotovo {i+1}/{len(chunks)} částí…",
+                        message=f"Hotovo {i + 1}/{len(chunks)} částí…",
                         meta_update={"done_units": done_units},
                     )
                 except Exception:
@@ -1834,14 +2450,19 @@ class XTTSEngine:
         if job_id:
             try:
                 from backend.progress_manager import ProgressManager
+
                 # concat + post tvoří posledních ~10–15%
-                ProgressManager.update(job_id, percent=92, stage="concat", message="Spojuji části…", eta_seconds=5)
+                ProgressManager.update(
+                    job_id,
+                    percent=92,
+                    stage="concat",
+                    message="Spojuji části…",
+                    eta_seconds=5,
+                )
             except Exception:
                 pass
         AudioConcatenator.concatenate_audio(
-            audio_files,
-            str(output_path),
-            crossfade_ms=50
+            audio_files, str(output_path), crossfade_ms=50
         )
 
         # Smazat dočasné části
@@ -1855,7 +2476,10 @@ class XTTSEngine:
         if job_id:
             try:
                 from backend.progress_manager import ProgressManager
-                ProgressManager.update(job_id, percent=95, stage="post", message="Dokončuji…")
+
+                ProgressManager.update(
+                    job_id, percent=95, stage="post", message="Dokončuji…"
+                )
             except Exception:
                 pass
         return str(output_path)
@@ -1867,7 +2491,7 @@ class XTTSEngine:
         default_language: str = "cs",
         speaker_map: Optional[Dict[str, str]] = None,
         job_id: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> str:
         """
         Generuje řeč pro text s více jazyky a mluvčími
@@ -1902,7 +2526,7 @@ class XTTSEngine:
 
             for m in pause_matches:
                 # Text před pauzou
-                part_before = text[last_pos:m.start()].strip()
+                part_before = text[last_pos : m.start()].strip()
                 if part_before:
                     text_parts.append(part_before)
 
@@ -1924,14 +2548,15 @@ class XTTSEngine:
 
             # Pokud máme části s pauzami, zpracuj každou část zvlášť a spoj s pauzami
             if len(text_parts) > 1:
-                print(f"   Rozděleno na {len(text_parts)} částí s {len(pauses_between)} pauzami")
+                print(
+                    f"   Rozděleno na {len(text_parts)} částí s {len(pauses_between)} pauzami"
+                )
                 audio_files = []
 
                 # Vytvoř processor
                 default_lang = default_language if default_language else "cs"
                 processor = MultiLangSpeakerProcessor(
-                    default_language=default_lang,
-                    default_speaker=default_speaker_wav
+                    default_language=default_lang, default_speaker=default_speaker_wav
                 )
 
                 # Registruj mluvčí
@@ -1947,7 +2572,9 @@ class XTTSEngine:
                     if len(part_segments) == 1:
                         seg = part_segments[0]
                         # Odstraň enable_batch z kwargs, protože ho explicitně nastavujeme
-                        part_kwargs = {k: v for k, v in kwargs.items() if k != 'enable_batch'}
+                        part_kwargs = {
+                            k: v for k, v in kwargs.items() if k != "enable_batch"
+                        }
                         part_audio = await self.generate(
                             text=seg.text,
                             speaker_wav=seg.speaker_wav or default_speaker_wav,
@@ -1955,7 +2582,7 @@ class XTTSEngine:
                             enable_batch=False,
                             handle_pauses=False,  # Pauzy už jsme zpracovali
                             job_id=None,
-                            **part_kwargs
+                            **part_kwargs,
                         )
                         audio_files.append(part_audio)
                     else:
@@ -1963,7 +2590,11 @@ class XTTSEngine:
                         part_audio_files = []
                         for seg in part_segments:
                             # Odstraň enable_trim a enable_batch z kwargs, protože ho explicitně nastavujeme
-                            seg_kwargs = {k: v for k, v in kwargs.items() if k not in ('enable_trim', 'enable_batch')}
+                            seg_kwargs = {
+                                k: v
+                                for k, v in kwargs.items()
+                                if k not in ("enable_trim", "enable_batch")
+                            }
                             seg_audio = await self.generate(
                                 text=seg.text,
                                 speaker_wav=seg.speaker_wav or default_speaker_wav,
@@ -1972,17 +2603,16 @@ class XTTSEngine:
                                 handle_pauses=False,
                                 enable_trim=False,
                                 job_id=None,
-                                **seg_kwargs
+                                **seg_kwargs,
                             )
                             part_audio_files.append(seg_audio)
 
                         # Spoj segmenty části
                         from backend.audio_concatenator import AudioConcatenator
+
                         temp_output = OUTPUTS_DIR / f"{uuid.uuid4()}.wav"
                         AudioConcatenator.concatenate_audio(
-                            part_audio_files,
-                            str(temp_output),
-                            crossfade_ms=100
+                            part_audio_files, str(temp_output), crossfade_ms=100
                         )
                         # Uklidit dočasné segmenty
                         for af in part_audio_files:
@@ -2000,6 +2630,7 @@ class XTTSEngine:
 
                 # Spoj všechny části s pauzami
                 from backend.audio_concatenator import AudioConcatenator
+
                 output_filename = f"{uuid.uuid4()}.wav"
                 output_path = OUTPUTS_DIR / output_filename
 
@@ -2008,6 +2639,7 @@ class XTTSEngine:
                 import librosa
                 import soundfile as sf
                 import numpy as np
+
                 sr = OUTPUT_SAMPLE_RATE
 
                 for i, audio_file in enumerate(audio_files):
@@ -2019,10 +2651,18 @@ class XTTSEngine:
                         pause_ms = pauses_between[i]
                         pause_samples = int(pause_ms * sr / 1000)
                         if pause_samples > 0:
-                            print(f"⏱️  Pause[{i}]: {pause_ms} ms => {pause_samples} samples")
-                            concatenated_audio.append(np.zeros(pause_samples, dtype=np.float32))
+                            print(
+                                f"⏱️  Pause[{i}]: {pause_ms} ms => {pause_samples} samples"
+                            )
+                            concatenated_audio.append(
+                                np.zeros(pause_samples, dtype=np.float32)
+                            )
 
-                final_audio = np.concatenate(concatenated_audio) if concatenated_audio else np.array([], dtype=np.float32)
+                final_audio = (
+                    np.concatenate(concatenated_audio)
+                    if concatenated_audio
+                    else np.array([], dtype=np.float32)
+                )
                 sf.write(str(output_path), final_audio, sr)
 
                 # Uklidit dočasné soubory
@@ -2032,7 +2672,9 @@ class XTTSEngine:
                     except Exception:
                         pass
 
-                print(f"✅ Multi-lang/speaker generování s pauzami dokončeno: {output_path}")
+                print(
+                    f"✅ Multi-lang/speaker generování s pauzami dokončeno: {output_path}"
+                )
                 return str(output_path)
 
         # Pokud nejsou pauzy, pokračuj normálně
@@ -2040,8 +2682,7 @@ class XTTSEngine:
         # Výchozí jazyk je čeština, pokud není zadán
         default_lang = default_language if default_language else "cs"
         processor = MultiLangSpeakerProcessor(
-            default_language=default_lang,
-            default_speaker=default_speaker_wav
+            default_language=default_lang, default_speaker=default_speaker_wav
         )
 
         # Registruj mluvčí
@@ -2055,12 +2696,13 @@ class XTTSEngine:
         if job_id:
             try:
                 from backend.progress_manager import ProgressManager
+
                 ProgressManager.update(
                     job_id,
                     percent=2,
                     stage="parse",
                     message=f"Parsováno {len(segments)} segmentů…",
-                    meta_update={"segments_total": len(segments)}
+                    meta_update={"segments_total": len(segments)},
                 )
             except Exception:
                 pass
@@ -2076,26 +2718,49 @@ class XTTSEngine:
             # Pro cross-language generování uprav parametry
             segment_kwargs = kwargs.copy()
             # Odstraň enable_batch z kwargs, protože ho explicitně nastavujeme
-            segment_kwargs.pop('enable_batch', None)
+            segment_kwargs.pop("enable_batch", None)
             speaker_wav_path = segment.speaker_wav or default_speaker_wav
             is_cross_language = False
 
             # Detekce cross-language: pokud je jazyk jiný než cs a hlas je pravděpodobně český
             if segment.language != "cs" and speaker_wav_path:
                 speaker_name = Path(speaker_wav_path).stem.lower()
-                czech_indicators = ['buchty', 'klepl', 'bohumil', 'werich', 'pohadka', 'brodsky', 'speakato']
+                czech_indicators = [
+                    "buchty",
+                    "klepl",
+                    "bohumil",
+                    "werich",
+                    "pohadka",
+                    "brodsky",
+                    "speakato",
+                ]
                 if any(indicator in speaker_name for indicator in czech_indicators):
                     is_cross_language = True
-                    print(f"⚠️ Cross-language detekce: používá se český hlas ({speaker_name}) pro jazyk {segment.language}")
-                    print(f"   Pro lepší kvalitu doporučujeme použít hlas v jazyce {segment.language}")
+                    print(
+                        f"⚠️ Cross-language detekce: používá se český hlas ({speaker_name}) pro jazyk {segment.language}"
+                    )
+                    print(
+                        f"   Pro lepší kvalitu doporučujeme použít hlas v jazyce {segment.language}"
+                    )
                     # Uprav parametry pro cross-language
-                    if 'temperature' not in segment_kwargs or segment_kwargs.get('temperature', 0.7) < 0.5:
-                        segment_kwargs['temperature'] = 0.7
-                    if 'length_penalty' not in segment_kwargs or segment_kwargs.get('length_penalty', 1.0) > 1.2:
-                        segment_kwargs['length_penalty'] = 1.0
-                    if 'repetition_penalty' not in segment_kwargs or segment_kwargs.get('repetition_penalty', 2.0) < 1.5:
-                        segment_kwargs['repetition_penalty'] = 2.0
-                    print(f"   Upravené parametry pro cross-language: temp={segment_kwargs.get('temperature', 0.7)}, length_penalty={segment_kwargs.get('length_penalty', 1.0)}")
+                    if (
+                        "temperature" not in segment_kwargs
+                        or segment_kwargs.get("temperature", 0.7) < 0.5
+                    ):
+                        segment_kwargs["temperature"] = 0.7
+                    if (
+                        "length_penalty" not in segment_kwargs
+                        or segment_kwargs.get("length_penalty", 1.0) > 1.2
+                    ):
+                        segment_kwargs["length_penalty"] = 1.0
+                    if (
+                        "repetition_penalty" not in segment_kwargs
+                        or segment_kwargs.get("repetition_penalty", 2.0) < 1.5
+                    ):
+                        segment_kwargs["repetition_penalty"] = 2.0
+                    print(
+                        f"   Upravené parametry pro cross-language: temp={segment_kwargs.get('temperature', 0.7)}, length_penalty={segment_kwargs.get('length_penalty', 1.0)}"
+                    )
 
             result = await self.generate(
                 text=segment.text,
@@ -2103,7 +2768,7 @@ class XTTSEngine:
                 language=segment.language,
                 enable_batch=False,  # Batch už řešíme na úrovni segmentů
                 job_id=job_id,
-                **segment_kwargs
+                **segment_kwargs,
             )
 
             # Pro krátké texty (1-3 slova) použij agresivnější trimování
@@ -2115,16 +2780,21 @@ class XTTSEngine:
                 try:
                     import librosa
                     import soundfile as sf
+
                     audio, sr = librosa.load(result, sr=None)
                     original_length = len(audio) / sr
 
                     # Maximální délka pro krátké texty (5 sekund)
                     max_duration_samples = int(5.0 * sr)
                     if len(audio) > max_duration_samples:
-                        print(f"⚠️ Krátký segment ({word_count} slova) je příliš dlouhý ({len(audio)/sr:.1f}s), ořezávám na 5s")
+                        print(
+                            f"⚠️ Krátký segment ({word_count} slova) je příliš dlouhý ({len(audio) / sr:.1f}s), ořezávám na 5s"
+                        )
                         audio = audio[:max_duration_samples]
                         sf.write(result, audio, sr)
-                        print(f"✂️ Finální ořez krátkého segmentu: {original_length:.1f}s → {len(audio)/sr:.1f}s")
+                        print(
+                            f"✂️ Finální ořez krátkého segmentu: {original_length:.1f}s → {len(audio) / sr:.1f}s"
+                        )
                 except Exception as e:
                     print(f"⚠️ Warning: Finální ořez krátkého segmentu selhal: {e}")
 
@@ -2136,20 +2806,31 @@ class XTTSEngine:
             if job_id:
                 try:
                     from backend.progress_manager import ProgressManager
+
                     ProgressManager.update(
                         job_id,
                         percent=5 + (85.0 * i / max(1, len(segments))),
                         stage="multi_segment",
-                        message=f"Generuji segment {i+1}/{len(segments)} ({segment.language})…",
-                        meta_update={"segment": i + 1, "segments_total": len(segments), "language": segment.language}
+                        message=f"Generuji segment {i + 1}/{len(segments)} ({segment.language})…",
+                        meta_update={
+                            "segment": i + 1,
+                            "segments_total": len(segments),
+                            "language": segment.language,
+                        },
                     )
                 except Exception:
                     pass
 
-            print(f"🎤 Generuji segment {i+1}/{len(segments)}: lang={segment.language}, speaker={segment.speaker_id or 'default'}")
+            print(
+                f"🎤 Generuji segment {i + 1}/{len(segments)}: lang={segment.language}, speaker={segment.speaker_id or 'default'}"
+            )
 
             # Odstraň enable_trim a enable_batch z kwargs, protože ho explicitně nastavujeme
-            segment_kwargs = {k: v for k, v in kwargs.items() if k not in ('enable_trim', 'enable_batch')}
+            segment_kwargs = {
+                k: v
+                for k, v in kwargs.items()
+                if k not in ("enable_trim", "enable_batch")
+            }
 
             # Pro cross-language generování (např. český hlas pro anglický text) použij lepší parametry
             # XTTS může mít problémy s cross-language cloning, takže upravíme parametry
@@ -2160,19 +2841,48 @@ class XTTSEngine:
             if segment.language != "cs" and speaker_wav_path:
                 # Zkontroluj název souboru - pokud obsahuje české názvy, je to cross-language
                 speaker_name = Path(speaker_wav_path).stem.lower()
-                czech_indicators = ['buchty', 'klepl', 'bohumil', 'werich', 'pohadka', 'brodsky', 'speakato']
+                czech_indicators = [
+                    "buchty",
+                    "klepl",
+                    "bohumil",
+                    "werich",
+                    "pohadka",
+                    "brodsky",
+                    "speakato",
+                ]
                 if any(indicator in speaker_name for indicator in czech_indicators):
                     is_cross_language = True
-                    print(f"⚠️ Cross-language detekce: používá se český hlas ({speaker_name}) pro jazyk {segment.language}")
-                    print(f"   Pro lepší kvalitu doporučujeme použít hlas v jazyce {segment.language}")
+                    print(
+                        f"⚠️ Cross-language detekce: používá se český hlas ({speaker_name}) pro jazyk {segment.language}"
+                    )
+                    print(
+                        f"   Pro lepší kvalitu doporučujeme použít hlas v jazyce {segment.language}"
+                    )
                     # Uprav parametry pro cross-language - vyšší temperature, nižší length_penalty
-                    if 'temperature' not in segment_kwargs or segment_kwargs.get('temperature', 0.7) < 0.5:
-                        segment_kwargs['temperature'] = 0.7  # Vyšší temperature pro lepší cross-language
-                    if 'length_penalty' not in segment_kwargs or segment_kwargs.get('length_penalty', 1.0) > 1.2:
-                        segment_kwargs['length_penalty'] = 1.0  # Nižší length_penalty pro kratší generování
-                    if 'repetition_penalty' not in segment_kwargs or segment_kwargs.get('repetition_penalty', 2.0) < 1.5:
-                        segment_kwargs['repetition_penalty'] = 2.0  # Vyšší repetition_penalty pro lepší kvalitu
-                    print(f"   Upravené parametry pro cross-language: temp={segment_kwargs.get('temperature', 0.7)}, length_penalty={segment_kwargs.get('length_penalty', 1.0)}")
+                    if (
+                        "temperature" not in segment_kwargs
+                        or segment_kwargs.get("temperature", 0.7) < 0.5
+                    ):
+                        segment_kwargs["temperature"] = (
+                            0.7  # Vyšší temperature pro lepší cross-language
+                        )
+                    if (
+                        "length_penalty" not in segment_kwargs
+                        or segment_kwargs.get("length_penalty", 1.0) > 1.2
+                    ):
+                        segment_kwargs["length_penalty"] = (
+                            1.0  # Nižší length_penalty pro kratší generování
+                        )
+                    if (
+                        "repetition_penalty" not in segment_kwargs
+                        or segment_kwargs.get("repetition_penalty", 2.0) < 1.5
+                    ):
+                        segment_kwargs["repetition_penalty"] = (
+                            2.0  # Vyšší repetition_penalty pro lepší kvalitu
+                        )
+                    print(
+                        f"   Upravené parametry pro cross-language: temp={segment_kwargs.get('temperature', 0.7)}, length_penalty={segment_kwargs.get('length_penalty', 1.0)}"
+                    )
 
             segment_audio = await self.generate(
                 text=segment.text,
@@ -2182,7 +2892,7 @@ class XTTSEngine:
                 handle_pauses=False,  # Pauzy řešíme na úrovni spojování
                 enable_trim=False,  # Vypneme trim pro jednotlivé segmenty - trimneme až při spojování
                 job_id=None,  # Nepředáváme job_id do jednotlivých segmentů
-                **segment_kwargs
+                **segment_kwargs,
             )
 
             # Pro krátké texty (1-3 slova) použij kontrolu délky před spojením
@@ -2193,16 +2903,21 @@ class XTTSEngine:
                 try:
                     import librosa
                     import soundfile as sf
+
                     audio, sr = librosa.load(segment_audio, sr=None)
                     original_length = len(audio) / sr
 
                     # Maximální délka pro krátké texty (5 sekund)
                     max_duration_samples = int(5.0 * sr)
                     if len(audio) > max_duration_samples:
-                        print(f"⚠️ Krátký segment {i+1} ({word_count} slova) je příliš dlouhý ({len(audio)/sr:.1f}s), ořezávám na 5s")
+                        print(
+                            f"⚠️ Krátký segment {i + 1} ({word_count} slova) je příliš dlouhý ({len(audio) / sr:.1f}s), ořezávám na 5s"
+                        )
                         audio = audio[:max_duration_samples]
                         sf.write(segment_audio, audio, sr)
-                        print(f"✂️ Finální ořez segmentu {i+1}: {original_length:.1f}s → {len(audio)/sr:.1f}s")
+                        print(
+                            f"✂️ Finální ořez segmentu {i + 1}: {original_length:.1f}s → {len(audio) / sr:.1f}s"
+                        )
                 except Exception as e:
                     print(f"⚠️ Warning: Finální ořez krátkého segmentu selhal: {e}")
 
@@ -2217,7 +2932,10 @@ class XTTSEngine:
         if job_id:
             try:
                 from backend.progress_manager import ProgressManager
-                ProgressManager.update(job_id, percent=92, stage="concat", message="Spojuji segmenty…")
+
+                ProgressManager.update(
+                    job_id, percent=92, stage="concat", message="Spojuji segmenty…"
+                )
             except Exception:
                 pass
 
@@ -2225,7 +2943,7 @@ class XTTSEngine:
         AudioConcatenator.concatenate_audio(
             audio_files,
             str(output_path),
-            crossfade_ms=100  # Zvýšený crossfade pro plynulejší přechody (100ms místo 50ms)
+            crossfade_ms=100,  # Zvýšený crossfade pro plynulejší přechody (100ms místo 50ms)
         )
 
         # Uklidit dočasné soubory
@@ -2241,4 +2959,3 @@ class XTTSEngine:
     def get_status(self) -> dict:
         """Vrátí status modelu"""
         return self.model_manager.get_status(vocoder=self.vocoder)
-

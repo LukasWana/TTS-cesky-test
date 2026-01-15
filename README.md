@@ -63,6 +63,33 @@ chmod +x run.sh
 
 ### Manuální instalace
 
+**⚠️ DŮLEŽITÉ:** Pokud spouštíte backend ručně (bez startovacích skriptů), **musíte aktivovat venv**:
+
+```bash
+# 1. Aktivujte virtual environment
+source venv/bin/activate  # Windows: venv\Scripts\activate.bat
+
+# 2. Nastavte PYTHONPATH
+export PYTHONPATH=$(pwd)  # Linux/Mac
+set PYTHONPATH=%CD%  # Windows (CMD)
+$env:PYTHONPATH=$(Get-Location).Path  # Windows (PowerShell)
+
+# 3. Spusťe backend
+python main.py
+```
+
+**❌ NEPOUŽÍVEJTE TOTO:**
+```bash
+cd backend
+python main.py
+```
+
+**Příčina:** Tento příkaz NEAKTIVUJE venv → Python nemůže najít modul TTS → `ModuleNotFoundError: No module named 'TTS'`
+
+**Řešení:** Použijte startovací skripty (`start_cpu.bat`, `start_gpu.bat`, `start_all.bat`), které automaticky aktivují venv a nastavují PYTHONPATH. Více viz sekce [▶️ Spuštění](#-spuštění) níže.
+
+---
+
 1. **Backend setup:**
 ```bash
 python -m venv venv
@@ -84,29 +111,86 @@ mkdir -p models uploads outputs frontend/assets/demo-voices
 
 ## ▶️ Spuštění
 
-### 1. Spuštění backendu
+### ⚠️ DŮLEŽITÉ: Správný způsob spuštění backendu
 
+**NEPOUŽÍVEJTE TOTO:**
 ```bash
-# Aktivace virtual environment
-source venv/bin/activate  # Windows: venv\Scripts\activate.bat
-
-# Spuštění serveru
 cd backend
 python main.py
 ```
 
-Backend poběží na `http://localhost:8000`
+**POUŽIJTE TOTO:**
+```bash
+# CPU režim
+.\start_cpu.bat
+
+# GPU režim (pokud máte NVIDIA GPU)
+.\start_gpu.bat
+
+# Vše (backend + frontend)
+.\start_all.bat
+```
+
+**Příčina:**
+- Při použití `cd backend && python main.py` se **NEAKTIVUJE** virtual environment (venv)
+- Python nemůže najít modul `TTS` → `ModuleNotFoundError: No module named 'TTS'`
+- Startovací skripty (`start_cpu.bat`, `start_gpu.bat`) automaticky aktivují venv a nastavují PYTHONPATH
+
+---
+
+### 1. Spuštění backendu (použijte startovací skripty)
+
+**VÝCHOZÍ ZPŮSOB:**
+```bash
+# CPU režim
+.\start_cpu.bat
+```
+
+**SKRIPTY automaticky:**
+1. ✅ Najdou kompatibilní verzi Pythonu (3.9, 3.10, nebo 3.11)
+2. ✅ Aktivují virtual environment (`venv`)
+3. ✅ Nastavují PYTHONPATH
+4. ✅ Nastavují UTF-8 kódování
+5. ✅ Instalují potřebné závislosti (pokud chybí)
+6. ✅ Spouštějí backend ve správném prostředí
+7. ✅ Otevírají prohlížeč na http://localhost:3000
+
+**Alternativa: Aktivace venv ručně (pokud potřebujete debugovat)**
+```bash
+# 1. Aktivujte venv
+call venv\Scripts\activate.bat
+
+# 2. Nastavte PYTHONPATH (přidá kořenový adresář projektu)
+set PYTHONPATH=%CD%
+
+# 3. Spusťe backend
+cd backend
+python main.py
+```
+
+**NEPOUŽÍVEJTE PRODUKČNÍ POUŽITÍ:**
+```bash
+cd backend
+python main.py
+```
+
+Tento příkaz NEAKTIVUJE venv → Python nemůže najít TTS modul → Backend se nespustí.
+
+---
 
 ### 2. Spuštění frontendu
 
-V novém terminálu:
+**Při použití `start_all.bat` nebo `start_cpu.bat` se frontend spouští automaticky.**
 
+**Ruční spuštění (pokud běží jen backend):**
 ```bash
 cd frontend
 npm run dev
 ```
 
 Frontend poběží na `http://localhost:3000`
+
+---
 
 ### 3. Otevření aplikace
 
@@ -138,6 +222,57 @@ Otevřete prohlížeč a přejděte na: **http://localhost:3000**
 4. Nahrajte minimálně 6 sekund čistého audio
 5. Klikněte na "⏹ Zastavit"
 6. Zadejte text a generujte řeč
+
+### 3. Chrome Extension Integration
+
+**POUŽÍVE TOTO:** Při použití Chrome Extension se backend spouští automaticky přes startovací skripty.
+
+**Spouštění Chrome Extension:**
+1. Ujistěte se, že backend běží na portu 8000 (použijte `start_cpu.bat`)
+2. Otevřete Chrome Extension
+3. Vyberte text s čárkami pro lepší testování
+4. Klikněte na "Přečti nahlas"
+
+**Zapnutí CZ Split by Commas pro Chrome Extension:**
+
+Upravte `.env` soubor:
+```env
+# Zapnutí dělení textu po čárkách a slovech
+ENABLE_CZ_SPLIT_BY_COMMAS=True
+
+# Maximální počet slov v jedné části (výchozí: 10)
+CZ_SPLIT_MAX_WORDS=10
+
+# Jazyky, které se dělí (výchozí: cs,sk)
+CZ_SPLIT_LANGUAGES=cs,sk
+```
+
+Nebo nastavte přes command line:
+```bash
+# Windows (CMD)
+set ENABLE_CZ_SPLIT_BY_COMMAS=True
+
+# Windows (PowerShell)
+$env:ENABLE_CZ_SPLIT_BY_COMMAS="True"
+
+# Linux/Mac
+export ENABLE_CZ_SPLIT_BY_COMMAS=True
+```
+
+**Restart backendu po změně nastavení:**
+```bash
+# Ukončete stávající backend (Ctrl+C)
+# Spusťte znovu
+.\start_cpu.bat
+```
+
+**Očekávané chování s CZ Split by Commas zapnutým:**
+- Text se rozdělí po čárkách a 8-10 slovech
+- Každá část se obalí uvozovkami pro lepší intonaci
+- Menší pokles intonace na konci každé části
+- Přirozenější spojení mezi částmi
+
+---
 
 ## 🎤 Demo hlasy
 
@@ -203,6 +338,33 @@ export XTTS_MODEL_NAME="tts_models/multilingual/multi-dataset/xtts_v2"  # TTS re
 - **GPU (4GB)**: 1-3 sekundy na generování
 - **GPU (8GB+)**: < 1 sekunda
 
+## ⚙️ Environment Variables
+
+Pro pokročilou konfiguraci můžete použít environment variables:
+
+### CZ Sentence Quotes (Uvozovky pro české věty)
+```bash
+# Zapnutí/Vypnutí přidávání uvozovek pro lepší intonaci českých vět
+# Výchozí: True (zapnuto)
+ENABLE_CZ_SENTENCE_QUOTES=True  # nebo False pro vypnutí
+```
+
+### CZ Split by Commas (Dělení textu po čárkách a slovech)
+```bash
+# Zapnutí/Vypnutí dělení textu po čárkách a 8-10 slovech pro lepší intonaci
+# Výchozí: False (vypnuto)
+ENABLE_CZ_SPLIT_BY_COMMAS=True  # nebo False pro vypnutí
+
+# Maximální počet slov v jedné části (výchozí: 10)
+CZ_SPLIT_MAX_WORDS=10  # nebo 8, 12 atd.
+
+# Jazyky, které se dělí (výchozí: cs,sk)
+CZ_SPLIT_LANGUAGES=cs,sk  # nebo jen cs, nebo cs,sk,en
+```
+
+### Jiné konfigurační proměnné
+Viz `backend/config.py` pro kompletní seznam možných nastavení.
+
 ## 🐛 Řešení problémů
 
 ### Model se nenačítá
@@ -216,6 +378,66 @@ export XTTS_MODEL_NAME="tts_models/multilingual/multi-dataset/xtts_v2"  # TTS re
 - Zkontrolujte, zda je text v češtině
 - Ujistěte se, že audio soubor má minimálně 6 sekund
 - Zkontrolujte logy v terminálu backendu
+
+### Chyba při generování
+
+- Zkontrolujte, zda je text v češtině
+- Ujistěte se, že audio soubor má minimálně 6 sekund
+- Zkontrolujte logy v terminálu backendu
+
+### ⚠️ Chyba: Backend se nespustí / ModuleNotFoundError
+
+**Příznaky:**
+```
+ModuleNotFoundError: No module named 'TTS'
+```
+**Příčina:** Backend není spuštěn ve virtual environment (venv) a Python nemůže najít modul TTS.
+
+**Řešení: POUŽIJTE startovací skripty**
+```bash
+# POŽIJTE TOTO:
+cd backend
+python main.py
+
+# POŽIJTE TOTO (správný způsob):
+.\start_cpu.bat          # CPU režim
+# nebo
+.\start_gpu.bat          # GPU režim (pokud máte NVIDIA GPU)
+# nebo
+.\start_all.bat          # Backend + Frontend + Applio
+```
+
+**Proč to nastává:**
+- Při použití `cd backend && python main.py` se NEAKTIVUJE virtual environment (venv)
+- TTS balíček je nainstalován jen v venv
+- Systémový Python nemá přístup k TTS modulu
+
+**Co dělají startovací skripty (správně):**
+1. Najdou kompatibilní verzi Pythonu (3.9-3.11)
+2. Aktivují virtual environment (venv)
+3. Nastavují PYTHONPATH
+4. Nastavují UTF-8 kódování
+5. Instalují potřebné závislosti (pokud chybí)
+6. Spouštějí backend ve správném prostředí
+
+**Pokud potřebujete debugovat backend ručně:**
+```bash
+# 1. Aktivujte venv
+call venv\Scripts\activate.bat    # Windows (CMD)
+venv\Scripts\Activate.ps1         # Windows (PowerShell)
+source venv/bin/activate         # Linux/Mac
+
+# 2. Nastavte PYTHONPATH
+set PYTHONPATH=%CD%              # Windows (CMD)
+$env:PYTHONPATH=$(pwd).Path      # Windows (PowerShell)
+export PYTHONPATH=$(pwd)          # Linux/Mac
+
+# 3. Spusťe backend
+cd backend
+python main.py
+```
+
+---
 
 ### Audio se nepřehrává
 
