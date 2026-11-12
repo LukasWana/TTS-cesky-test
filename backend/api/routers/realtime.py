@@ -24,7 +24,7 @@ from backend.config import (
 )
 from backend.api.helpers import get_demo_voice_path
 from backend.api.dependencies import tts_engine
-from backend.tts_engine import TTSEngine
+from backend.tts_engine import XTTSEngine
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +135,8 @@ async def handle_tts_request(client_id: str, data: dict):
         if data.get("stream", False):
             # Použij dělení po čárkách, pokud je zapnuté
             if lang in CZ_SPLIT_LANGUAGES and ENABLE_CZ_SPLIT_BY_COMMAS:
-                # Volat statickou metodu z TTSEngine
-                chunks = TTSEngine._split_text_by_commas_and_words(text, lang)
+                # Volat statickou metodu z XTTSEngine
+                chunks = XTTSEngine._split_text_by_commas_and_words(text, lang)
                 logger.info(
                     f"Streaming: {len(chunks)} chunks (CZ Split enabled, Max words: {CZ_SPLIT_MAX_WORDS})"
                 )
