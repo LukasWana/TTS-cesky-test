@@ -5,7 +5,7 @@ limit 25 KB. Historie je v gitu.
 
 ## Stav
 
-- Repo: `origin` = `github.com/LukasWana/TTS-cesky-test`, větev `main`, HEAD `15ce062` je pushnutý, pracovní strom čistý.
+- Repo: `origin` = `github.com/LukasWana/TTS-cesky-test`, větev `main`, poslední commit s kódem `15ce062` je pushnutý (po něm jen commity tohoto plánu), pracovní strom čistý.
 - `backend/api/routers/realtime.py` používá `XTTSEngine` (třída existuje v `backend/tts_engine.py:78`, metoda
   `_split_text_by_commas_and_words` na ř. 160; jiný odkaz na staré jméno `TTSEngine` v `backend/*.py` grep nenašel).
   Ověřeno jen čtením kódu, backend spuštěn nebyl.
@@ -17,7 +17,7 @@ limit 25 KB. Historie je v gitu.
    - `backend/api/routers/applio.py:44` — `from backend.applio.applio_client import ApplioGradioClient` (import je
      v `try`, `ImportError` se jen zaloguje);
    - `start_all.bat:415-416` — spouští `backend\applio\sync-voices.ps1` a `backend\applio\env\python.exe app.py`;
-   - `backend/main.py:70,146` — router `applio` se registruje (LITE režim ho podle ř. 52 přeskakuje);
+   - `backend/main.py:70,146` — router `applio` se registruje (LITE režim Applio podle hlášky na ř. 52 přeskakuje);
    - `.gitignore:91-110` — pravidla pro `backend/applio/*`;
    - celkem `grep -i applio` = 317 výskytů v 19 souborech (včetně dokumentace, testů `test_applio*.bat`,
      `backend/test_applio.py` a frontendu `AudioEditor.jsx`, `History.jsx`, `services/api.js`).
